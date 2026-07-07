@@ -1,0 +1,7 @@
+node_modules
+dist
+.env.local
+.env.*.local
+*.log
+.claude/settings.local.json
+.claude/scheduled_tasks.lock

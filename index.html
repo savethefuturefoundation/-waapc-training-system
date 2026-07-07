@@ -1,0 +1,247 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>WAAPC Training Centre — System</title>
+<link rel="stylesheet" href="/src/style.css">
+</head>
+<body>
+
+<div class="topbar">
+  <h1>WAAPC Training Centre — Console</h1>
+  <div class="role-switch">
+    <button id="btnAdminRole" class="active" onclick="setRole('admin')">Admin</button>
+    <button id="btnStudentRole" onclick="setRole('student')">Student Portal</button>
+  </div>
+</div>
+
+<div class="container">
+
+  <div id="adminView">
+    <div id="adminLoginCard" class="card">
+      <h2>Admin login</h2>
+      <label>Email</label>
+      <input id="adminEmail" type="email">
+      <label>Password</label>
+      <input id="adminPassword" type="password">
+      <button class="btn" onclick="adminLogin()">Log in</button>
+      <p id="adminLoginError" class="muted" style="color:#b81f2c;"></p>
+    </div>
+
+    <div id="adminDashboard" class="hidden">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+      <span class="muted" id="adminEmailDisplay"></span>
+      <button class="btn ghost small" onclick="adminLogout()">Log out</button>
+    </div>
+    <div class="tabs">
+      <button class="tab-btn active" data-tab="register" onclick="showTab('register')">New Registration</button>
+      <button class="tab-btn" data-tab="manage" onclick="showTab('manage')">Students & Payments</button>
+      <button class="tab-btn" data-tab="qb" onclick="showTab('qb')">Question Bank</button>
+    </div>
+
+    <div id="tab-register" class="tab-panel">
+      <div class="card">
+        <h2>Student information</h2>
+        <div class="grid3">
+          <div><label>Full name</label><input id="s_name"></div>
+          <div><label>Date of birth</label><input id="s_dob" type="date"></div>
+          <div><label>Gender</label><select id="s_gender"><option>Female</option><option>Male</option></select></div>
+          <div><label>Nationality</label><input id="s_nat"></div>
+          <div><label>Email (used for student login)</label><input id="s_email" type="email"></div>
+          <div><label>Phone</label><input id="s_phone"></div>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2>Parent / guardian information</h2>
+        <div class="grid3">
+          <div><label>Guardian name</label><input id="g_name"></div>
+          <div><label>Relationship</label><input id="g_rel" placeholder="Mother, Father, Guardian"></div>
+          <div><label>Guardian phone</label><input id="g_phone"></div>
+          <div><label>Guardian email</label><input id="g_email"></div>
+          <div style="grid-column: span 2;"><label>Address</label><input id="g_addr"></div>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2>Passport photo</h2>
+        <input type="file" id="s_photo" accept="image/*" onchange="handlePhoto(event)">
+        <img id="photoPreview" class="photo-preview hidden">
+      </div>
+
+      <div class="card">
+        <h2>Programs & schedule</h2>
+        <div id="programRows"></div>
+        <button class="btn ghost small" onclick="addProgramRow()">+ Add test / program</button>
+      </div>
+
+      <div class="card">
+        <h2>Payment plan (flexible)</h2>
+        <p class="muted">Program total: <b id="programTotal">0</b> CFA. Split into any number of installments — amounts must add up to the total.</p>
+        <div id="installmentRows"></div>
+        <button class="btn ghost small" onclick="addInstallmentRow()">+ Add installment</button>
+        <p class="muted" style="margin-top:10px;">Installments total: <b id="installTotal">0</b> CFA <span id="installWarning" style="color:#b81f2c; font-weight:bold;"></span></p>
+      </div>
+
+      <div class="card">
+        <h2>Notes</h2>
+        <textarea id="s_notes" rows="2"></textarea>
+        <button class="btn red" onclick="submitRegistration()">Register student & generate invoice</button>
+      </div>
+    </div>
+
+    <div id="tab-manage" class="tab-panel hidden">
+      <div class="card">
+        <h2>Registered students</h2>
+        <table id="studentsTable">
+          <thead><tr><th>Name</th><th>Program(s)</th><th>Invoice</th><th>Total</th><th>Balance</th><th>Status</th><th>Actions</th></tr></thead>
+          <tbody></tbody>
+        </table>
+        <div id="studentsEmpty" class="empty hidden">No students registered yet.</div>
+      </div>
+    </div>
+
+    <div id="tab-qb" class="tab-panel hidden">
+      <div class="card">
+        <h2>Choose test & subject</h2>
+        <div class="grid2">
+          <div><label>Test</label><select id="qb_test" onchange="qbOnTestChange()"></select></div>
+          <div><label>Subject</label><select id="qb_subject" onchange="qbLoadList()"></select></div>
+        </div>
+        <p class="muted" id="qb_count"></p>
+      </div>
+
+      <div id="qb_quizPanel">
+        <div class="card">
+          <h2>Bulk import from a spreadsheet (CSV)</h2>
+          <p class="muted">Prepare a spreadsheet with these columns, in this order: <b>Test, Subject, Question, OptionA, OptionB, OptionC, OptionD, Correct</b> (Correct = A, B, C, or D). Export it as CSV, then upload or paste below. Test and Subject names must match exactly what's in the system (e.g. "GED", "Mathematical Reasoning"). Only works for regular multiple-choice subjects — not Listening or Speaking.</p>
+          <input type="file" id="qb_csvfile" accept=".csv,text/csv" onchange="qbLoadCsvFile(event)">
+          <textarea id="qb_csvtext" rows="6" placeholder="Test,Subject,Question,OptionA,OptionB,OptionC,OptionD,Correct
+GED,Mathematical Reasoning,What is 7 x 8?,54,56,58,60,B"></textarea>
+          <button class="btn red" onclick="qbBulkImport()">Import all rows</button>
+          <div id="qb_importResult" style="margin-top:12px;"></div>
+        </div>
+
+        <div class="card">
+          <h2>Add a single question</h2>
+          <label>Question text</label>
+          <textarea id="qb_qtext" rows="2" placeholder="Type the question exactly as it should appear to students"></textarea>
+          <div class="grid2">
+            <div><label>Option A</label><input id="qb_optA"></div>
+            <div><label>Option B</label><input id="qb_optB"></div>
+            <div><label>Option C</label><input id="qb_optC"></div>
+            <div><label>Option D</label><input id="qb_optD"></div>
+          </div>
+          <label>Which option is correct?</label>
+          <select id="qb_correct">
+            <option value="0">Option A</option>
+            <option value="1">Option B</option>
+            <option value="2">Option C</option>
+            <option value="3">Option D</option>
+          </select>
+          <button class="btn red" onclick="qbAddQuestion()">Add question to bank</button>
+        </div>
+
+        <div class="card">
+          <h2>Questions in this subject's bank</h2>
+          <div id="qb_list"></div>
+          <div id="qb_listEmpty" class="empty hidden">No questions added yet for this subject.</div>
+        </div>
+      </div>
+
+      <div id="qb_listeningPanel" class="hidden">
+        <div class="card">
+          <h2>Listening passages</h2>
+          <div id="qb_passageList"></div>
+          <div id="qb_passageListEmpty" class="empty hidden">No listening passages yet for this subject.</div>
+        </div>
+
+        <div class="card">
+          <h2>Add a new passage</h2>
+          <label>Title (optional)</label>
+          <input id="qb_passageTitle" placeholder="e.g. Section 1">
+          <label>Audio file</label>
+          <input type="file" id="qb_passageAudio" accept="audio/*">
+          <button class="btn red" onclick="qbAddPassage()">Add passage</button>
+        </div>
+
+        <div class="card">
+          <h2>Add a question to a passage</h2>
+          <label>Passage</label>
+          <select id="qb_passageSelect"></select>
+          <label>Question text</label>
+          <textarea id="qb_lqtext" rows="2"></textarea>
+          <div class="grid2">
+            <div><label>Option A</label><input id="qb_loptA"></div>
+            <div><label>Option B</label><input id="qb_loptB"></div>
+            <div><label>Option C</label><input id="qb_loptC"></div>
+            <div><label>Option D</label><input id="qb_loptD"></div>
+          </div>
+          <label>Which option is correct?</label>
+          <select id="qb_lcorrect">
+            <option value="0">Option A</option>
+            <option value="1">Option B</option>
+            <option value="2">Option C</option>
+            <option value="3">Option D</option>
+          </select>
+          <button class="btn red" onclick="qbAddListeningQuestion()">Add question to passage</button>
+        </div>
+      </div>
+
+      <div id="qb_speakingPanel" class="hidden">
+        <div class="card">
+          <h2>Speaking prompts</h2>
+          <div id="qb_promptList"></div>
+          <div id="qb_promptListEmpty" class="empty hidden">No speaking prompts yet for this subject.</div>
+        </div>
+
+        <div class="card">
+          <h2>Add a new prompt</h2>
+          <textarea id="qb_promptText" rows="3" placeholder="e.g. Describe a memorable trip you have taken. You should say: where you went, who with, what you did, and explain why it was memorable."></textarea>
+          <button class="btn red" onclick="qbAddPrompt()">Add prompt</button>
+        </div>
+      </div>
+    </div>
+    </div>
+  </div>
+
+  <div id="studentView" class="hidden">
+    <div id="loginCard" class="card">
+      <h2>Student login</h2>
+      <div id="loginStep1">
+        <label>Email</label>
+        <input id="loginEmail" placeholder="Enter the email your school registered you with">
+        <button class="btn" onclick="studentCheckEmail()">Continue</button>
+      </div>
+      <div id="loginStep2" class="hidden">
+        <label id="loginPasswordLabel">Password</label>
+        <input id="loginPassword" type="password">
+        <button class="btn" id="loginSubmitBtn" onclick="studentSubmitPassword()">Log in</button>
+        <button class="btn ghost small" onclick="studentBackToEmail()">Use a different email</button>
+      </div>
+      <p id="loginError" class="muted" style="color:#b81f2c;"></p>
+    </div>
+
+    <div id="dashboardCard" class="hidden">
+      <div class="card">
+        <h2 id="welcomeMsg"></h2>
+        <div id="enrollmentsList"></div>
+      </div>
+      <div id="subjectArea"></div>
+      <button class="btn ghost small" onclick="studentLogout()">Log out</button>
+    </div>
+  </div>
+
+</div>
+
+<div id="docOverlay" class="doc-overlay">
+  <div class="doc-overlay-bar no-print">
+    <button class="btn ghost small" onclick="closeDoc()">Close</button>
+    <button class="btn small" onclick="window.print()">Print / Save as PDF</button>
+  </div>
+  <div id="docContent" class="doc-page"></div>
+</div>
+
+<script type="module" src="/src/main.js"></script>
+</body>
+</html>

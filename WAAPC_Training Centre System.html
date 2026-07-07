@@ -1,0 +1,5711 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>WAAPC Training Centre — System</title>
+<style>
+  * { box-sizing: border-box; }
+  body {
+    font-family: 'Helvetica Neue', Arial, sans-serif;
+    margin: 0; background: #eef1f7; color: #1a2b4a; font-size: 14px;
+  }
+  .topbar {
+    background: #1a2b6b; color: #fff; padding: 14px 24px;
+    display: flex; align-items: center; justify-content: space-between;
+  }
+  .topbar h1 { font-size: 18px; margin: 0; }
+  .topbar .role-switch { display: flex; gap: 8px; }
+  .topbar button {
+    background: transparent; border: 1px solid rgba(255,255,255,0.5);
+    color: #fff; padding: 7px 14px; border-radius: 4px; cursor: pointer; font-size: 13px;
+  }
+  .topbar button.active { background: #b81f2c; border-color: #b81f2c; font-weight: bold; }
+  .container { max-width: 1100px; margin: 0 auto; padding: 20px 24px 60px; }
+  .tabs { display: flex; gap: 6px; margin-bottom: 20px; flex-wrap: wrap; }
+  .tabs button {
+    background: #fff; border: 1px solid #d3d9e6; padding: 9px 16px; border-radius: 4px;
+    cursor: pointer; font-size: 13px; color: #1a2b6b;
+  }
+  .tabs button.active { background: #1a2b6b; color: #fff; border-color: #1a2b6b; }
+  .card { background: #fff; border-radius: 6px; padding: 20px 24px; margin-bottom: 18px; border: 1px solid #e0e4ec; }
+  .card h2 { font-size: 16px; color: #1a2b6b; margin: 0 0 14px 0; border-bottom: 2px solid #eef1f7; padding-bottom: 8px; }
+  label { display: block; font-size: 11px; font-weight: bold; color: #444; margin-bottom: 4px; letter-spacing: 0.3px; }
+  input, select, textarea {
+    width: 100%; padding: 8px 10px; border: 1px solid #d3d9e6; border-radius: 4px;
+    font-size: 13px; margin-bottom: 12px; font-family: inherit;
+  }
+  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 0 16px; }
+  .grid3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 0 16px; }
+  .grid4 { display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: 0 16px; }
+  .btn {
+    background: #1a2b6b; color: #fff; border: none; padding: 10px 20px;
+    border-radius: 4px; cursor: pointer; font-size: 13px; font-weight: bold;
+  }
+  .btn.red { background: #b81f2c; }
+  .btn.ghost { background: #fff; color: #1a2b6b; border: 1px solid #1a2b6b; }
+  .btn.small { padding: 5px 10px; font-size: 12px; }
+  .program-row, .installment-row {
+    display: grid; grid-template-columns: 1.4fr 1fr 0.9fr 0.9fr 0.7fr 0.9fr auto;
+    gap: 8px; align-items: center; margin-bottom: 8px; background: #f5f7fb; padding: 8px; border-radius: 4px;
+  }
+  .installment-row { grid-template-columns: 1fr 1fr 0.8fr auto; }
+  .program-row input, .program-row select, .installment-row input { margin-bottom: 0; }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th { background: #1a2b6b; color: #fff; text-align: left; padding: 9px 10px; font-size: 11px; }
+  td { padding: 9px 10px; border-bottom: 1px solid #e5e9f0; }
+  tr:nth-child(even) td { background: #f8f9fc; }
+  .badge { padding: 3px 9px; border-radius: 10px; font-size: 11px; font-weight: bold; }
+  .badge.unpaid { background: #fbe1e3; color: #b81f2c; }
+  .badge.partial { background: #fdf1d8; color: #a5691a; }
+  .badge.paid { background: #dff3e6; color: #1e7a45; }
+  .muted { color: #777; font-size: 12px; }
+  .photo-preview { width: 90px; height: 110px; object-fit: cover; border: 1px solid #d3d9e6; border-radius: 4px; }
+  .doc-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.55); z-index: 1000; overflow: auto; padding: 20px; display: none; }
+  .doc-overlay.show { display: block; }
+  .doc-overlay-bar { max-width: 800px; margin: 0 auto 10px; display: flex; justify-content: flex-end; gap: 8px; }
+  .doc-page { background: #fff; max-width: 800px; margin: 0 auto; padding: 36px 44px; border-radius: 4px; }
+  .subject-card { border: 1px solid #e0e4ec; border-radius: 6px; padding: 14px 16px; margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center; }
+  .subject-card .name { font-weight: bold; color: #1a2b6b; }
+  .subject-card .stats { font-size: 12px; color: #777; margin-top: 3px; }
+  .q-block { border-bottom: 1px solid #eef1f7; padding: 14px 0; }
+  .q-block .qtext { font-weight: bold; margin-bottom: 8px; }
+  .q-opt { display: block; padding: 7px 10px; border: 1px solid #d3d9e6; border-radius: 4px; margin-bottom: 6px; cursor: pointer; font-size: 13px; }
+  .q-opt.selected { border-color: #1a2b6b; background: #eef1f7; }
+  .q-opt.correct { border-color: #1e7a45; background: #dff3e6; }
+  .q-opt.wrong { border-color: #b81f2c; background: #fbe1e3; }
+  .score-banner { background: #1a2b6b; color: #fff; padding: 16px 20px; border-radius: 6px; text-align: center; margin-bottom: 16px; }
+  .score-banner .big { font-size: 32px; font-weight: bold; }
+  .empty { text-align: center; color: #888; padding: 30px; font-size: 13px; }
+  .hidden { display: none !important; }
+  .field-remove { background: #fbe1e3; color: #b81f2c; border: none; border-radius: 4px; width: 26px; height: 26px; cursor: pointer; }
+  @media print {
+    .topbar, .tabs, .no-print { display: none !important; }
+    .doc-overlay { position: static !important; background: none !important; padding: 0 !important; overflow: visible !important; }
+    .doc-page { box-shadow: none !important; margin: 0 !important; }
+    body { background: #fff; }
+  }
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <h1>WAAPC Training Centre — Console</h1>
+  <div class="role-switch">
+    <button id="btnAdminRole" class="active" onclick="setRole('admin')">Admin</button>
+    <button id="btnStudentRole" onclick="setRole('student')">Student Portal</button>
+  </div>
+</div>
+
+<div class="container">
+
+  <div id="adminView">
+    <div class="tabs">
+      <button class="tab-btn active" data-tab="register" onclick="showTab('register')">New Registration</button>
+      <button class="tab-btn" data-tab="manage" onclick="showTab('manage')">Students & Payments</button>
+      <button class="tab-btn" data-tab="qb" onclick="showTab('qb')">Question Bank</button>
+    </div>
+
+    <div id="tab-register" class="tab-panel">
+      <div class="card">
+        <h2>Student information</h2>
+        <div class="grid3">
+          <div><label>Full name</label><input id="s_name"></div>
+          <div><label>Date of birth</label><input id="s_dob" type="date"></div>
+          <div><label>Gender</label><select id="s_gender"><option>Female</option><option>Male</option></select></div>
+          <div><label>Nationality</label><input id="s_nat"></div>
+          <div><label>Email (used for student login)</label><input id="s_email" type="email"></div>
+          <div><label>Phone</label><input id="s_phone"></div>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2>Parent / guardian information</h2>
+        <div class="grid3">
+          <div><label>Guardian name</label><input id="g_name"></div>
+          <div><label>Relationship</label><input id="g_rel" placeholder="Mother, Father, Guardian"></div>
+          <div><label>Guardian phone</label><input id="g_phone"></div>
+          <div><label>Guardian email</label><input id="g_email"></div>
+          <div style="grid-column: span 2;"><label>Address</label><input id="g_addr"></div>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2>Passport photo</h2>
+        <input type="file" id="s_photo" accept="image/*" onchange="handlePhoto(event)">
+        <img id="photoPreview" class="photo-preview hidden">
+      </div>
+
+      <div class="card">
+        <h2>Programs & schedule</h2>
+        <div id="programRows"></div>
+        <button class="btn ghost small" onclick="addProgramRow()">+ Add test / program</button>
+      </div>
+
+      <div class="card">
+        <h2>Payment plan (flexible)</h2>
+        <p class="muted">Program total: <b id="programTotal">0</b> CFA. Split into any number of installments — amounts must add up to the total.</p>
+        <div id="installmentRows"></div>
+        <button class="btn ghost small" onclick="addInstallmentRow()">+ Add installment</button>
+        <p class="muted" style="margin-top:10px;">Installments total: <b id="installTotal">0</b> CFA <span id="installWarning" style="color:#b81f2c; font-weight:bold;"></span></p>
+      </div>
+
+      <div class="card">
+        <h2>Notes</h2>
+        <textarea id="s_notes" rows="2"></textarea>
+        <button class="btn red" onclick="submitRegistration()">Register student & generate invoice</button>
+      </div>
+    </div>
+
+    <div id="tab-manage" class="tab-panel hidden">
+      <div class="card">
+        <h2>Registered students</h2>
+        <table id="studentsTable">
+          <thead><tr><th>Name</th><th>Program(s)</th><th>Invoice</th><th>Total</th><th>Balance</th><th>Status</th><th>Actions</th></tr></thead>
+          <tbody></tbody>
+        </table>
+        <div id="studentsEmpty" class="empty hidden">No students registered yet.</div>
+      </div>
+    </div>
+
+    <div id="tab-qb" class="tab-panel hidden">
+      <div class="card">
+        <h2>Bulk import from a spreadsheet (CSV)</h2>
+        <p class="muted">Prepare a spreadsheet with these columns, in this order: <b>Test, Subject, Question, OptionA, OptionB, OptionC, OptionD, Correct</b> (Correct = A, B, C, or D). Export it as CSV, then upload or paste below. Test and Subject names must match exactly what's in the system (e.g. "GED", "Mathematical Reasoning").</p>
+        <input type="file" id="qb_csvfile" accept=".csv,text/csv" onchange="qbLoadCsvFile(event)">
+        <textarea id="qb_csvtext" rows="6" placeholder="Test,Subject,Question,OptionA,OptionB,OptionC,OptionD,Correct
+GED,Mathematical Reasoning,What is 7 x 8?,54,56,58,60,B"></textarea>
+        <button class="btn red" onclick="qbBulkImport()">Import all rows</button>
+        <div id="qb_importResult" style="margin-top:12px;"></div>
+      </div>
+
+      <div class="card">
+        <h2>Add a single question</h2>
+        <div class="grid2">
+          <div><label>Test</label><select id="qb_test" onchange="qbOnTestChange()"></select></div>
+          <div><label>Subject</label><select id="qb_subject" onchange="qbLoadList()"></select></div>
+        </div>
+        <p class="muted" id="qb_count"></p>
+        <label>Question text</label>
+        <textarea id="qb_qtext" rows="2" placeholder="Type the question exactly as it should appear to students"></textarea>
+        <div class="grid2">
+          <div><label>Option A</label><input id="qb_optA"></div>
+          <div><label>Option B</label><input id="qb_optB"></div>
+          <div><label>Option C</label><input id="qb_optC"></div>
+          <div><label>Option D</label><input id="qb_optD"></div>
+        </div>
+        <label>Which option is correct?</label>
+        <select id="qb_correct">
+          <option value="0">Option A</option>
+          <option value="1">Option B</option>
+          <option value="2">Option C</option>
+          <option value="3">Option D</option>
+        </select>
+        <button class="btn red" onclick="qbAddQuestion()">Add question to bank</button>
+      </div>
+
+      <div class="card">
+        <h2>Questions you've added for this subject</h2>
+        <div id="qb_list"></div>
+        <div id="qb_listEmpty" class="empty hidden">No custom questions added yet for this subject — the ones students see are the built-in starter set only.</div>
+      </div>
+    </div>
+  </div>
+
+  <div id="studentView" class="hidden">
+    <div id="loginCard" class="card">
+      <h2>Student login</h2>
+      <label>Email</label>
+      <input id="loginEmail" placeholder="Enter the email your school registered you with">
+      <button class="btn" onclick="studentLogin()">Log in</button>
+      <p id="loginError" class="muted" style="color:#b81f2c;"></p>
+    </div>
+
+    <div id="dashboardCard" class="hidden">
+      <div class="card">
+        <h2 id="welcomeMsg"></h2>
+        <div id="enrollmentsList"></div>
+      </div>
+      <div id="subjectArea"></div>
+      <button class="btn ghost small" onclick="studentLogout()">Log out</button>
+    </div>
+  </div>
+
+</div>
+
+<div id="docOverlay" class="doc-overlay">
+  <div class="doc-overlay-bar no-print">
+    <button class="btn ghost small" onclick="closeDoc()">Close</button>
+    <button class="btn small" onclick="window.print()">Print / Save as PDF</button>
+  </div>
+  <div id="docContent" class="doc-page"></div>
+</div>
+
+<script>
+const TEST_CATALOG = {
+  'GED': { price: 500000, duration: '3 months | 2 sessions/week', subjects: ['Reasoning Through Language Arts','Mathematical Reasoning','Science','Social Studies'] },
+  'SAT': { price: 250000, duration: '2 weeks | 2 sessions', subjects: ['Reading & Writing','Math'] },
+  'ACT': { price: 300000, duration: '3 weeks | 2 sessions/week', subjects: ['English','Math','Reading','Science'] },
+  'IELTS (Academic)': { price: 450000, duration: '1 month | 2 sessions/week', subjects: ['Listening','Reading','Writing','Speaking'] },
+  'TOEFL': { price: 400000, duration: '1 month | 2 sessions/week', subjects: ['Reading','Listening','Speaking','Writing'] },
+  'Intensive English Training': { price: 350000, duration: '12 weeks | 2 sessions/week', subjects: ['Grammar & Structures','Vocabulary Building','Reading Comprehension','Listening Comprehension','Writing Practice','Speaking Practice'] },
+  'ESAT': { price: 450000, duration: '1 month | 2 sessions/week', subjects: ['Mathematics 1','Physics','Chemistry','Biology'] },
+  'GRE': { price: 500000, duration: '1 month | 2 sessions/week', subjects: ['Verbal Reasoning','Quantitative Reasoning','Analytical Writing'] },
+  'UCAT': { price: 450000, duration: '1 month | 2 sessions/week', subjects: ['Verbal Reasoning','Decision Making','Quantitative Reasoning','Situational Judgement'] }
+};
+
+const QUESTION_BANKS = {
+  "GED": {
+    "Reasoning Through Language Arts": [
+      {
+        "q": "Choose the sentence that correctly fixes the run-on: 'The exam was difficult many students struggled.'",
+        "options": [
+          "The exam was difficult many, students struggled.",
+          "The exam was difficult, many students struggled.",
+          "The exam, was difficult many students struggled.",
+          "The exam was difficult; many students struggled."
+        ],
+        "answer": 3
+      },
+      {
+        "q": "Choose the sentence with correct subject-verb agreement.",
+        "options": [
+          "Each of the students having a book.",
+          "Each of the student has a book.",
+          "Each of the students have a book.",
+          "Each of the students has a book."
+        ],
+        "answer": 3
+      },
+      {
+        "q": "Which sentence uses the apostrophe correctly?",
+        "options": [
+          "The dogs' wagged its tail.",
+          "The dog wag's its tail.",
+          "The dog wagged its tail.",
+          "The dog wagged it's tail."
+        ],
+        "answer": 2
+      },
+      {
+        "q": "Choose the option with correct parallel structure: 'She likes hiking, to swim, and biking.'",
+        "options": [
+          "She like hiking, swim, and biking.",
+          "She likes hiking, to swim, and to bike.",
+          "She likes to hike, swimming, and to bike.",
+          "She likes hiking, swimming, and biking."
+        ],
+        "answer": 3
+      },
+      {
+        "q": "In 'The senator's argument was compelling, but ultimately specious,' the word 'specious' most nearly means:",
+        "options": [
+          "Convincing",
+          "Simple",
+          "Lengthy",
+          "Deceptive or misleading"
+        ],
+        "answer": 3
+      },
+      {
+        "q": "A passage focuses on the causes, events, and aftermath of a drought, centering on farmer migration. What is its main idea?",
+        "options": [
+          "The economic and social impact of the drought on farming communities",
+          "Modern irrigation technology",
+          "A biography of a farmer",
+          "Weather patterns in general"
+        ],
+        "answer": 0
+      },
+      {
+        "q": "An author writes: 'Our city must act now, before the river rises further.' This is primarily meant to:",
+        "options": [
+          "Persuade the reader to support urgent action",
+          "Describe a scene neutrally",
+          "Entertain the reader",
+          "Provide historical background only"
+        ],
+        "answer": 0
+      },
+      {
+        "q": "Choose the sentence with correct verb tense.",
+        "options": [
+          "By the time she arrive, the meeting had started.",
+          "By the time she arrived, the meeting had already started.",
+          "By the time she arrived, the meeting already started.",
+          "By the time she arrived, the meeting starts."
+        ],
+        "answer": 1
+      },
+      {
+        "q": "Choose the sentence with correct pronoun-antecedent agreement.",
+        "options": [
+          "Each student must bring his or her own laptop.",
+          "Every student must bring our own laptop.",
+          "Each students must bring their own laptop.",
+          "Each student must bring their own laptop."
+        ],
+        "answer": 0
+      },
+      {
+        "q": "Which of the following is a complete sentence, not a fragment?",
+        "options": [
+          "Because the rain would not stop.",
+          "Although the results were surprising.",
+          "Running through the park every morning.",
+          "The committee reviewed the proposal carefully."
+        ],
+        "answer": 3
+      },
+      {
+        "q": "Choose the best topic sentence for a paragraph about renewable energy adoption in rural areas.",
+        "options": [
+          "Rural communities are increasingly adopting renewable energy to reduce costs and improve reliability.",
+          "The weather was sunny yesterday.",
+          "Energy is important.",
+          "Solar panels come in many colors."
+        ],
+        "answer": 0
+      },
+      {
+        "q": "Identify the sentence fragment.",
+        "options": [
+          "Although the team practiced for hours.",
+          "They won because they practiced.",
+          "The team practiced, and they won.",
+          "The team practiced for hours."
+        ],
+        "answer": 0
+      },
+      {
+        "q": "Which version uses the more formal register appropriate for a business report?",
+        "options": [
+          "It was totally wrong, no cap.",
+          "The numbers were kind of off, you know?",
+          "The figures showed a notable discrepancy.",
+          "Stuff didn't add up right."
+        ],
+        "answer": 2
+      },
+      {
+        "q": "Choose the transition word that best connects two contrasting ideas: 'The company invested heavily in training. ____, turnover remained high.'",
+        "options": [
+          "Similarly",
+          "In addition",
+          "However",
+          "Therefore"
+        ],
+        "answer": 2
+      },
+      {
+        "q": "Which sentence best presents evidence supporting the claim that a policy was effective?",
+        "options": [
+          "The policy was good.",
+          "People liked the policy.",
+          "The policy was announced in March.",
+          "After the policy passed, unemployment fell by 4% within a year."
+        ],
+        "answer": 3
+      },
+      {
+        "q": "Choose the correctly capitalized sentence.",
+        "options": [
+          "My aunt Visited Paris in the Summer.",
+          "My aunt visited Paris in the summer.",
+          "My Aunt visited Paris in the summer.",
+          "my Aunt visited paris in the Summer."
+        ],
+        "answer": 1
+      },
+      {
+        "q": "Which sentence corrects the comma splice: 'The rain stopped, we went outside.'",
+        "options": [
+          "The rain stopped, we, went outside.",
+          "The rain stopped we, went outside.",
+          "The rain, stopped we went outside.",
+          "The rain stopped so we went outside."
+        ],
+        "answer": 3
+      },
+      {
+        "q": "Choose the word that best completes: 'The committee's decision was ______; no one expected such a bold move.'",
+        "options": [
+          "routine",
+          "forgettable",
+          "unprecedented",
+          "predictable"
+        ],
+        "answer": 2
+      },
+      {
+        "q": "Identify the best paraphrase of: 'Despite the setback, the team pressed on.'",
+        "options": [
+          "The team caused the setback.",
+          "The team was unaffected by anything.",
+          "The team quit after the setback.",
+          "The team continued working even after facing a difficulty."
+        ],
+        "answer": 3
+      },
+      {
+        "q": "Which sentence demonstrates correct use of a semicolon?",
+        "options": [
+          "I have a test tomorrow; I need to study tonight.",
+          "I have a test tomorrow, I need to study tonight;",
+          "I have a test; tomorrow I need to study tonight.",
+          "I have; a test tomorrow I need to study tonight."
+        ],
+        "answer": 0
+      }
+    ],
+    "Mathematical Reasoning": [
+      {
+        "q": "Solve: 5x - 7 = 18",
+        "options": [
+          "x = 5",
+          "x = 25",
+          "x = -5",
+          "x = 3"
+        ],
+        "answer": 0
+      },
+      {
+        "q": "Evaluate: 2(3 + 4)^2 - 10",
+        "options": [
+          "78",
+          "68",
+          "98",
+          "88"
+        ],
+        "answer": 3
+      },
+      {
+        "q": "What is 40% of 250?",
+        "options": [
+          "110",
+          "120",
+          "100",
+          "90"
+        ],
+        "answer": 2
+      },
+      {
+        "q": "Simplify: (x^2)(x^5)",
+        "options": [
+          "x^-3",
+          "x^7",
+          "x^3",
+          "x^10"
+        ],
+        "answer": 1
+      },
+      {
+        "q": "Solve for y: 2y/3 = 8",
+        "options": [
+          "16",
+          "12",
+          "8",
+          "24"
+        ],
+        "answer": 1
+      },
+      {
+        "q": "Find the area of a rectangle with length 8 and width 5.",
+        "options": [
+          "40",
+          "45",
+          "13",
+          "20"
+        ],
+        "answer": 0
+      },
+      {
+        "q": "Find the perimeter of a square with side length 6.",
+        "options": [
+          "18",
+          "24",
+          "12",
+          "36"
+        ],
+        "answer": 1
+      },
+      {
+        "q": "What is the formula for the circumference of a circle?",
+        "options": [
+          "πd/2",
+          "2πr",
+          "πr^2",
+          "r^2"
+        ],
+        "answer": 1
+      },
+      {
+        "q": "Find the mean of: 4, 8, 6, 10, 12",
+        "options": [
+          "7",
+          "9",
+          "8",
+          "10"
+        ],
+        "answer": 2
+      },
+      {
+        "q": "Find the median of: 3, 7, 9, 15, 20",
+        "options": [
+          "7",
+          "9",
+          "15",
+          "10"
+        ],
+        "answer": 1
+      },
+      {
+        "q": "Solve the inequality: 3x + 2 > 11",
+        "options": [
+          "x > 3",
+          "x > 13/3",
+          "x > 11",
+          "x < 3"
+        ],
+        "answer": 0
+      },
+      {
+        "q": "Convert 3/8 to a decimal.",
+        "options": [
+          "0.38",
+          "0.375",
+          "0.475",
+          "0.325"
+        ],
+        "answer": 1
+      },
+      {
+        "q": "Find the slope of the line through (1, 2) and (3, 8).",
+        "options": [
+          "3",
+          "2",
+          "6",
+          "1/3"
+        ],
+        "answer": 0
+      },
+      {
+        "q": "A right triangle has legs of 6 and 8. What is the length of the hypotenuse?",
+        "options": [
+          "10",
+          "9",
+          "12",
+          "14"
+        ],
+        "answer": 0
+      },
+      {
+        "q": "Solve the system: x + y = 10, x - y = 2. What is x?",
+        "options": [
+          "8",
+          "6",
+          "4",
+          "5"
+        ],
+        "answer": 1
+      },
+      {
+        "q": "Solve: 4(x - 2) = 20",
+        "options": [
+          "x = 5",
+          "x = 8",
+          "x = 6",
+          "x = 7"
+        ],
+        "answer": 3
+      },
+      {
+        "q": "What is 3^4?",
+        "options": [
+          "64",
+          "81",
+          "12",
+          "27"
+        ],
+        "answer": 1
+      },
+      {
+        "q": "Convert 0.25 to a fraction.",
+        "options": [
+          "1/4",
+          "1/5",
+          "1/2",
+          "2/5"
+        ],
+        "answer": 0
+      },
+      {
+        "q": "A car travels 150 miles in 3 hours. What is its average speed?",
+        "options": [
+          "45 mph",
+          "50 mph",
+          "55 mph",
+          "60 mph"
+        ],
+        "answer": 1
+      },
+      {
+        "q": "Find the volume of a cube with side length 4.",
+        "options": [
+          "48",
+          "16",
+          "32",
+          "64"
+        ],
+        "answer": 3
+      }
+    ],
+    "Science": [
+      {
+        "q": "Which organelle controls cell activities and contains DNA?",
+        "options": [
+          "Vacuole",
+          "Ribosome",
+          "Nucleus",
+          "Mitochondria"
+        ],
+        "answer": 2
+      },
+      {
+        "q": "Photosynthesis primarily occurs in which part of a plant cell?",
+        "options": [
+          "Nucleus",
+          "Chloroplast",
+          "Mitochondria",
+          "Cell wall"
+        ],
+        "answer": 1
+      },
+      {
+        "q": "What type of energy is stored in the chemical bonds of food?",
+        "options": [
+          "Nuclear",
+          "Thermal",
+          "Chemical",
+          "Kinetic"
+        ],
+        "answer": 2
+      },
+      {
+        "q": "Newton's first law of motion describes:",
+        "options": [
+          "Inertia — an object stays at rest or in motion unless acted on by a force",
+          "Gravity",
+          "Action and reaction forces",
+          "Acceleration equals force divided by mass"
+        ],
+        "answer": 0
+      },
+      {
+        "q": "What is the pH of a neutral solution?",
+        "options": [
+          "0",
+          "7",
+          "1",
+          "14"
+        ],
+        "answer": 1
+      },
+      {
+        "q": "Which layer of Earth is liquid and generates the planet's magnetic field?",
+        "options": [
+          "Mantle",
+          "Inner core",
+          "Crust",
+          "Outer core"
+        ],
+        "answer": 3
+      },
+      {
+        "q": "What is the process by which water changes from liquid to gas called?",
+        "options": [
+          "Sublimation",
+          "Precipitation",
+          "Evaporation",
+          "Condensation"
+        ],
+        "answer": 2
+      },
+      {
+        "q": "Which gas makes up the largest percentage of Earth's atmosphere?",
+        "options": [
+          "Carbon dioxide",
+          "Argon",
+          "Oxygen",
+          "Nitrogen"
+        ],
+        "answer": 3
+      },
+      {
+        "q": "Offspring inherit traits from their parents primarily through:",
+        "options": [
+          "Proteins directly",
+          "DNA and genes",
+          "Enzymes",
+          "Hormones"
+        ],
+        "answer": 1
+      },
+      {
+        "q": "Which force keeps planets in orbit around the sun?",
+        "options": [
+          "Gravity",
+          "Friction",
+          "Inertia",
+          "Magnetism"
+        ],
+        "answer": 0
+      },
+      {
+        "q": "Which type of rock forms from cooled magma or lava?",
+        "options": [
+          "Mineral",
+          "Metamorphic",
+          "Igneous",
+          "Sedimentary"
+        ],
+        "answer": 2
+      },
+      {
+        "q": "Which human body system is primarily responsible for gas exchange?",
+        "options": [
+          "Digestive",
+          "Respiratory",
+          "Nervous",
+          "Circulatory"
+        ],
+        "answer": 1
+      },
+      {
+        "q": "In an ecosystem, the primary producers are typically:",
+        "options": [
+          "Plants",
+          "Decomposers",
+          "Carnivores",
+          "Herbivores"
+        ],
+        "answer": 0
+      },
+      {
+        "q": "Which of these is a renewable energy source?",
+        "options": [
+          "Coal",
+          "Natural gas",
+          "Petroleum",
+          "Solar"
+        ],
+        "answer": 3
+      },
+      {
+        "q": "Speed is calculated as:",
+        "options": [
+          "Mass divided by time",
+          "Time divided by distance",
+          "Distance divided by time",
+          "Distance multiplied by time"
+        ],
+        "answer": 2
+      },
+      {
+        "q": "Which blood cell type primarily fights infection?",
+        "options": [
+          "White blood cells",
+          "Plasma cells only",
+          "Red blood cells",
+          "Platelets"
+        ],
+        "answer": 0
+      },
+      {
+        "q": "What is the primary function of the ozone layer?",
+        "options": [
+          "Absorbing harmful ultraviolet radiation",
+          "Producing oxygen",
+          "Trapping heat like a greenhouse",
+          "Creating wind patterns"
+        ],
+        "answer": 0
+      },
+      {
+        "q": "Which of these is an example of a chemical change?",
+        "options": [
+          "Melting of ice",
+          "Boiling of water",
+          "Breaking of glass",
+          "Rusting of iron"
+        ],
+        "answer": 3
+      },
+      {
+        "q": "In the water cycle, the process of water vapor turning into liquid droplets is called:",
+        "options": [
+          "Precipitation",
+          "Transpiration",
+          "Evaporation",
+          "Condensation"
+        ],
+        "answer": 3
+      },
+      {
+        "q": "Which planet is known for its prominent ring system?",
+        "options": [
+          "Mercury",
+          "Saturn",
+          "Venus",
+          "Mars"
+        ],
+        "answer": 1
+      }
+    ],
+    "Social Studies": [
+      {
+        "q": "Which document begins with the words 'We the People'?",
+        "options": [
+          "The Declaration of Independence",
+          "The Bill of Rights",
+          "The Magna Carta",
+          "The US Constitution"
+        ],
+        "answer": 3
+      },
+      {
+        "q": "The US federal government is divided into how many branches?",
+        "options": [
+          "5",
+          "4",
+          "2",
+          "3"
+        ],
+        "answer": 3
+      },
+      {
+        "q": "Which branch of government is responsible for making laws?",
+        "options": [
+          "Judicial",
+          "Administrative",
+          "Executive",
+          "Legislative"
+        ],
+        "answer": 3
+      },
+      {
+        "q": "The system of checks and balances is designed to:",
+        "options": [
+          "Balance the federal budget",
+          "Give more power to the states",
+          "Prevent any one branch from gaining too much power",
+          "Create political parties"
+        ],
+        "answer": 2
+      },
+      {
+        "q": "Which amendment to the US Constitution abolished slavery?",
+        "options": [
+          "19th Amendment",
+          "13th Amendment",
+          "15th Amendment",
+          "14th Amendment"
+        ],
+        "answer": 1
+      },
+      {
+        "q": "In a market economy, prices are primarily determined by:",
+        "options": [
+          "Corporate boards only",
+          "Supply and demand",
+          "Government decree",
+          "Foreign investors"
+        ],
+        "answer": 1
+      },
+      {
+        "q": "Which best describes inflation?",
+        "options": [
+          "Stable prices over time",
+          "A general increase in prices and a fall in the value of money",
+          "A general decrease in prices",
+          "An increase in wages only"
+        ],
+        "answer": 1
+      },
+      {
+        "q": "The Cold War was primarily a rivalry between:",
+        "options": [
+          "The United States and the Soviet Union",
+          "France and Germany",
+          "The United Kingdom and Spain",
+          "The United States and China"
+        ],
+        "answer": 0
+      },
+      {
+        "q": "A country's GDP measures:",
+        "options": [
+          "The total value of goods and services produced",
+          "Total exports only",
+          "Total population",
+          "Total land area"
+        ],
+        "answer": 0
+      },
+      {
+        "q": "Which geographic feature is a landform surrounded by water on three sides?",
+        "options": [
+          "Peninsula",
+          "Island",
+          "Isthmus",
+          "Plateau"
+        ],
+        "answer": 0
+      },
+      {
+        "q": "The right to a fair trial is protected under which part of the US Constitution?",
+        "options": [
+          "The Bill of Rights",
+          "The Articles of Confederation",
+          "The Federalist Papers",
+          "The Declaration of Independence"
+        ],
+        "answer": 0
+      },
+      {
+        "q": "Which economic system is characterized by private ownership and free markets?",
+        "options": [
+          "Socialism",
+          "Capitalism",
+          "Communism",
+          "Feudalism"
+        ],
+        "answer": 1
+      },
+      {
+        "q": "The division of power between national and state governments is called:",
+        "options": [
+          "Autocracy",
+          "Anarchy",
+          "Federalism",
+          "Democracy"
+        ],
+        "answer": 2
+      },
+      {
+        "q": "Which of the following was a major cause of World War I?",
+        "options": [
+          "The fall of the Berlin Wall",
+          "The Great Depression",
+          "The Cuban Missile Crisis",
+          "Alliances and nationalism combined with a triggering assassination"
+        ],
+        "answer": 3
+      },
+      {
+        "q": "A nation's balance of trade refers to the difference between:",
+        "options": [
+          "Savings and debt",
+          "Taxes and government spending",
+          "Wages and prices",
+          "The difference between a nation's exports and imports"
+        ],
+        "answer": 3
+      },
+      {
+        "q": "Which of these best defines 'due process'?",
+        "options": [
+          "The requirement to pay taxes",
+          "The process of amending the Constitution",
+          "The right to vote in elections",
+          "The government must follow fair legal procedures before depriving someone of life, liberty, or property"
+        ],
+        "answer": 3
+      },
+      {
+        "q": "What economic indicator measures the percentage of the labor force that is jobless and seeking work?",
+        "options": [
+          "Inflation rate",
+          "Interest rate",
+          "GDP growth rate",
+          "Unemployment rate"
+        ],
+        "answer": 3
+      },
+      {
+        "q": "The Emancipation Proclamation was issued by which US President?",
+        "options": [
+          "Thomas Jefferson",
+          "George Washington",
+          "Franklin D. Roosevelt",
+          "Abraham Lincoln"
+        ],
+        "answer": 3
+      },
+      {
+        "q": "Which of the following is a function of the United Nations?",
+        "options": [
+          "Promoting international peace and cooperation",
+          "Setting US tax policy",
+          "Enforcing US federal law",
+          "Electing US senators"
+        ],
+        "answer": 0
+      },
+      {
+        "q": "A tariff is best defined as:",
+        "options": [
+          "A trade agreement between two states",
+          "A tax imposed on imported goods",
+          "A federal minimum wage law",
+          "A type of government subsidy"
+        ],
+        "answer": 1
+      }
+    ]
+  },
+  "SAT": {
+    "Reading & Writing": [
+      {
+        "q": "Choose the word that best fits: The scientist's findings were ______ by later research.",
+        "options": [
+          "confused",
+          "corroborated",
+          "erased",
+          "ignored"
+        ],
+        "answer": 1
+      },
+      {
+        "q": "Which sentence uses correct subject-verb agreement?",
+        "options": [
+          "The list of items are on the table.",
+          "The list of item is on the table.",
+          "The list of items is on the table.",
+          "The lists of items is on table."
+        ],
+        "answer": 2
+      },
+      {
+        "q": "Choose the best transition: 'The bridge was closed for repairs. ____, traffic was rerouted through downtown.'",
+        "options": [
+          "However",
+          "For example",
+          "As a result",
+          "In contrast"
+        ],
+        "answer": 2
+      },
+      {
+        "q": "Identify the sentence with correct comma usage.",
+        "options": [
+          "After, the meeting we went to lunch.",
+          "After the meeting we went, to lunch.",
+          "After the meeting, we went to lunch.",
+          "After the meeting we, went to lunch."
+        ],
+        "answer": 2
+      },
+      {
+        "q": "Choose the word closest in meaning to 'ambiguous.'",
+        "options": [
+          "Brief",
+          "Loud",
+          "Unclear",
+          "Certain"
+        ],
+        "answer": 2
+      },
+      {
+        "q": "Which sentence corrects the misplaced modifier: 'Running quickly, the bus was missed by Sarah.'",
+        "options": [
+          "The bus, running quickly, was missed by Sarah.",
+          "Missed by Sarah, running quickly was the bus.",
+          "Running quickly, Sarah missed the bus.",
+          "Sarah, running quickly the bus was missed."
+        ],
+        "answer": 2
+      },
+      {
+        "q": "A passage that presents both sides of an issue before concluding uses a structure best described as:",
+        "options": [
+          "Chronological narrative",
+          "Compare and contrast",
+          "Cause and effect only",
+          "Pure description"
+        ],
+        "answer": 1
+      },
+      {
+        "q": "Choose the correct word: 'The committee will ______ its decision by Friday.'",
+        "options": [
+          "announced",
+          "announces",
+          "announcing",
+          "announce"
+        ],
+        "answer": 3
+      },
+      {
+        "q": "Which sentence uses correct semicolon usage?",
+        "options": [
+          "The report was thorough, it; covered every department.",
+          "The report; was thorough it covered every department.",
+          "The report was thorough; it covered every department.",
+          "The report was thorough it; covered every department."
+        ],
+        "answer": 2
+      },
+      {
+        "q": "Choose the best synonym for 'meticulous.'",
+        "options": [
+          "Quick",
+          "Careful and precise",
+          "Loud",
+          "Careless"
+        ],
+        "answer": 1
+      },
+      {
+        "q": "Which sentence correctly uses an em dash?",
+        "options": [
+          "The results were clear —, everyone had improved.",
+          "The results were clear — everyone had improved.",
+          "The results, were clear — everyone had improved.",
+          "The results were clear— everyone, had improved."
+        ],
+        "answer": 1
+      },
+      {
+        "q": "Identify the best concluding sentence for a paragraph about the benefits of exercise.",
+        "options": [
+          "Gyms are often crowded in January.",
+          "Some people prefer running to swimming.",
+          "Exercise can be done indoors or outdoors.",
+          "In short, regular exercise offers lasting benefits for both body and mind."
+        ],
+        "answer": 3
+      },
+      {
+        "q": "Choose the word that best fits: 'The novel's plot was ______, keeping readers engaged until the final page.'",
+        "options": [
+          "forgettable",
+          "boring",
+          "gripping",
+          "predictable"
+        ],
+        "answer": 2
+      },
+      {
+        "q": "Which sentence avoids redundancy?",
+        "options": [
+          "The final outcome was decided by the judges.",
+          "The final outcome result was decided by the judges.",
+          "The end final outcome was decided.",
+          "The final end result outcome was decided by the judges."
+        ],
+        "answer": 0
+      },
+      {
+        "q": "Choose the correct verb form: 'By next year, she ______ her degree.'",
+        "options": [
+          "will have completed",
+          "completed",
+          "completes",
+          "will complete"
+        ],
+        "answer": 0
+      }
+    ],
+    "Math": [
+      {
+        "q": "If 2x + 3 = 11, what is x?",
+        "options": [
+          "6",
+          "4",
+          "5",
+          "3"
+        ],
+        "answer": 1
+      },
+      {
+        "q": "What is the value of 5^2 - 3^2?",
+        "options": [
+          "9",
+          "34",
+          "25",
+          "16"
+        ],
+        "answer": 3
+      },
+      {
+        "q": "Simplify: 3(x + 4) - 2x",
+        "options": [
+          "5x + 12",
+          "3x + 12",
+          "x + 4",
+          "x + 12"
+        ],
+        "answer": 3
+      },
+      {
+        "q": "A line has slope 2 and passes through (0,3). What is its equation?",
+        "options": [
+          "y = -2x + 3",
+          "y = 3x + 2",
+          "y = 2x + 3",
+          "y = 2x - 3"
+        ],
+        "answer": 2
+      },
+      {
+        "q": "What is 3/4 expressed as a percentage?",
+        "options": [
+          "65%",
+          "70%",
+          "80%",
+          "75%"
+        ],
+        "answer": 3
+      },
+      {
+        "q": "Solve: x^2 = 49",
+        "options": [
+          "x = -7 only",
+          "x = 7 only",
+          "x = 7 or x = -7",
+          "x = 49"
+        ],
+        "answer": 2
+      },
+      {
+        "q": "If a rectangle's length is twice its width and the width is 5, what is the area?",
+        "options": [
+          "25",
+          "50",
+          "100",
+          "10"
+        ],
+        "answer": 1
+      },
+      {
+        "q": "What is the value of x if 3x - 4 = 2x + 6?",
+        "options": [
+          "6",
+          "10",
+          "14",
+          "4"
+        ],
+        "answer": 1
+      },
+      {
+        "q": "Simplify: 4x^2 / 2x",
+        "options": [
+          "8x",
+          "2x",
+          "x",
+          "2x^2"
+        ],
+        "answer": 1
+      },
+      {
+        "q": "What is the area of a circle with radius 5? (use pi = 3.14)",
+        "options": [
+          "31.4",
+          "50",
+          "15.7",
+          "78.5"
+        ],
+        "answer": 3
+      },
+      {
+        "q": "If y = 2x^2 and x = 3, what is y?",
+        "options": [
+          "36",
+          "18",
+          "12",
+          "9"
+        ],
+        "answer": 1
+      },
+      {
+        "q": "What is the value of |-7|?",
+        "options": [
+          "14",
+          "-7",
+          "7",
+          "0"
+        ],
+        "answer": 2
+      },
+      {
+        "q": "Solve: (x - 3)(x + 2) = 0",
+        "options": [
+          "x = 3 or x = 2",
+          "x = 3 or x = -2",
+          "x = -3 or x = 2",
+          "x = -3 or x = -2"
+        ],
+        "answer": 1
+      },
+      {
+        "q": "A jacket originally priced at 40,000 CFA is discounted by 25%. What is the new price?",
+        "options": [
+          "28,000 CFA",
+          "35,000 CFA",
+          "32,000 CFA",
+          "30,000 CFA"
+        ],
+        "answer": 3
+      },
+      {
+        "q": "What is the sum of the interior angles of a triangle?",
+        "options": [
+          "360 degrees",
+          "270 degrees",
+          "180 degrees",
+          "90 degrees"
+        ],
+        "answer": 2
+      }
+    ]
+  },
+  "ACT": {
+    "English": [
+      {
+        "q": "Choose the grammatically correct option.",
+        "options": [
+          "Neither of boys was late.",
+          "Neither of the boys was late.",
+          "Neither of the boys were late.",
+          "Neither of the boy was late."
+        ],
+        "answer": 1
+      },
+      {
+        "q": "Which sentence avoids a dangling modifier?",
+        "options": [
+          "Walking to school, the rain began to fall.",
+          "Walking to school the rain fell on me it began.",
+          "The rain, walking to school, began to fall.",
+          "Walking to school, I got caught in the rain."
+        ],
+        "answer": 3
+      },
+      {
+        "q": "Choose the correct word: 'The ____ of the policy was immediate.'",
+        "options": [
+          "affect",
+          "effect",
+          "affected",
+          "effecting"
+        ],
+        "answer": 1
+      },
+      {
+        "q": "Which punctuation correctly separates two independent clauses?",
+        "options": [
+          "Semicolon",
+          "No punctuation",
+          "Colon only",
+          "Comma alone"
+        ],
+        "answer": 0
+      },
+      {
+        "q": "Identify the sentence with correct pronoun case.",
+        "options": [
+          "Him and me went to the store.",
+          "He and me went to the store.",
+          "He and I went to the store.",
+          "Him and I went to the store."
+        ],
+        "answer": 2
+      },
+      {
+        "q": "Choose the correct form: 'The team ______ practicing every day.'",
+        "options": [
+          "are",
+          "were",
+          "is",
+          "have"
+        ],
+        "answer": 2
+      },
+      {
+        "q": "Identify the correctly punctuated sentence.",
+        "options": [
+          "Although tired she finished, the race.",
+          "Although tired, she finished the race.",
+          "Although, tired she finished the race.",
+          "Although tired she, finished the race."
+        ],
+        "answer": 1
+      },
+      {
+        "q": "Choose the word that best fits: 'His argument was ______; it lacked any supporting evidence.'",
+        "options": [
+          "convincing",
+          "factual",
+          "unsubstantiated",
+          "detailed"
+        ],
+        "answer": 2
+      },
+      {
+        "q": "Which sentence correctly uses 'its' vs 'it's'?",
+        "options": [
+          "Its important to check its battery level.",
+          "It's important to check it's battery level.",
+          "Its important to check it's battery level.",
+          "It's important to check its battery level."
+        ],
+        "answer": 3
+      },
+      {
+        "q": "Choose the sentence with correct word order.",
+        "options": [
+          "She her homework quickly finished.",
+          "Quickly she her homework finished.",
+          "She quickly finished her homework.",
+          "She finished quickly her homework."
+        ],
+        "answer": 2
+      },
+      {
+        "q": "Identify the sentence free of redundancy.",
+        "options": [
+          "The plan was finished completely totally.",
+          "The plan was completely finished.",
+          "The plan, completely, was totally finished.",
+          "The plan was completely totally finished."
+        ],
+        "answer": 1
+      },
+      {
+        "q": "Choose the correct comparative form: 'This test was ______ than the last one.'",
+        "options": [
+          "harder",
+          "most hard",
+          "hardest",
+          "more harder"
+        ],
+        "answer": 0
+      }
+    ],
+    "Math": [
+      {
+        "q": "Solve: 4x - 9 = 15",
+        "options": [
+          "8",
+          "6",
+          "4",
+          "5"
+        ],
+        "answer": 1
+      },
+      {
+        "q": "What is the perimeter of a triangle with sides 5, 6, and 7?",
+        "options": [
+          "17",
+          "16",
+          "18",
+          "19"
+        ],
+        "answer": 2
+      },
+      {
+        "q": "Simplify: (x+3)(x-3)",
+        "options": [
+          "x^2 - 6x - 9",
+          "x^2 + 9",
+          "x^2 - 9",
+          "x^2 + 6x - 9"
+        ],
+        "answer": 2
+      },
+      {
+        "q": "What is the least common multiple of 4 and 6?",
+        "options": [
+          "8",
+          "18",
+          "12",
+          "24"
+        ],
+        "answer": 2
+      },
+      {
+        "q": "Convert 0.6 to a fraction in lowest terms.",
+        "options": [
+          "3/4",
+          "3/5",
+          "6/10",
+          "2/3"
+        ],
+        "answer": 1
+      },
+      {
+        "q": "Solve: 2x^2 = 32",
+        "options": [
+          "x = -8",
+          "x = 8",
+          "x = 4 or x = -4",
+          "x = 16"
+        ],
+        "answer": 2
+      },
+      {
+        "q": "What is the value of 6 factorial divided by 5 factorial?",
+        "options": [
+          "6",
+          "120",
+          "30",
+          "1"
+        ],
+        "answer": 0
+      },
+      {
+        "q": "If a triangle has angles of 50 and 60 degrees, what is the third angle?",
+        "options": [
+          "60 degrees",
+          "90 degrees",
+          "80 degrees",
+          "70 degrees"
+        ],
+        "answer": 3
+      },
+      {
+        "q": "What is the distance between points (0,0) and (3,4)?",
+        "options": [
+          "5",
+          "7",
+          "6",
+          "4"
+        ],
+        "answer": 0
+      },
+      {
+        "q": "Simplify: (3x)(4x^2)",
+        "options": [
+          "12x^2",
+          "7x^3",
+          "7x^2",
+          "12x^3"
+        ],
+        "answer": 3
+      },
+      {
+        "q": "What is 2/5 + 1/5?",
+        "options": [
+          "3/5",
+          "1/5",
+          "3/10",
+          "2/10"
+        ],
+        "answer": 0
+      },
+      {
+        "q": "If f(x) = x^2 - 1, what is f(3)?",
+        "options": [
+          "6",
+          "9",
+          "10",
+          "8"
+        ],
+        "answer": 3
+      }
+    ],
+    "Reading": [
+      {
+        "q": "A passage's tone that is critical but respectful is best described as:",
+        "options": [
+          "Measured",
+          "Scathing",
+          "Flattering",
+          "Indifferent"
+        ],
+        "answer": 0
+      },
+      {
+        "q": "When an author includes a quotation from an expert, this is primarily meant to:",
+        "options": [
+          "Add humor",
+          "Support the argument with authority",
+          "Confuse the reader",
+          "Contradict the thesis"
+        ],
+        "answer": 1
+      },
+      {
+        "q": "A passage that moves from general claims to specific examples uses which structure?",
+        "options": [
+          "Circular reasoning",
+          "Deductive reasoning",
+          "Random ordering",
+          "Pure narration"
+        ],
+        "answer": 1
+      },
+      {
+        "q": "The 'central claim' of a passage is best described as its:",
+        "options": [
+          "Concluding question",
+          "First sentence only",
+          "Main argument or thesis",
+          "List of examples"
+        ],
+        "answer": 2
+      },
+      {
+        "q": "An author who presents statistics before making a claim is most likely trying to:",
+        "options": [
+          "Confuse the reader",
+          "Avoid making an argument",
+          "Entertain with numbers",
+          "Establish credibility through evidence"
+        ],
+        "answer": 3
+      },
+      {
+        "q": "Which best describes a passage's 'point of view'?",
+        "options": [
+          "The vocabulary level used",
+          "The perspective from which the story or argument is presented",
+          "The topic of the passage",
+          "The length of the passage"
+        ],
+        "answer": 1
+      },
+      {
+        "q": "A passage that uses 'first, next, finally' is organized:",
+        "options": [
+          "Chronologically",
+          "By comparison",
+          "Randomly",
+          "By cause and effect only"
+        ],
+        "answer": 0
+      },
+      {
+        "q": "The best definition of 'context clues' is:",
+        "options": [
+          "A footnote citation",
+          "A dictionary definition",
+          "The title of the passage",
+          "Hints within the surrounding text that help define an unfamiliar word"
+        ],
+        "answer": 3
+      },
+      {
+        "q": "Which is an example of a counterargument in a persuasive passage?",
+        "options": [
+          "Acknowledging an opposing view before refuting it",
+          "Repeating the main claim",
+          "Providing only supporting evidence",
+          "Ignoring opposing views entirely"
+        ],
+        "answer": 0
+      },
+      {
+        "q": "A passage that explains 'because of the drought, crop yields fell' is demonstrating:",
+        "options": [
+          "Cause and effect",
+          "Spatial order",
+          "Comparison and contrast",
+          "Chronological order"
+        ],
+        "answer": 0
+      },
+      {
+        "q": "What is the purpose of a thesis statement?",
+        "options": [
+          "To provide a bibliography",
+          "To define unfamiliar words",
+          "To state the main argument or claim of a passage",
+          "To list examples only"
+        ],
+        "answer": 2
+      },
+      {
+        "q": "Which best describes 'tone' in a passage?",
+        "options": [
+          "The length of sentences",
+          "The author's attitude toward the subject",
+          "The number of paragraphs",
+          "The font used"
+        ],
+        "answer": 1
+      }
+    ],
+    "Science": [
+      {
+        "q": "In a controlled experiment, the variable that is deliberately changed is called the:",
+        "options": [
+          "Constant",
+          "Independent variable",
+          "Dependent variable",
+          "Control group"
+        ],
+        "answer": 1
+      },
+      {
+        "q": "Which of the following best describes a hypothesis?",
+        "options": [
+          "A random guess with no basis",
+          "A testable, educated prediction",
+          "A proven law",
+          "An unrelated observation"
+        ],
+        "answer": 1
+      },
+      {
+        "q": "A graph showing a steep upward trend generally indicates:",
+        "options": [
+          "Rapid increase over time",
+          "No change",
+          "Rapid decrease",
+          "Cyclical pattern only"
+        ],
+        "answer": 0
+      },
+      {
+        "q": "Which is a valid reason an experiment might be repeated multiple times?",
+        "options": [
+          "To improve reliability of results",
+          "To avoid using a control group",
+          "To change the hypothesis each time",
+          "To eliminate the need for data analysis"
+        ],
+        "answer": 0
+      },
+      {
+        "q": "A scientific 'control group' is used to:",
+        "options": [
+          "Provide a baseline for comparison against the experimental group",
+          "Eliminate the need for a hypothesis",
+          "Replace the need for data analysis",
+          "Increase the sample size only"
+        ],
+        "answer": 0
+      },
+      {
+        "q": "Which of the following best represents an inverse relationship on a graph?",
+        "options": [
+          "Neither variable changes",
+          "As one variable increases, the other decreases",
+          "Both variables stay constant",
+          "Both variables increase together"
+        ],
+        "answer": 1
+      },
+      {
+        "q": "In an experiment testing plant growth under different light levels, the dependent variable is:",
+        "options": [
+          "Plant growth",
+          "Light level",
+          "Room temperature",
+          "Type of soil"
+        ],
+        "answer": 0
+      },
+      {
+        "q": "Which unit would most likely measure the concentration of a solution?",
+        "options": [
+          "Seconds",
+          "Meters",
+          "Newtons",
+          "Molarity (mol/L)"
+        ],
+        "answer": 3
+      },
+      {
+        "q": "A conclusion in a scientific report should be based primarily on:",
+        "options": [
+          "Assumptions made before the experiment",
+          "Popular belief",
+          "The data collected during the experiment",
+          "The researcher's personal opinion"
+        ],
+        "answer": 2
+      },
+      {
+        "q": "Which of these represents a qualitative observation?",
+        "options": [
+          "The solution had a pH of 4.5",
+          "The sample weighed 12 grams",
+          "The temperature was 37 degrees Celsius",
+          "The solution turned a deep blue color"
+        ],
+        "answer": 3
+      },
+      {
+        "q": "A scatter plot showing points clustered tightly around a rising line indicates:",
+        "options": [
+          "No correlation",
+          "A strong positive correlation",
+          "A strong negative correlation",
+          "An inverse relationship"
+        ],
+        "answer": 1
+      },
+      {
+        "q": "Why is it important to change only one variable at a time in an experiment?",
+        "options": [
+          "To avoid using a control group",
+          "So that any change in results can be attributed to that one variable",
+          "To finish the experiment faster",
+          "To make the data more complex"
+        ],
+        "answer": 1
+      }
+    ]
+  },
+  "IELTS (Academic)": {
+    "Listening": [
+      {
+        "q": "In IELTS Listening, how many sections are there?",
+        "options": [
+          "3",
+          "5",
+          "4",
+          "2"
+        ],
+        "answer": 2
+      },
+      {
+        "q": "IELTS Listening Section 1 is typically:",
+        "options": [
+          "A monologue on an academic subject",
+          "A discussion between students",
+          "An academic lecture",
+          "A conversation in an everyday social context"
+        ],
+        "answer": 3
+      },
+      {
+        "q": "Which skill is most important for IELTS Listening Section 4?",
+        "options": [
+          "Reading maps",
+          "Speaking fluently",
+          "Casual conversation",
+          "Following an academic monologue and note-taking"
+        ],
+        "answer": 3
+      },
+      {
+        "q": "The IELTS Listening recording is played only once. This means test-takers should:",
+        "options": [
+          "Read the questions in advance and predict answers",
+          "Ask for a replay",
+          "Ignore the questions entirely",
+          "Wait until the recording ends to read questions"
+        ],
+        "answer": 0
+      },
+      {
+        "q": "IELTS Listening Section 2 typically involves:",
+        "options": [
+          "An academic lecture",
+          "A phone call between businesses",
+          "A conversation between four people",
+          "A monologue set in an everyday social context, like a talk about local facilities"
+        ],
+        "answer": 3
+      },
+      {
+        "q": "IELTS Listening Section 3 typically involves:",
+        "options": [
+          "A radio advertisement",
+          "A weather report",
+          "A monologue on a social topic",
+          "A conversation between up to four people in an educational context"
+        ],
+        "answer": 3
+      },
+      {
+        "q": "When you don't know an answer during IELTS Listening, you should:",
+        "options": [
+          "Make your best guess and move on to avoid losing time on later questions",
+          "Stop and wait for the recording to repeat",
+          "Leave immediately without finishing the test",
+          "Ask the examiner to repeat the audio"
+        ],
+        "answer": 0
+      },
+      {
+        "q": "Which strategy helps most with IELTS Listening map or plan questions?",
+        "options": [
+          "Following directions carefully while tracking your position on the map",
+          "Ignoring the map entirely",
+          "Memorizing the whole map beforehand",
+          "Listening only for numbers"
+        ],
+        "answer": 0
+      },
+      {
+        "q": "In IELTS Listening, spelling of answers like names matters because:",
+        "options": [
+          "Only capitalization matters",
+          "Spelling is never checked",
+          "Incorrectly spelled answers are marked wrong even if understood correctly",
+          "Answers are always given as multiple choice"
+        ],
+        "answer": 2
+      },
+      {
+        "q": "Which type of question asks you to complete a summary using words from the recording?",
+        "options": [
+          "True/False/Not Given",
+          "Sentence or summary completion",
+          "Matching questions",
+          "Multiple choice"
+        ],
+        "answer": 1
+      },
+      {
+        "q": "IELTS Listening total test time, including transfer time, is approximately:",
+        "options": [
+          "30 minutes",
+          "60 minutes",
+          "90 minutes",
+          "45 minutes"
+        ],
+        "answer": 0
+      },
+      {
+        "q": "The best approach before each section begins is to:",
+        "options": [
+          "Quickly preview the upcoming questions",
+          "Review your previous answers only",
+          "Skip the section overview",
+          "Close your eyes and relax"
+        ],
+        "answer": 0
+      }
+    ],
+    "Reading": [
+      {
+        "q": "IELTS Academic Reading includes how many passages?",
+        "options": [
+          "1",
+          "3",
+          "4",
+          "2"
+        ],
+        "answer": 1
+      },
+      {
+        "q": "'True/False/Not Given' questions test the ability to:",
+        "options": [
+          "Identify whether a statement matches, contradicts, or isn't addressed by the text",
+          "Translate vocabulary",
+          "Predict the next paragraph",
+          "Summarize the whole passage"
+        ],
+        "answer": 0
+      },
+      {
+        "q": "Skimming a passage before answering questions helps the reader:",
+        "options": [
+          "Memorize every word",
+          "Get a general idea of content and structure quickly",
+          "Translate the passage",
+          "Avoid answering detail questions"
+        ],
+        "answer": 1
+      },
+      {
+        "q": "IELTS Reading 'matching headings' questions test the ability to:",
+        "options": [
+          "Count sentences in a paragraph",
+          "Memorize vocabulary",
+          "Identify the main idea of each paragraph and match it to a heading",
+          "Translate the paragraph"
+        ],
+        "answer": 2
+      },
+      {
+        "q": "'Matching information' questions ask you to:",
+        "options": [
+          "Summarize the whole text",
+          "Locate specific information or details in the passage",
+          "Provide a personal opinion",
+          "Rewrite the passage"
+        ],
+        "answer": 1
+      },
+      {
+        "q": "Scanning a text is best used to:",
+        "options": [
+          "Memorize the passage",
+          "Analyze grammar structures",
+          "Quickly locate specific information like dates or names",
+          "Understand the overall argument in depth"
+        ],
+        "answer": 2
+      },
+      {
+        "q": "A 'distractor' in an IELTS Reading multiple choice question is:",
+        "options": [
+          "An incorrect option designed to seem plausible",
+          "A repeated question",
+          "The correct answer",
+          "A footnote"
+        ],
+        "answer": 0
+      },
+      {
+        "q": "IELTS Academic Reading passages are typically sourced from:",
+        "options": [
+          "Personal diaries",
+          "Social media posts",
+          "Books, journals, magazines, and newspapers on academic topics",
+          "Advertisements"
+        ],
+        "answer": 2
+      },
+      {
+        "q": "Which is the best first step when approaching a new Reading passage?",
+        "options": [
+          "Answer questions before reading the passage",
+          "Skim the passage and questions to understand the general topic and task type",
+          "Read every word slowly from start to finish",
+          "Translate the passage first"
+        ],
+        "answer": 1
+      },
+      {
+        "q": "IELTS Reading total time allowed, including transfer, is:",
+        "options": [
+          "90 minutes",
+          "60 minutes",
+          "45 minutes",
+          "30 minutes"
+        ],
+        "answer": 1
+      },
+      {
+        "q": "A 'Yes/No/Not Given' question tests whether a statement:",
+        "options": [
+          "Agrees with, contradicts, or isn't addressed by the writer's views",
+          "Uses formal language",
+          "Matches a heading",
+          "Is grammatically correct"
+        ],
+        "answer": 0
+      },
+      {
+        "q": "The best way to manage time across three IELTS Reading passages is to:",
+        "options": [
+          "Spend all your time on passage one",
+          "Allocate roughly equal time per passage, moving on if stuck",
+          "Read all three passages fully before answering any question",
+          "Skip the hardest passage entirely"
+        ],
+        "answer": 1
+      }
+    ],
+    "Writing": [
+      {
+        "q": "IELTS Writing Task 1 (Academic) typically asks candidates to:",
+        "options": [
+          "Summarize a lecture",
+          "Write a persuasive essay",
+          "Describe a chart, graph, or diagram",
+          "Write a short story"
+        ],
+        "answer": 2
+      },
+      {
+        "q": "IELTS Writing Task 2 requires candidates to:",
+        "options": [
+          "List vocabulary words",
+          "Write an essay responding to a point of view, argument, or problem",
+          "Describe visual data",
+          "Translate a paragraph"
+        ],
+        "answer": 1
+      },
+      {
+        "q": "A well-organized IELTS essay typically includes:",
+        "options": [
+          "Introduction, body paragraphs, and conclusion",
+          "A single long paragraph",
+          "Only bullet points",
+          "No conclusion"
+        ],
+        "answer": 0
+      },
+      {
+        "q": "IELTS Writing Task 1 responses should be at least:",
+        "options": [
+          "250 words",
+          "150 words",
+          "300 words",
+          "100 words"
+        ],
+        "answer": 1
+      },
+      {
+        "q": "IELTS Writing Task 2 responses should be at least:",
+        "options": [
+          "100 words",
+          "400 words",
+          "150 words",
+          "250 words"
+        ],
+        "answer": 3
+      },
+      {
+        "q": "In Task 1, an 'overview' paragraph should:",
+        "options": [
+          "Predict future data",
+          "List every single data point",
+          "Give a personal opinion on the data",
+          "Summarize the main trends or key features of the data"
+        ],
+        "answer": 3
+      },
+      {
+        "q": "Which linking word helps show contrast in an essay?",
+        "options": [
+          "In addition",
+          "Whereas",
+          "Consequently",
+          "Similarly"
+        ],
+        "answer": 1
+      },
+      {
+        "q": "A common mistake to avoid in Task 2 is:",
+        "options": [
+          "Organizing ideas into paragraphs",
+          "Including a conclusion",
+          "Using topic sentences",
+          "Failing to directly address the essay question"
+        ],
+        "answer": 3
+      },
+      {
+        "q": "Which is a strong thesis statement for a Task 2 essay about remote work?",
+        "options": [
+          "This essay is about jobs.",
+          "Remote work is a topic.",
+          "While remote work offers flexibility, it can also weaken workplace collaboration.",
+          "People work from home sometimes."
+        ],
+        "answer": 2
+      },
+      {
+        "q": "Coherence and cohesion in IELTS Writing refers to:",
+        "options": [
+          "How logically ideas are organized and connected",
+          "Word count only",
+          "Spelling accuracy only",
+          "Handwriting neatness"
+        ],
+        "answer": 0
+      },
+      {
+        "q": "Which of the following best describes 'task achievement' in Task 1?",
+        "options": [
+          "Covering the key features and data accurately as required by the prompt",
+          "Comparing to another chart not given",
+          "Writing a long introduction",
+          "Including a personal opinion"
+        ],
+        "answer": 0
+      },
+      {
+        "q": "A good strategy for planning an essay before writing is to:",
+        "options": [
+          "Write the conclusion first",
+          "Skip planning to save time",
+          "Start writing immediately without a plan",
+          "Briefly outline main points for each paragraph"
+        ],
+        "answer": 3
+      }
+    ],
+    "Speaking": [
+      {
+        "q": "IELTS Speaking Part 2 is also known as the:",
+        "options": [
+          "Discussion",
+          "Written response",
+          "Long turn (cue card)",
+          "Interview"
+        ],
+        "answer": 2
+      },
+      {
+        "q": "IELTS Speaking Part 3 typically involves:",
+        "options": [
+          "Reading aloud",
+          "A listening exercise",
+          "Writing an essay",
+          "A deeper discussion of the Part 2 topic's themes"
+        ],
+        "answer": 3
+      },
+      {
+        "q": "Fluency and coherence in IELTS Speaking refers mainly to:",
+        "options": [
+          "Using the most complex vocabulary possible",
+          "Speaking as quickly as possible",
+          "Memorizing scripted answers",
+          "Speaking smoothly and logically without excessive hesitation"
+        ],
+        "answer": 3
+      },
+      {
+        "q": "IELTS Speaking Part 1 typically covers:",
+        "options": [
+          "Abstract social issues",
+          "A written response task",
+          "A long, uninterrupted monologue",
+          "Familiar topics like home, work, studies, and interests"
+        ],
+        "answer": 3
+      },
+      {
+        "q": "During the 1-minute preparation time in Part 2, candidates should:",
+        "options": [
+          "Remain silent and think only",
+          "Ask the examiner questions",
+          "Jot down brief notes on key points to mention",
+          "Write a full script word for word"
+        ],
+        "answer": 2
+      },
+      {
+        "q": "Which is an example of a discourse marker useful in speaking?",
+        "options": [
+          "A grammar rule",
+          "A pronunciation symbol",
+          "A vocabulary list",
+          "'Well, actually...' to introduce a thought"
+        ],
+        "answer": 3
+      },
+      {
+        "q": "Lexical resource in IELTS Speaking refers to:",
+        "options": [
+          "The range and appropriateness of vocabulary used",
+          "Volume of speech",
+          "Speed of speech",
+          "Body language"
+        ],
+        "answer": 0
+      },
+      {
+        "q": "Pronunciation scoring in IELTS Speaking considers:",
+        "options": [
+          "Having a native-like accent only",
+          "Reading aloud perfectly",
+          "Clarity, intonation, and stress patterns that support understanding",
+          "Speaking as loudly as possible"
+        ],
+        "answer": 2
+      },
+      {
+        "q": "If a candidate doesn't understand a question, they should:",
+        "options": [
+          "Guess and change topics",
+          "Politely ask the examiner to repeat or clarify it",
+          "End the interview early",
+          "Stay silent"
+        ],
+        "answer": 1
+      },
+      {
+        "q": "Grammatical range and accuracy in Speaking assesses:",
+        "options": [
+          "Speed of response",
+          "Vocabulary size only",
+          "Only tense usage",
+          "The variety and correctness of grammar structures used"
+        ],
+        "answer": 3
+      },
+      {
+        "q": "A good way to extend an answer in Part 1 is to:",
+        "options": [
+          "Answer with only 'yes' or 'no'",
+          "Give a brief reason or example after the direct answer",
+          "Repeat the question back",
+          "Change the subject entirely"
+        ],
+        "answer": 1
+      },
+      {
+        "q": "IELTS Speaking is conducted:",
+        "options": [
+          "In a group of test-takers",
+          "Via a recorded voicemail only",
+          "Entirely in written form",
+          "Face-to-face or via video with a single examiner"
+        ],
+        "answer": 3
+      }
+    ]
+  },
+  "TOEFL": {
+    "Reading": [
+      {
+        "q": "TOEFL Reading passages are primarily:",
+        "options": [
+          "Personal letters",
+          "Casual conversations",
+          "Advertisements",
+          "Academic, textbook-style passages"
+        ],
+        "answer": 3
+      },
+      {
+        "q": "A TOEFL Reading 'inference' question asks the test-taker to:",
+        "options": [
+          "Find an exact quote",
+          "Count paragraphs",
+          "Translate a word",
+          "Determine information implied but not directly stated"
+        ],
+        "answer": 3
+      },
+      {
+        "q": "Vocabulary questions in TOEFL Reading typically ask you to:",
+        "options": [
+          "Identify the closest meaning of a word as used in context",
+          "Define a word using a dictionary",
+          "Spell the word correctly",
+          "Translate the word"
+        ],
+        "answer": 0
+      },
+      {
+        "q": "TOEFL Reading passages are typically about how many words long?",
+        "options": [
+          "About 50 words",
+          "About 100 words",
+          "About 700 words",
+          "About 2000 words"
+        ],
+        "answer": 2
+      },
+      {
+        "q": "A 'sentence simplification' question asks you to identify:",
+        "options": [
+          "The passage's title",
+          "A grammar error",
+          "The longest sentence in the passage",
+          "Which answer choice best captures the essential meaning of a highlighted sentence"
+        ],
+        "answer": 3
+      },
+      {
+        "q": "Which best describes a 'rhetorical purpose' question?",
+        "options": [
+          "The publication date",
+          "The passage's word count",
+          "The literal meaning of a word",
+          "Why the author included a specific detail or paragraph"
+        ],
+        "answer": 3
+      },
+      {
+        "q": "TOEFL Reading includes how many passages typically?",
+        "options": [
+          "1 passage",
+          "3 to 4 passages",
+          "10 passages",
+          "2 passages"
+        ],
+        "answer": 1
+      },
+      {
+        "q": "A prose summary question asks test-takers to:",
+        "options": [
+          "Count paragraphs",
+          "Translate difficult vocabulary",
+          "Select the main ideas that best summarize the passage",
+          "Identify the author's nationality"
+        ],
+        "answer": 2
+      },
+      {
+        "q": "Which strategy helps most with TOEFL Reading vocabulary questions?",
+        "options": [
+          "Using surrounding context to infer meaning",
+          "Memorizing a dictionary beforehand",
+          "Skipping vocabulary questions entirely",
+          "Guessing without reading context"
+        ],
+        "answer": 0
+      },
+      {
+        "q": "A 'reference' question in TOEFL Reading typically asks about:",
+        "options": [
+          "The passage's structure only",
+          "What a pronoun like 'it' or 'they' refers to in the passage",
+          "The main idea only",
+          "The author's opinion"
+        ],
+        "answer": 1
+      },
+      {
+        "q": "Insert-text questions in TOEFL Reading ask candidates to:",
+        "options": [
+          "Summarize a paragraph",
+          "Translate a sentence",
+          "Delete an irrelevant sentence",
+          "Determine the best place to insert a given sentence into the passage"
+        ],
+        "answer": 3
+      },
+      {
+        "q": "TOEFL Reading passages are drawn from:",
+        "options": [
+          "Introductory academic textbooks across various subjects",
+          "Fictional short stories",
+          "Advertisements",
+          "Personal blogs"
+        ],
+        "answer": 0
+      }
+    ],
+    "Listening": [
+      {
+        "q": "TOEFL Listening includes lectures and:",
+        "options": [
+          "Weather reports",
+          "Song lyrics",
+          "Conversations, often in an academic setting like a professor's office",
+          "Radio advertisements"
+        ],
+        "answer": 2
+      },
+      {
+        "q": "Taking notes during TOEFL Listening passages is:",
+        "options": [
+          "Irrelevant to scoring",
+          "Not allowed",
+          "Encouraged, since audio is played only once",
+          "Only for the Speaking section"
+        ],
+        "answer": 2
+      },
+      {
+        "q": "A TOEFL Listening question asking about a speaker's attitude is testing:",
+        "options": [
+          "Ability to infer tone and opinion from speech",
+          "Grammar rules",
+          "Reading speed",
+          "Vocabulary memorization"
+        ],
+        "answer": 0
+      },
+      {
+        "q": "TOEFL Listening lectures are typically about:",
+        "options": [
+          "Academic subjects delivered in a classroom-like setting",
+          "Weather reports",
+          "Casual chats between friends",
+          "Radio commercials"
+        ],
+        "answer": 0
+      },
+      {
+        "q": "A TOEFL Listening 'function' question asks about:",
+        "options": [
+          "The literal words spoken only",
+          "The recording's length",
+          "The speaker's nationality",
+          "Why a speaker said something, their purpose"
+        ],
+        "answer": 3
+      },
+      {
+        "q": "TOEFL Listening conversations often take place in settings such as:",
+        "options": [
+          "A hospital emergency room",
+          "A courtroom",
+          "A television studio",
+          "A professor's office or a campus service desk"
+        ],
+        "answer": 3
+      },
+      {
+        "q": "Which is a useful listening strategy for TOEFL lectures?",
+        "options": [
+          "Memorizing every word verbatim",
+          "Noting the main topic and key supporting points as you listen",
+          "Ignoring examples given by the speaker",
+          "Focusing only on the introduction"
+        ],
+        "answer": 1
+      },
+      {
+        "q": "TOEFL Listening 'organization' questions ask about:",
+        "options": [
+          "How the lecture's ideas are structured, such as compare-contrast or cause-effect",
+          "The pronunciation of the speaker",
+          "The speaker's tone of voice only",
+          "The recording's file format"
+        ],
+        "answer": 0
+      },
+      {
+        "q": "A replay feature in TOEFL Listening allows the test-taker to:",
+        "options": [
+          "Replay the entire test from the beginning",
+          "Skip the section entirely",
+          "Re-listen to a portion of the audio for a specific question type",
+          "Change their earlier answers freely"
+        ],
+        "answer": 2
+      },
+      {
+        "q": "TOEFL Listening tests comprehension of both explicit information and:",
+        "options": [
+          "Written transcripts only",
+          "Background music",
+          "Implied meaning and speaker attitude",
+          "Video content"
+        ],
+        "answer": 2
+      },
+      {
+        "q": "Which best describes an academic discussion segment in TOEFL Listening?",
+        "options": [
+          "A professor and students discussing course-related content",
+          "An advertisement jingle",
+          "A private phone call",
+          "A weather forecast"
+        ],
+        "answer": 0
+      },
+      {
+        "q": "The purpose of note-taking during TOEFL Listening is to:",
+        "options": [
+          "Help recall key details and structure when answering questions",
+          "Replace the need to listen carefully",
+          "Translate the audio",
+          "Avoid answering questions"
+        ],
+        "answer": 0
+      }
+    ],
+    "Speaking": [
+      {
+        "q": "TOEFL Speaking includes independent and:",
+        "options": [
+          "Integrated tasks that combine reading/listening with speaking",
+          "Group discussion tasks",
+          "Written response tasks",
+          "Multiple choice tasks"
+        ],
+        "answer": 0
+      },
+      {
+        "q": "An 'independent speaking task' in TOEFL asks the candidate to:",
+        "options": [
+          "Give a personal opinion or experience without a reading/listening source",
+          "Summarize a lecture",
+          "Translate a conversation",
+          "Read a passage aloud"
+        ],
+        "answer": 0
+      },
+      {
+        "q": "TOEFL Speaking Task 1, the independent task, typically gives you how much preparation time?",
+        "options": [
+          "15 seconds",
+          "No preparation time",
+          "1 minute",
+          "5 minutes"
+        ],
+        "answer": 0
+      },
+      {
+        "q": "TOEFL integrated speaking tasks may ask candidates to:",
+        "options": [
+          "Write an essay instead of speaking",
+          "Debate with another test-taker",
+          "Summarize a short reading and a related lecture, then respond",
+          "Give a personal life story"
+        ],
+        "answer": 2
+      },
+      {
+        "q": "TOEFL Speaking responses are typically how long?",
+        "options": [
+          "5 minutes",
+          "3 minutes",
+          "45 to 60 seconds",
+          "10 seconds"
+        ],
+        "answer": 2
+      },
+      {
+        "q": "Which delivery trait is scored in TOEFL Speaking?",
+        "options": [
+          "Length of response only",
+          "Accent similarity to a native speaker",
+          "Clear pronunciation and natural pacing",
+          "Volume alone"
+        ],
+        "answer": 2
+      },
+      {
+        "q": "Topic development in TOEFL Speaking scoring refers to:",
+        "options": [
+          "How well ideas are elaborated and logically connected",
+          "How loudly the candidate speaks",
+          "Whether the candidate memorized a script",
+          "How quickly the candidate finishes"
+        ],
+        "answer": 0
+      },
+      {
+        "q": "In an integrated speaking task combining a reading and lecture, the lecture often:",
+        "options": [
+          "Is unrelated to the reading",
+          "Repeats the reading exactly",
+          "Replaces the need to listen to the reading",
+          "Provides examples or a differing perspective related to the reading"
+        ],
+        "answer": 3
+      },
+      {
+        "q": "A good technique before responding in TOEFL Speaking is to:",
+        "options": [
+          "Repeat the question verbatim as the whole answer",
+          "Quickly organize key points mentally or with brief notes",
+          "Ask to skip the task",
+          "Stay silent until time runs out"
+        ],
+        "answer": 1
+      },
+      {
+        "q": "Which is scored in TOEFL Speaking alongside delivery and language use?",
+        "options": [
+          "Handwriting",
+          "Spelling",
+          "Topic development",
+          "Vocabulary list memorization"
+        ],
+        "answer": 2
+      },
+      {
+        "q": "TOEFL Speaking is recorded and later:",
+        "options": [
+          "Broadcast publicly",
+          "Shared with other test-takers",
+          "Scored by trained raters and/or automated scoring",
+          "Deleted immediately without scoring"
+        ],
+        "answer": 2
+      },
+      {
+        "q": "The best way to practice for TOEFL Speaking is to:",
+        "options": [
+          "Only write essays instead",
+          "Practice speaking on varied topics within a strict time limit",
+          "Memorize a single universal answer",
+          "Avoid speaking practice altogether"
+        ],
+        "answer": 1
+      }
+    ],
+    "Writing": [
+      {
+        "q": "The TOEFL Integrated Writing task requires the test-taker to:",
+        "options": [
+          "Write a personal narrative",
+          "Describe a photograph",
+          "Summarize how a lecture relates to a reading passage",
+          "Translate a document"
+        ],
+        "answer": 2
+      },
+      {
+        "q": "The TOEFL Independent Writing task asks candidates to:",
+        "options": [
+          "Write an essay expressing and supporting an opinion on a topic",
+          "Proofread a passage",
+          "Summarize a lecture",
+          "Describe a graph"
+        ],
+        "answer": 0
+      },
+      {
+        "q": "TOEFL Integrated Writing responses are typically how long?",
+        "options": [
+          "500 words",
+          "150 to 225 words",
+          "50 words",
+          "1000 words"
+        ],
+        "answer": 1
+      },
+      {
+        "q": "TOEFL Independent Writing responses should typically be at least:",
+        "options": [
+          "500 words",
+          "150 words",
+          "100 words",
+          "300 words"
+        ],
+        "answer": 3
+      },
+      {
+        "q": "In Integrated Writing, a common task structure is to explain how the lecture:",
+        "options": [
+          "Is entirely unrelated to the reading",
+          "Simply repeats the reading",
+          "Replaces the reading's argument entirely",
+          "Challenges or casts doubt on points made in the reading"
+        ],
+        "answer": 3
+      },
+      {
+        "q": "Which is an important skill for TOEFL Integrated Writing?",
+        "options": [
+          "Copying full sentences from the reading",
+          "Ignoring the lecture entirely",
+          "Accurately paraphrasing rather than copying source language",
+          "Writing only your personal opinion"
+        ],
+        "answer": 2
+      },
+      {
+        "q": "A strong TOEFL Independent Writing essay typically includes:",
+        "options": [
+          "No paragraph breaks",
+          "Random unrelated examples",
+          "A clear thesis, organized body paragraphs, and a conclusion",
+          "Only bullet points"
+        ],
+        "answer": 2
+      },
+      {
+        "q": "Which scoring criterion applies to TOEFL Writing?",
+        "options": [
+          "Handwriting neatness",
+          "Drawing ability",
+          "Spoken pronunciation",
+          "Development, organization, and language use"
+        ],
+        "answer": 3
+      },
+      {
+        "q": "A common mistake in Integrated Writing is:",
+        "options": [
+          "Using paraphrased language",
+          "Failing to connect the lecture's points back to the reading",
+          "Organizing ideas clearly",
+          "Including specific details from both sources"
+        ],
+        "answer": 1
+      },
+      {
+        "q": "In TOEFL Writing, revising for grammar and word choice mainly improves:",
+        "options": [
+          "Language use scoring",
+          "Typing speed",
+          "Only word count",
+          "Font formatting"
+        ],
+        "answer": 0
+      },
+      {
+        "q": "A good opening strategy for Independent Writing is to:",
+        "options": [
+          "State a clear position on the prompt",
+          "Begin with irrelevant background only",
+          "Copy the prompt word for word as the whole introduction",
+          "Ask the reader a rhetorical question with no answer"
+        ],
+        "answer": 0
+      },
+      {
+        "q": "The main purpose of TOEFL Writing tasks is to assess:",
+        "options": [
+          "Handwriting style",
+          "The ability to write clearly and effectively in an academic context",
+          "Memorized vocabulary lists only",
+          "Typing speed"
+        ],
+        "answer": 1
+      }
+    ]
+  },
+  "Intensive English Training": {
+    "Grammar & Structures": [
+      {
+        "q": "Choose the correct form: 'She ____ to the market every Saturday.'",
+        "options": [
+          "go",
+          "going",
+          "gone",
+          "goes"
+        ],
+        "answer": 3
+      },
+      {
+        "q": "Choose the correct sentence.",
+        "options": [
+          "I am living here since 2019.",
+          "I have been living here since 2019.",
+          "I lived here since 2019.",
+          "I live here since 2019."
+        ],
+        "answer": 1
+      },
+      {
+        "q": "Which sentence uses the correct conditional form? 'If it rains, I ____ stay home.'",
+        "options": [
+          "was",
+          "had",
+          "will",
+          "would"
+        ],
+        "answer": 2
+      },
+      {
+        "q": "Choose the correctly formed passive sentence.",
+        "options": [
+          "The letter written by John.",
+          "John was write the letter.",
+          "The letter is wrote by John.",
+          "The letter was written by John."
+        ],
+        "answer": 3
+      },
+      {
+        "q": "Choose the correct form: 'They ______ finished their homework already.'",
+        "options": [
+          "have",
+          "having",
+          "has",
+          "had have"
+        ],
+        "answer": 0
+      },
+      {
+        "q": "Which sentence correctly uses the past continuous?",
+        "options": [
+          "I studying was when you called.",
+          "I am studying when you called yesterday.",
+          "I was studying when you called.",
+          "I study was when you called."
+        ],
+        "answer": 2
+      },
+      {
+        "q": "Choose the correct comparative: 'This book is ______ than that one.'",
+        "options": [
+          "more interesting",
+          "interestinger",
+          "interesting more",
+          "most interesting"
+        ],
+        "answer": 0
+      },
+      {
+        "q": "Which sentence uses the correct modal verb for advice?",
+        "options": [
+          "You must to see a doctor.",
+          "You should to see a doctor.",
+          "You should see a doctor.",
+          "You seeing a doctor should."
+        ],
+        "answer": 2
+      },
+      {
+        "q": "Choose the correct question form.",
+        "options": [
+          "Where you do live?",
+          "Where do you live?",
+          "Where does you live?",
+          "Where you live do?"
+        ],
+        "answer": 1
+      },
+      {
+        "q": "Which sentence correctly uses the present perfect?",
+        "options": [
+          "I have visit Paris twice.",
+          "I has visited Paris twice.",
+          "I have visited Paris twice.",
+          "I having visited Paris twice."
+        ],
+        "answer": 2
+      },
+      {
+        "q": "Choose the correctly formed negative sentence.",
+        "options": [
+          "She not likes coffee.",
+          "She doesn't like coffee.",
+          "She isn't likes coffee.",
+          "She don't likes coffee."
+        ],
+        "answer": 1
+      },
+      {
+        "q": "Which sentence correctly uses 'used to' for past habits?",
+        "options": [
+          "I use to play football every weekend.",
+          "I am used to play football every weekend.",
+          "I used play football every weekend.",
+          "I used to play football every weekend."
+        ],
+        "answer": 3
+      }
+    ],
+    "Vocabulary Building": [
+      {
+        "q": "Choose the word closest in meaning to 'abundant.'",
+        "options": [
+          "Plentiful",
+          "Scarce",
+          "Silent",
+          "Empty"
+        ],
+        "answer": 0
+      },
+      {
+        "q": "Choose the correct synonym for 'begin.'",
+        "options": [
+          "Delay",
+          "Conclude",
+          "Commence",
+          "Cancel"
+        ],
+        "answer": 2
+      },
+      {
+        "q": "Which word means the opposite of 'generous'?",
+        "options": [
+          "Stingy",
+          "Kind",
+          "Helpful",
+          "Wealthy"
+        ],
+        "answer": 0
+      },
+      {
+        "q": "Choose the correct synonym for 'happy.'",
+        "options": [
+          "Joyful",
+          "Sad",
+          "Tired",
+          "Angry"
+        ],
+        "answer": 0
+      },
+      {
+        "q": "Which word means 'to make something better'?",
+        "options": [
+          "Worsen",
+          "Ignore",
+          "Improve",
+          "Delay"
+        ],
+        "answer": 2
+      },
+      {
+        "q": "Choose the word closest in meaning to 'huge.'",
+        "options": [
+          "Enormous",
+          "Tiny",
+          "Average",
+          "Narrow"
+        ],
+        "answer": 0
+      },
+      {
+        "q": "Which word means the opposite of 'difficult'?",
+        "options": [
+          "Hard",
+          "Complicated",
+          "Easy",
+          "Complex"
+        ],
+        "answer": 2
+      },
+      {
+        "q": "Choose the correct word: 'The manager gave clear ______ for the new project.'",
+        "options": [
+          "instructs",
+          "instructions",
+          "instructive",
+          "instruction's"
+        ],
+        "answer": 1
+      },
+      {
+        "q": "Which word best fits: 'She has a ______ vocabulary for someone her age.'",
+        "options": [
+          "remarkably",
+          "remarkable",
+          "remarked",
+          "remark"
+        ],
+        "answer": 1
+      },
+      {
+        "q": "Choose the correct idiom meaning 'to start over.'",
+        "options": [
+          "Back to square one",
+          "Piece of cake",
+          "Break a leg",
+          "Under the weather"
+        ],
+        "answer": 0
+      },
+      {
+        "q": "Which word means 'to think carefully about something'?",
+        "options": [
+          "Refuse",
+          "Ignore",
+          "Consider",
+          "Forget"
+        ],
+        "answer": 2
+      },
+      {
+        "q": "Choose the correct word: 'He was ______ about the results, expecting the worst.'",
+        "options": [
+          "confident",
+          "optimistic",
+          "pessimistic",
+          "careless"
+        ],
+        "answer": 2
+      }
+    ],
+    "Reading Comprehension": [
+      {
+        "q": "When a passage lists advantages then disadvantages, this structure is best called:",
+        "options": [
+          "Compare and contrast",
+          "Descriptive only",
+          "Chronological",
+          "Cause and effect"
+        ],
+        "answer": 0
+      },
+      {
+        "q": "Skimming a text quickly before reading in detail helps a reader to:",
+        "options": [
+          "Memorize every detail",
+          "Get a general sense of the topic and structure",
+          "Avoid reading altogether",
+          "Translate unfamiliar words"
+        ],
+        "answer": 1
+      },
+      {
+        "q": "Which best describes 'skimming' a text?",
+        "options": [
+          "Reading quickly to get the general idea",
+          "Translating word by word",
+          "Memorizing the whole text",
+          "Reading every word slowly"
+        ],
+        "answer": 0
+      },
+      {
+        "q": "Which best describes 'scanning' a text?",
+        "options": [
+          "Looking quickly for specific information like a date or name",
+          "Summarizing the text",
+          "Reading the whole text carefully",
+          "Translating the text"
+        ],
+        "answer": 0
+      },
+      {
+        "q": "A paragraph's topic sentence usually:",
+        "options": [
+          "Concludes the whole passage",
+          "Lists the author's name",
+          "Provides a random detail",
+          "States the main idea of the paragraph"
+        ],
+        "answer": 3
+      },
+      {
+        "q": "Context clues help readers to:",
+        "options": [
+          "Guess the meaning of unfamiliar words from surrounding text",
+          "Ignore new vocabulary",
+          "Translate a passage word for word",
+          "Avoid reading difficult texts"
+        ],
+        "answer": 0
+      },
+      {
+        "q": "Which is an example of a supporting detail?",
+        "options": [
+          "An unrelated fact",
+          "A grammar rule",
+          "The title of the passage",
+          "A specific example that backs up the main idea"
+        ],
+        "answer": 3
+      },
+      {
+        "q": "A passage's 'sequence' structure typically shows:",
+        "options": [
+          "A cause without an effect",
+          "Steps or events in order",
+          "A comparison of two things",
+          "An opinion with no evidence"
+        ],
+        "answer": 1
+      },
+      {
+        "q": "Making a prediction while reading involves:",
+        "options": [
+          "Guessing what might happen next based on clues in the text",
+          "Reading the last page first only",
+          "Memorizing every word",
+          "Ignoring the text entirely"
+        ],
+        "answer": 0
+      },
+      {
+        "q": "Which is the best way to check understanding after reading a paragraph?",
+        "options": [
+          "Summarizing it in your own words",
+          "Skipping to the next paragraph immediately",
+          "Re-reading without thinking about meaning",
+          "Translating it without understanding"
+        ],
+        "answer": 0
+      },
+      {
+        "q": "An author's purpose to 'inform' means the text mainly:",
+        "options": [
+          "Tells a fictional story",
+          "Tries to sell a product",
+          "Expresses personal feelings only",
+          "Provides facts and information on a topic"
+        ],
+        "answer": 3
+      },
+      {
+        "q": "Which is a sign that a passage is persuasive rather than informative?",
+        "options": [
+          "It tries to convince the reader to agree with an opinion",
+          "It has no author",
+          "It uses only simple vocabulary",
+          "It only lists dates and facts"
+        ],
+        "answer": 0
+      }
+    ],
+    "Listening Comprehension": [
+      {
+        "q": "Listening for 'gist' means listening for:",
+        "options": [
+          "Every single word spoken",
+          "Only numbers mentioned",
+          "The general idea of what is being said",
+          "Grammar mistakes"
+        ],
+        "answer": 2
+      },
+      {
+        "q": "Predicting content before listening to an audio clip helps learners to:",
+        "options": [
+          "Translate word-for-word",
+          "Focus attention and anticipate vocabulary",
+          "Memorize the transcript",
+          "Avoid listening at all"
+        ],
+        "answer": 1
+      },
+      {
+        "q": "Which is a good strategy before listening to an audio clip?",
+        "options": [
+          "Ignoring the questions entirely",
+          "Reading the questions first to know what to listen for",
+          "Skipping the audio",
+          "Closing your eyes and guessing"
+        ],
+        "answer": 1
+      },
+      {
+        "q": "Listening for specific details means listening for:",
+        "options": [
+          "Only the overall mood",
+          "The speaker's accent",
+          "Particular facts like names, numbers, or dates",
+          "Background noise"
+        ],
+        "answer": 2
+      },
+      {
+        "q": "Which best describes 'listening for gist'?",
+        "options": [
+          "Counting how many times a word is repeated",
+          "Focusing only on grammar",
+          "Memorizing every word",
+          "Understanding the general topic or main idea"
+        ],
+        "answer": 3
+      },
+      {
+        "q": "Note-taking while listening helps learners to:",
+        "options": [
+          "Remember key points for later questions",
+          "Translate every word",
+          "Ignore important details",
+          "Avoid listening carefully"
+        ],
+        "answer": 0
+      },
+      {
+        "q": "Which of these is a sign of a formal listening context, like a lecture?",
+        "options": [
+          "Structured, academic language and clear organization",
+          "Short, one-word answers only",
+          "Casual slang throughout",
+          "Background music"
+        ],
+        "answer": 0
+      },
+      {
+        "q": "Predicting vocabulary before listening based on the topic helps learners to:",
+        "options": [
+          "Translate afterward only",
+          "Avoid listening at all",
+          "Recognize words more easily during the recording",
+          "Memorize a script"
+        ],
+        "answer": 2
+      },
+      {
+        "q": "Which strategy helps when a listening passage is played only once?",
+        "options": [
+          "Skipping the passage",
+          "Staying focused and taking quick notes throughout",
+          "Guessing without listening",
+          "Waiting for a replay"
+        ],
+        "answer": 1
+      },
+      {
+        "q": "Understanding a speaker's tone, such as sarcastic or serious, is part of:",
+        "options": [
+          "Listening for background noise",
+          "Ignoring the speaker's intent",
+          "Listening for attitude and implied meaning",
+          "Listening for spelling only"
+        ],
+        "answer": 2
+      },
+      {
+        "q": "Which is an example of listening for sequence?",
+        "options": [
+          "Identifying the order of steps in a set of instructions",
+          "Ignoring the order of events",
+          "Identifying only the speaker's name",
+          "Counting the number of speakers"
+        ],
+        "answer": 0
+      },
+      {
+        "q": "A common challenge in listening comprehension is:",
+        "options": [
+          "Multiple replays being allowed",
+          "Having the transcript available",
+          "Too much preparation time",
+          "Unfamiliar vocabulary or fast speech rate"
+        ],
+        "answer": 3
+      }
+    ],
+    "Writing Practice": [
+      {
+        "q": "A well-structured paragraph typically begins with:",
+        "options": [
+          "A random detail",
+          "A conclusion",
+          "A topic sentence stating the main idea",
+          "A question with no answer"
+        ],
+        "answer": 2
+      },
+      {
+        "q": "Which of these is an appropriate formal greeting in an email?",
+        "options": [
+          "Dear Mr. Kone,",
+          "Yo,",
+          "Hey!",
+          "What's up,"
+        ],
+        "answer": 0
+      },
+      {
+        "q": "Which of these best shows correct paragraph structure?",
+        "options": [
+          "Topic sentence, supporting details, concluding sentence",
+          "Only one very long sentence",
+          "Random sentences with no order",
+          "A list of unrelated facts"
+        ],
+        "answer": 0
+      },
+      {
+        "q": "Which is an appropriate way to end a formal letter?",
+        "options": [
+          "Later,",
+          "Sincerely,",
+          "Bye bye,",
+          "See ya,"
+        ],
+        "answer": 1
+      },
+      {
+        "q": "Which sentence uses correct capitalization?",
+        "options": [
+          "I visited abidjan last Summer.",
+          "i visited abidjan last summer.",
+          "I visited Abidjan last summer.",
+          "i Visited Abidjan last summer."
+        ],
+        "answer": 2
+      },
+      {
+        "q": "A strong essay conclusion should:",
+        "options": [
+          "Ask an unrelated question",
+          "Repeat the introduction word for word",
+          "Introduce a completely new topic",
+          "Summarize the main points and restate the thesis in new words"
+        ],
+        "answer": 3
+      },
+      {
+        "q": "Which linking word shows an additional point?",
+        "options": [
+          "Nevertheless",
+          "Furthermore",
+          "However",
+          "Instead"
+        ],
+        "answer": 1
+      },
+      {
+        "q": "Proofreading a piece of writing mainly helps to catch:",
+        "options": [
+          "New ideas to add",
+          "The overall topic",
+          "Grammar, spelling, and punctuation errors",
+          "The word count only"
+        ],
+        "answer": 2
+      },
+      {
+        "q": "Which of the following is an example of a run-on sentence?",
+        "options": [
+          "After going to the store, I bought bread.",
+          "I went to the store, and I bought some bread.",
+          "I went to the store I bought some bread.",
+          "I went to the store to buy bread."
+        ],
+        "answer": 2
+      },
+      {
+        "q": "In formal writing, contractions like 'don't' or 'can't' should generally be:",
+        "options": [
+          "Written in capital letters",
+          "Used as often as possible",
+          "Replaced with slang",
+          "Avoided in favor of full forms like 'do not' or 'cannot'"
+        ],
+        "answer": 3
+      },
+      {
+        "q": "Which is the best way to organize an essay before writing?",
+        "options": [
+          "Writing without any plan",
+          "Skipping the introduction entirely",
+          "Memorizing a template essay",
+          "Creating a brief outline of main points"
+        ],
+        "answer": 3
+      },
+      {
+        "q": "A thesis statement should be placed:",
+        "options": [
+          "In the middle of the conclusion",
+          "Near the end of the introduction",
+          "In a footnote",
+          "Repeated in every paragraph word for word"
+        ],
+        "answer": 1
+      }
+    ],
+    "Speaking Practice": [
+      {
+        "q": "When practicing spoken fluency, learners should focus most on:",
+        "options": [
+          "Avoiding speaking until grammar is perfect",
+          "Speaking as fast as possible regardless of clarity",
+          "Perfect grammar only, even if it slows speech drastically",
+          "Speaking smoothly and expressing ideas clearly, even with minor errors"
+        ],
+        "answer": 3
+      },
+      {
+        "q": "Which is a useful strategy for improving pronunciation?",
+        "options": [
+          "Listening to and imitating native speaker audio regularly",
+          "Avoiding listening to native speakers",
+          "Memorizing spelling rules only",
+          "Only reading silently"
+        ],
+        "answer": 0
+      },
+      {
+        "q": "Which is a good way to practice speaking fluency at home?",
+        "options": [
+          "Memorizing a single script for every topic",
+          "Avoiding speaking practice",
+          "Only writing essays",
+          "Recording yourself speaking on a topic for one minute and reviewing it"
+        ],
+        "answer": 3
+      },
+      {
+        "q": "Which body language supports effective spoken communication?",
+        "options": [
+          "Eye contact and open posture",
+          "Crossed arms and looking away",
+          "Avoiding all gestures",
+          "Speaking with your back turned"
+        ],
+        "answer": 0
+      },
+      {
+        "q": "Which is an effective way to handle an unfamiliar speaking topic?",
+        "options": [
+          "Refusing to answer",
+          "Changing the topic abruptly",
+          "Repeating the question with no answer",
+          "Relating it to something you know and giving a structured answer"
+        ],
+        "answer": 3
+      },
+      {
+        "q": "Filler words like 'um' and 'uh' should be:",
+        "options": [
+          "Minimized, though occasional use is natural",
+          "Replaced with long pauses",
+          "Completely eliminated even in natural speech",
+          "Used as much as possible"
+        ],
+        "answer": 0
+      },
+      {
+        "q": "Which helps improve intonation in spoken English?",
+        "options": [
+          "Speaking only in short fragments",
+          "Listening to and imitating natural speech patterns",
+          "Avoiding all stress on words",
+          "Speaking in a flat monotone always"
+        ],
+        "answer": 1
+      },
+      {
+        "q": "A good structure for answering a speaking question is:",
+        "options": [
+          "Answer only 'yes' or 'no'",
+          "Repeat the question without answering",
+          "Give a direct answer, then explain with a reason or example",
+          "Speak on an unrelated topic"
+        ],
+        "answer": 2
+      },
+      {
+        "q": "Which is a helpful way to expand vocabulary for speaking?",
+        "options": [
+          "Only using memorized phrases",
+          "Avoiding new vocabulary",
+          "Learning and practicing new words in context regularly",
+          "Speaking as little as possible"
+        ],
+        "answer": 2
+      },
+      {
+        "q": "When nervous while speaking, a helpful technique is to:",
+        "options": [
+          "Speak much faster to finish quickly",
+          "Stop speaking entirely",
+          "Apologize repeatedly and stop",
+          "Pause briefly, breathe, and continue calmly"
+        ],
+        "answer": 3
+      },
+      {
+        "q": "Which best supports coherence in a spoken response?",
+        "options": [
+          "Repeating the same sentence",
+          "Speaking without any structure",
+          "Jumping between unrelated ideas",
+          "Organizing ideas logically with clear connectors like 'first' and 'then'"
+        ],
+        "answer": 3
+      },
+      {
+        "q": "Regular speaking practice with feedback helps learners to:",
+        "options": [
+          "Skip the need for further practice",
+          "Identify and correct recurring errors over time",
+          "Avoid ever making mistakes",
+          "Memorize answers permanently"
+        ],
+        "answer": 1
+      }
+    ]
+  },
+  "ESAT": {
+    "Mathematics 1": [
+      {
+        "q": "Differentiate f(x) = x^3.",
+        "options": [
+          "3x^2",
+          "2x^2",
+          "3x",
+          "x^2"
+        ],
+        "answer": 0
+      },
+      {
+        "q": "Integrate f(x) = 2x with respect to x.",
+        "options": [
+          "2 + C",
+          "x^2/2 + C",
+          "x^2 + C",
+          "2x^2 + C"
+        ],
+        "answer": 2
+      },
+      {
+        "q": "What is log base 10 of 100?",
+        "options": [
+          "100",
+          "10",
+          "1",
+          "2"
+        ],
+        "answer": 3
+      },
+      {
+        "q": "Solve: 2x^2 - 8 = 0",
+        "options": [
+          "x = 8",
+          "x = 2 or x = -2",
+          "x = -4",
+          "x = 4"
+        ],
+        "answer": 1
+      },
+      {
+        "q": "What is the derivative of f(x) = 5x^2 + 3x?",
+        "options": [
+          "10x + 3",
+          "10x",
+          "15x^2",
+          "5x + 3"
+        ],
+        "answer": 0
+      },
+      {
+        "q": "Simplify: (2x^3)(3x^2)",
+        "options": [
+          "6x^6",
+          "6x^5",
+          "5x^5",
+          "5x^6"
+        ],
+        "answer": 1
+      },
+      {
+        "q": "What is the value of sin(90 degrees)?",
+        "options": [
+          "-1",
+          "1",
+          "0",
+          "0.5"
+        ],
+        "answer": 1
+      },
+      {
+        "q": "Solve for x: log(x) = 2, base 10",
+        "options": [
+          "x = 1000",
+          "x = 20",
+          "x = 10",
+          "x = 100"
+        ],
+        "answer": 3
+      },
+      {
+        "q": "What is the sum of the first 5 positive integers?",
+        "options": [
+          "15",
+          "10",
+          "25",
+          "20"
+        ],
+        "answer": 0
+      },
+      {
+        "q": "Factor: x^2 - 9",
+        "options": [
+          "(x-3)(x+3)",
+          "(x+3)^2",
+          "(x-9)(x+1)",
+          "(x-3)^2"
+        ],
+        "answer": 0
+      },
+      {
+        "q": "What is the gradient, or slope, of a horizontal line?",
+        "options": [
+          "0",
+          "Undefined",
+          "-1",
+          "1"
+        ],
+        "answer": 0
+      },
+      {
+        "q": "Solve the equation: 3^x = 81",
+        "options": [
+          "x = 27",
+          "x = 3",
+          "x = 9",
+          "x = 4"
+        ],
+        "answer": 3
+      }
+    ],
+    "Physics": [
+      {
+        "q": "Unit of force in the SI system?",
+        "options": [
+          "Newton",
+          "Joule",
+          "Pascal",
+          "Watt"
+        ],
+        "answer": 0
+      },
+      {
+        "q": "Which quantity is measured in joules?",
+        "options": [
+          "Velocity",
+          "Force",
+          "Energy",
+          "Power"
+        ],
+        "answer": 2
+      },
+      {
+        "q": "Acceleration due to gravity near Earth's surface is approximately:",
+        "options": [
+          "3.6 m/s^2",
+          "15 m/s^2",
+          "9.8 m/s^2",
+          "1.0 m/s^2"
+        ],
+        "answer": 2
+      },
+      {
+        "q": "What is the SI unit of energy?",
+        "options": [
+          "Watt",
+          "Joule",
+          "Newton",
+          "Pascal"
+        ],
+        "answer": 1
+      },
+      {
+        "q": "Which law states that for every action there is an equal and opposite reaction?",
+        "options": [
+          "Newton's first law",
+          "Law of conservation of mass",
+          "Newton's third law",
+          "Newton's second law"
+        ],
+        "answer": 2
+      },
+      {
+        "q": "What is the formula for kinetic energy?",
+        "options": [
+          "m v",
+          "1/2 m v^2",
+          "F d",
+          "m a"
+        ],
+        "answer": 1
+      },
+      {
+        "q": "Which of the following is a vector quantity?",
+        "options": [
+          "Speed",
+          "Time",
+          "Mass",
+          "Velocity"
+        ],
+        "answer": 3
+      },
+      {
+        "q": "What is the unit of electrical resistance?",
+        "options": [
+          "Watt",
+          "Ohm",
+          "Volt",
+          "Ampere"
+        ],
+        "answer": 1
+      },
+      {
+        "q": "Which type of wave requires a medium to travel through?",
+        "options": [
+          "Light waves",
+          "Sound waves",
+          "X-rays",
+          "Radio waves"
+        ],
+        "answer": 1
+      },
+      {
+        "q": "What happens to the resistance of a wire as its length increases, all else constant?",
+        "options": [
+          "Resistance becomes zero",
+          "Resistance stays the same",
+          "Resistance decreases",
+          "Resistance increases"
+        ],
+        "answer": 3
+      },
+      {
+        "q": "Which quantity is measured in watts?",
+        "options": [
+          "Force",
+          "Energy",
+          "Power",
+          "Momentum"
+        ],
+        "answer": 2
+      },
+      {
+        "q": "What is the speed of light in a vacuum approximately?",
+        "options": [
+          "3 x 10^8 m/s",
+          "3 x 10^3 m/s",
+          "3 x 10^6 m/s",
+          "3 x 10^5 m/s"
+        ],
+        "answer": 0
+      }
+    ],
+    "Chemistry": [
+      {
+        "q": "What is the atomic number of Carbon?",
+        "options": [
+          "14",
+          "8",
+          "6",
+          "12"
+        ],
+        "answer": 2
+      },
+      {
+        "q": "Which particle has a negative charge?",
+        "options": [
+          "Electron",
+          "Neutron",
+          "Proton",
+          "Positron"
+        ],
+        "answer": 0
+      },
+      {
+        "q": "What is the pH range of a strong acid?",
+        "options": [
+          "Greater than 7",
+          "Always 14",
+          "Exactly 7",
+          "Less than 7"
+        ],
+        "answer": 3
+      },
+      {
+        "q": "What is the chemical symbol for sodium?",
+        "options": [
+          "Sd",
+          "S",
+          "Na",
+          "So"
+        ],
+        "answer": 2
+      },
+      {
+        "q": "Which type of bond involves the sharing of electron pairs?",
+        "options": [
+          "Hydrogen bond only",
+          "Ionic bond",
+          "Covalent bond",
+          "Metallic bond"
+        ],
+        "answer": 2
+      },
+      {
+        "q": "What is the molar mass unit typically expressed in?",
+        "options": [
+          "Moles per second",
+          "Grams per liter",
+          "Liters per mole",
+          "Grams per mole"
+        ],
+        "answer": 3
+      },
+      {
+        "q": "Which gas is produced when an acid reacts with a metal?",
+        "options": [
+          "Hydrogen gas",
+          "Nitrogen gas",
+          "Oxygen gas",
+          "Carbon dioxide only"
+        ],
+        "answer": 0
+      },
+      {
+        "q": "What does the pH scale measure?",
+        "options": [
+          "The acidity or alkalinity of a solution",
+          "The temperature of a solution",
+          "The color of a solution",
+          "The density of a solution"
+        ],
+        "answer": 0
+      },
+      {
+        "q": "Which subatomic particle has no electric charge?",
+        "options": [
+          "Proton",
+          "Positron",
+          "Electron",
+          "Neutron"
+        ],
+        "answer": 3
+      },
+      {
+        "q": "Which of these is a noble gas?",
+        "options": [
+          "Nitrogen",
+          "Oxygen",
+          "Neon",
+          "Chlorine"
+        ],
+        "answer": 2
+      },
+      {
+        "q": "What is produced when an acid reacts with a base?",
+        "options": [
+          "Only water vapor",
+          "Salt and water",
+          "Only a metal",
+          "Only a gas"
+        ],
+        "answer": 1
+      },
+      {
+        "q": "What term describes a substance that speeds up a reaction without being consumed?",
+        "options": [
+          "Catalyst",
+          "Reactant",
+          "Product",
+          "Solvent"
+        ],
+        "answer": 0
+      }
+    ],
+    "Biology": [
+      {
+        "q": "DNA replication occurs during which phase of the cell cycle?",
+        "options": [
+          "G1",
+          "G2",
+          "S phase",
+          "M phase"
+        ],
+        "answer": 2
+      },
+      {
+        "q": "Which molecule carries genetic information?",
+        "options": [
+          "Glucose",
+          "ATP",
+          "Protein only",
+          "DNA"
+        ],
+        "answer": 3
+      },
+      {
+        "q": "Mitochondria are primarily responsible for:",
+        "options": [
+          "Protein synthesis",
+          "Storing genetic material",
+          "Producing energy (ATP) for the cell",
+          "Photosynthesis"
+        ],
+        "answer": 2
+      },
+      {
+        "q": "What is the basic unit of life?",
+        "options": [
+          "Atom",
+          "Cell",
+          "Organ",
+          "Tissue"
+        ],
+        "answer": 1
+      },
+      {
+        "q": "Which process do cells use to divide and produce two identical daughter cells?",
+        "options": [
+          "Mitosis",
+          "Fertilization",
+          "Meiosis",
+          "Photosynthesis"
+        ],
+        "answer": 0
+      },
+      {
+        "q": "What is the function of red blood cells?",
+        "options": [
+          "Fighting infection",
+          "Carrying oxygen throughout the body",
+          "Clotting blood",
+          "Producing hormones"
+        ],
+        "answer": 1
+      },
+      {
+        "q": "Which organ is primarily responsible for filtering blood and producing urine?",
+        "options": [
+          "Liver",
+          "Kidney",
+          "Lung",
+          "Heart"
+        ],
+        "answer": 1
+      },
+      {
+        "q": "What is the process by which plants make their own food called?",
+        "options": [
+          "Photosynthesis",
+          "Respiration",
+          "Digestion",
+          "Transpiration"
+        ],
+        "answer": 0
+      },
+      {
+        "q": "Which molecule is the primary source of genetic information in cells?",
+        "options": [
+          "Cholesterol",
+          "ATP",
+          "DNA",
+          "Glucose"
+        ],
+        "answer": 2
+      },
+      {
+        "q": "What is a population in ecological terms?",
+        "options": [
+          "A group of the same species living in a specific area",
+          "A single organism",
+          "An entire ecosystem",
+          "All species living together"
+        ],
+        "answer": 0
+      },
+      {
+        "q": "Which blood type is known as the universal donor?",
+        "options": [
+          "A positive",
+          "O negative",
+          "B negative",
+          "AB positive"
+        ],
+        "answer": 1
+      },
+      {
+        "q": "What is the main function of enzymes in the body?",
+        "options": [
+          "Speeding up biochemical reactions",
+          "Producing energy directly",
+          "Transporting oxygen",
+          "Storing genetic information"
+        ],
+        "answer": 0
+      }
+    ]
+  },
+  "GRE": {
+    "Verbal Reasoning": [
+      {
+        "q": "Choose the word that does not belong: apple, banana, carrot, mango",
+        "options": [
+          "Mango",
+          "Banana",
+          "Apple",
+          "Carrot"
+        ],
+        "answer": 3
+      },
+      {
+        "q": "Choose the word closest in meaning to 'laconic.'",
+        "options": [
+          "Confused",
+          "Angry",
+          "Using very few words",
+          "Talkative"
+        ],
+        "answer": 2
+      },
+      {
+        "q": "Complete the analogy: Book is to Library as Painting is to:",
+        "options": [
+          "Paint",
+          "Frame",
+          "Artist",
+          "Museum"
+        ],
+        "answer": 3
+      },
+      {
+        "q": "Choose the word closest in meaning to 'ephemeral.'",
+        "options": [
+          "Ancient",
+          "Permanent",
+          "Massive",
+          "Short-lived"
+        ],
+        "answer": 3
+      },
+      {
+        "q": "Choose the word closest in meaning to 'ubiquitous.'",
+        "options": [
+          "Expensive",
+          "Hidden",
+          "Present everywhere",
+          "Rare"
+        ],
+        "answer": 2
+      },
+      {
+        "q": "Complete the analogy: Doctor is to Hospital as Teacher is to:",
+        "options": [
+          "Pencil",
+          "Student",
+          "Book",
+          "School"
+        ],
+        "answer": 3
+      },
+      {
+        "q": "Choose the word that best completes: 'Despite his ______ nature, he made a compelling public speaker.'",
+        "options": [
+          "loud",
+          "aggressive",
+          "reserved",
+          "talkative"
+        ],
+        "answer": 2
+      },
+      {
+        "q": "Choose the word closest in meaning to 'candid.'",
+        "options": [
+          "Confused",
+          "Honest and straightforward",
+          "Dishonest",
+          "Secretive"
+        ],
+        "answer": 1
+      },
+      {
+        "q": "Choose the word that is the opposite of 'benevolent.'",
+        "options": [
+          "Kind",
+          "Friendly",
+          "Malevolent",
+          "Generous"
+        ],
+        "answer": 2
+      },
+      {
+        "q": "Complete the analogy: Author is to Book as Composer is to:",
+        "options": [
+          "Instrument",
+          "Concert hall",
+          "Symphony",
+          "Orchestra"
+        ],
+        "answer": 2
+      },
+      {
+        "q": "Choose the word closest in meaning to 'meticulous.'",
+        "options": [
+          "Careless",
+          "Fast",
+          "Loud",
+          "Extremely careful and precise"
+        ],
+        "answer": 3
+      },
+      {
+        "q": "Choose the word that best completes: 'The evidence was so ______ that the jury reached a verdict within minutes.'",
+        "options": [
+          "scarce",
+          "ambiguous",
+          "compelling",
+          "irrelevant"
+        ],
+        "answer": 2
+      }
+    ],
+    "Quantitative Reasoning": [
+      {
+        "q": "What is 7^2 - 4^2?",
+        "options": [
+          "16",
+          "49",
+          "45",
+          "33"
+        ],
+        "answer": 3
+      },
+      {
+        "q": "If x/4 = 9, what is x?",
+        "options": [
+          "4.5",
+          "13",
+          "9",
+          "36"
+        ],
+        "answer": 3
+      },
+      {
+        "q": "What is the greatest common divisor of 18 and 24?",
+        "options": [
+          "3",
+          "12",
+          "9",
+          "6"
+        ],
+        "answer": 3
+      },
+      {
+        "q": "What is 20% of 150?",
+        "options": [
+          "30",
+          "35",
+          "25",
+          "20"
+        ],
+        "answer": 0
+      },
+      {
+        "q": "If 3x = 27, what is x?",
+        "options": [
+          "81",
+          "6",
+          "3",
+          "9"
+        ],
+        "answer": 3
+      },
+      {
+        "q": "What is the perimeter of a rectangle with length 10 and width 4?",
+        "options": [
+          "14",
+          "40",
+          "24",
+          "28"
+        ],
+        "answer": 3
+      },
+      {
+        "q": "Simplify: (4^2)(4^3)",
+        "options": [
+          "4^6",
+          "4^5",
+          "16^5",
+          "8^5"
+        ],
+        "answer": 1
+      },
+      {
+        "q": "What is the average of 5, 10, 15, and 20?",
+        "options": [
+          "20",
+          "15",
+          "10",
+          "12.5"
+        ],
+        "answer": 3
+      },
+      {
+        "q": "If a car travels at 60 mph, how far does it travel in 2.5 hours?",
+        "options": [
+          "120 miles",
+          "150 miles",
+          "100 miles",
+          "180 miles"
+        ],
+        "answer": 1
+      },
+      {
+        "q": "What is the value of the square root of 144?",
+        "options": [
+          "12",
+          "14",
+          "10",
+          "16"
+        ],
+        "answer": 0
+      },
+      {
+        "q": "If x + 5 = 2x - 3, what is x?",
+        "options": [
+          "3",
+          "5",
+          "2",
+          "8"
+        ],
+        "answer": 3
+      },
+      {
+        "q": "What is 7/8 as a percentage?",
+        "options": [
+          "80%",
+          "75%",
+          "87.5%",
+          "78%"
+        ],
+        "answer": 2
+      }
+    ],
+    "Analytical Writing": [
+      {
+        "q": "The GRE Analytical Writing 'Issue Task' requires the writer to:",
+        "options": [
+          "Take a position on a general topic and support it",
+          "Critique an argument's logic",
+          "Solve a math problem",
+          "Summarize a passage"
+        ],
+        "answer": 0
+      },
+      {
+        "q": "The GRE 'Argument Task' asks the writer to:",
+        "options": [
+          "Evaluate the logical soundness of a given argument",
+          "State a personal opinion on any topic",
+          "Describe a chart",
+          "Write a narrative essay"
+        ],
+        "answer": 0
+      },
+      {
+        "q": "A strong Issue Task essay typically:",
+        "options": [
+          "Takes a clear position and supports it with reasons and examples",
+          "Avoids taking any position",
+          "Only summarizes both sides equally with no conclusion",
+          "Focuses solely on grammar"
+        ],
+        "answer": 0
+      },
+      {
+        "q": "In the Argument Task, identifying unstated assumptions is important because:",
+        "options": [
+          "Assumptions are always correct",
+          "The task doesn't require analysis of assumptions",
+          "Assumptions are irrelevant to argument evaluation",
+          "The argument's conclusion often depends on assumptions that may be flawed"
+        ],
+        "answer": 3
+      },
+      {
+        "q": "Which of these weakens an argument based on a small sample size?",
+        "options": [
+          "Pointing out that a larger, more representative sample might yield different results",
+          "Ignoring the sample size entirely",
+          "Providing an unrelated fact",
+          "Repeating the original claim"
+        ],
+        "answer": 0
+      },
+      {
+        "q": "An effective introduction in the Issue Task should:",
+        "options": [
+          "Clearly state the writer's position on the issue",
+          "Avoid mentioning the topic",
+          "Only pose a question with no answer",
+          "List every possible counterargument in detail"
+        ],
+        "answer": 0
+      },
+      {
+        "q": "Which is considered a logical fallacy the Argument Task might ask you to identify?",
+        "options": [
+          "Correlation being mistaken for causation",
+          "A directly cited statistic",
+          "A well-supported cause-effect claim",
+          "A properly qualified conclusion"
+        ],
+        "answer": 0
+      },
+      {
+        "q": "Using specific examples in an Issue Task essay helps to:",
+        "options": [
+          "Avoid answering the prompt",
+          "Replace the need for a thesis",
+          "Confuse the reader",
+          "Support and illustrate the writer's argument concretely"
+        ],
+        "answer": 3
+      },
+      {
+        "q": "A good concluding paragraph in analytical writing should:",
+        "options": [
+          "Reinforce the main argument without simply repeating it word for word",
+          "Introduce a brand new argument",
+          "Be left out entirely",
+          "Contradict the thesis"
+        ],
+        "answer": 0
+      },
+      {
+        "q": "In evaluating an argument, considering alternative explanations for the evidence given is:",
+        "options": [
+          "Something to avoid mentioning",
+          "Unnecessary and irrelevant",
+          "An important critical thinking step",
+          "Only relevant in the Issue Task"
+        ],
+        "answer": 2
+      },
+      {
+        "q": "Analytical Writing responses are scored on a rubric that considers primarily:",
+        "options": [
+          "Handwriting neatness",
+          "Length only, regardless of content",
+          "Vocabulary complexity alone",
+          "Quality of reasoning, organization, and clarity of expression"
+        ],
+        "answer": 3
+      }
+    ]
+  },
+  "UCAT": {
+    "Verbal Reasoning": [
+      {
+        "q": "UCAT Verbal Reasoning mainly tests:",
+        "options": [
+          "Memory recall",
+          "Spatial awareness",
+          "Mathematical calculation",
+          "Ability to critically evaluate written information"
+        ],
+        "answer": 3
+      },
+      {
+        "q": "Choose the word that does not belong: apple, banana, carrot, mango",
+        "options": [
+          "Apple",
+          "Mango",
+          "Carrot",
+          "Banana"
+        ],
+        "answer": 2
+      },
+      {
+        "q": "Choose the word that best completes: 'The report was ______, containing several errors and inconsistencies.'",
+        "options": [
+          "flawless",
+          "flawed",
+          "authoritative",
+          "precise"
+        ],
+        "answer": 1
+      },
+      {
+        "q": "In critical reading, identifying an author's main claim helps you to:",
+        "options": [
+          "Understand the overall argument being made",
+          "Ignore supporting details",
+          "Memorize vocabulary",
+          "Translate the passage"
+        ],
+        "answer": 0
+      },
+      {
+        "q": "Choose the word closest in meaning to 'concise.'",
+        "options": [
+          "Repetitive",
+          "Vague",
+          "Lengthy",
+          "Brief and clear"
+        ],
+        "answer": 3
+      },
+      {
+        "q": "A passage stating 'while some studies suggest X, others show Y' demonstrates:",
+        "options": [
+          "A definitive conclusion",
+          "An irrelevant detail",
+          "Presenting conflicting evidence on a topic",
+          "A single unsupported opinion"
+        ],
+        "answer": 2
+      },
+      {
+        "q": "Choose the correct meaning of 'infer' in a reading context.",
+        "options": [
+          "To reach a conclusion based on evidence and reasoning",
+          "To ignore the passage",
+          "To repeat the passage word for word",
+          "To directly state a fact"
+        ],
+        "answer": 0
+      },
+      {
+        "q": "Which is an example of evaluating the strength of an argument?",
+        "options": [
+          "Ignoring the argument's evidence",
+          "Repeating the claim without analysis",
+          "Checking whether the evidence actually supports the conclusion",
+          "Assuming the conclusion is automatically true"
+        ],
+        "answer": 2
+      },
+      {
+        "q": "Choose the word closest in meaning to 'ambiguous.'",
+        "options": [
+          "Highly detailed",
+          "Perfectly clear",
+          "Open to more than one interpretation",
+          "Very short"
+        ],
+        "answer": 2
+      },
+      {
+        "q": "Which best describes a 'false premise' in an argument?",
+        "options": [
+          "Strong supporting evidence",
+          "A starting assumption that is actually untrue",
+          "A well-reasoned inference",
+          "A conclusion that logically follows"
+        ],
+        "answer": 1
+      }
+    ],
+    "Decision Making": [
+      {
+        "q": "UCAT Decision Making mainly tests:",
+        "options": [
+          "Memory recall",
+          "Handwriting",
+          "Logical reasoning and problem solving",
+          "Vocabulary"
+        ],
+        "answer": 2
+      },
+      {
+        "q": "Which of the following best describes a valid logical deduction?",
+        "options": [
+          "A conclusion that necessarily follows from the given premises",
+          "A conclusion based on emotion",
+          "An opinion stated as fact",
+          "A guess with no supporting premises"
+        ],
+        "answer": 0
+      },
+      {
+        "q": "In a decision-making scenario with incomplete information, the best approach is to:",
+        "options": [
+          "Wait indefinitely for more information",
+          "Evaluate the available evidence and make the most reasonable choice",
+          "Refuse to decide at all",
+          "Choose randomly"
+        ],
+        "answer": 1
+      },
+      {
+        "q": "Which statement is an example of a syllogism?",
+        "options": [
+          "Some animals are mammals.",
+          "Mammals exist.",
+          "All mammals are warm-blooded; a dog is a mammal; therefore a dog is warm-blooded.",
+          "Dogs are common pets."
+        ],
+        "answer": 2
+      },
+      {
+        "q": "When interpreting a Venn diagram question, it's important to:",
+        "options": [
+          "Guess based on the diagram's color",
+          "Ignore the diagram's labels",
+          "Assume all circles are equal in size",
+          "Carefully identify overlapping and non-overlapping regions"
+        ],
+        "answer": 3
+      },
+      {
+        "q": "Which best describes probabilistic reasoning?",
+        "options": [
+          "Assuming all outcomes are equally certain",
+          "Making decisions with no data at all",
+          "Ignoring probability in decisions",
+          "Estimating the likelihood of an outcome based on available information"
+        ],
+        "answer": 3
+      },
+      {
+        "q": "A 'trade-off' in decision making refers to:",
+        "options": [
+          "Giving up one benefit to gain another",
+          "Choosing the option with zero risk",
+          "Having no consequences to a decision",
+          "Ignoring alternative choices"
+        ],
+        "answer": 0
+      },
+      {
+        "q": "Which of the following is a component of good logical reasoning?",
+        "options": [
+          "Assuming the first idea is always correct",
+          "Relying only on gut feeling",
+          "Ensuring conclusions are supported by valid premises",
+          "Ignoring contradictory evidence"
+        ],
+        "answer": 2
+      },
+      {
+        "q": "In interpreting data tables, it's important to:",
+        "options": [
+          "Check units and labels carefully before drawing conclusions",
+          "Assume all numbers are percentages",
+          "Guess values not explicitly given",
+          "Ignore the table headers"
+        ],
+        "answer": 0
+      },
+      {
+        "q": "Which best supports a well-reasoned recommendation?",
+        "options": [
+          "Choosing based on personal preference only",
+          "Ignoring any risks involved",
+          "Avoiding a decision altogether",
+          "Clearly weighing pros and cons based on the evidence available"
+        ],
+        "answer": 3
+      }
+    ],
+    "Quantitative Reasoning": [
+      {
+        "q": "UCAT Quantitative Reasoning mainly tests:",
+        "options": [
+          "Memory recall",
+          "Numerical reasoning and problem solving under time pressure",
+          "Verbal fluency",
+          "Essay writing"
+        ],
+        "answer": 1
+      },
+      {
+        "q": "What is 15% of 80?",
+        "options": [
+          "8",
+          "15",
+          "10",
+          "12"
+        ],
+        "answer": 3
+      },
+      {
+        "q": "What is 25% of 160?",
+        "options": [
+          "40",
+          "45",
+          "35",
+          "30"
+        ],
+        "answer": 0
+      },
+      {
+        "q": "If a train travels 240 km in 4 hours, what is its average speed?",
+        "options": [
+          "70 km/h",
+          "60 km/h",
+          "50 km/h",
+          "80 km/h"
+        ],
+        "answer": 1
+      },
+      {
+        "q": "What is the ratio of 15 to 45 in simplest form?",
+        "options": [
+          "2:3",
+          "3:1",
+          "1:2",
+          "1:3"
+        ],
+        "answer": 3
+      },
+      {
+        "q": "If an item costs 8,000 CFA after a 20% discount, what was its original price?",
+        "options": [
+          "9,000 CFA",
+          "8,800 CFA",
+          "9,600 CFA",
+          "10,000 CFA"
+        ],
+        "answer": 3
+      },
+      {
+        "q": "What is the value of 3/5 of 200?",
+        "options": [
+          "100",
+          "90",
+          "120",
+          "150"
+        ],
+        "answer": 2
+      },
+      {
+        "q": "A rectangle has an area of 48 and a width of 6. What is its length?",
+        "options": [
+          "6",
+          "8",
+          "12",
+          "10"
+        ],
+        "answer": 1
+      },
+      {
+        "q": "What is 60 as a percentage of 240?",
+        "options": [
+          "30%",
+          "20%",
+          "15%",
+          "25%"
+        ],
+        "answer": 3
+      },
+      {
+        "q": "If x : y = 2 : 3 and x = 10, what is y?",
+        "options": [
+          "20",
+          "18",
+          "15",
+          "12"
+        ],
+        "answer": 2
+      }
+    ],
+    "Situational Judgement": [
+      {
+        "q": "UCAT Situational Judgement measures a candidate's:",
+        "options": [
+          "Physical stamina",
+          "Understanding of appropriate behaviour in professional scenarios",
+          "Mathematical skill",
+          "Reading speed"
+        ],
+        "answer": 1
+      },
+      {
+        "q": "A colleague asks you to cover a shift last minute due to a family emergency. The most appropriate response is to:",
+        "options": [
+          "Report them for asking",
+          "Ignore the request entirely",
+          "Refuse without explanation",
+          "Try to help if possible, or suggest an alternative solution"
+        ],
+        "answer": 3
+      },
+      {
+        "q": "If you notice a colleague making a repeated error that could affect client safety, the most appropriate action is to:",
+        "options": [
+          "Publicly criticize them in front of others",
+          "Ignore it since it's not your job",
+          "Raise the concern respectfully with the colleague or a supervisor",
+          "Say nothing to avoid conflict"
+        ],
+        "answer": 2
+      },
+      {
+        "q": "A team member takes credit for your idea in a meeting. The most professional response is to:",
+        "options": [
+          "Calmly clarify your contribution afterward or in the moment appropriately",
+          "Retaliate by taking credit for their future work",
+          "Say nothing and feel resentful indefinitely",
+          "Publicly confront them angrily"
+        ],
+        "answer": 0
+      },
+      {
+        "q": "You are running late for an important appointment due to unforeseen circumstances. The best action is to:",
+        "options": [
+          "Arrive without any explanation",
+          "Blame someone else for the delay",
+          "Simply not show up",
+          "Contact the relevant party as soon as possible to inform them"
+        ],
+        "answer": 3
+      },
+      {
+        "q": "A situation requires you to keep a colleague's personal information confidential. You should:",
+        "options": [
+          "Post about it on social media",
+          "Share it if asked casually by others",
+          "Respect their privacy and not share the information",
+          "Discuss it openly in the break room"
+        ],
+        "answer": 2
+      },
+      {
+        "q": "If you disagree with a supervisor's decision, the most professional approach is to:",
+        "options": [
+          "Refuse to cooperate at all",
+          "Complain to other colleagues instead",
+          "Ignore instructions and do your own thing",
+          "Respectfully share your perspective through appropriate channels"
+        ],
+        "answer": 3
+      },
+      {
+        "q": "A new team member seems overwhelmed with their workload. An appropriate response is to:",
+        "options": [
+          "Offer support or guidance where appropriate",
+          "Ignore their struggle entirely",
+          "Criticize their pace publicly",
+          "Take over all of their work without discussion"
+        ],
+        "answer": 0
+      },
+      {
+        "q": "You receive conflicting instructions from two supervisors. The best approach is to:",
+        "options": [
+          "Complain without seeking clarification",
+          "Guess which instruction to follow",
+          "Seek clarification from both to resolve the conflict",
+          "Ignore both instructions"
+        ],
+        "answer": 2
+      },
+      {
+        "q": "If you make a mistake at work that affects a colleague, the most appropriate response is to:",
+        "options": [
+          "Blame someone else",
+          "Ignore the consequences",
+          "Hide the mistake",
+          "Acknowledge the mistake and take steps to correct it"
+        ],
+        "answer": 3
+      }
+    ]
+  }
+};
+
+let currentRole = 'admin';
+let currentPhotoData = null;
+let currentStudentLoggedIn = null;
+
+function setRole(role) {
+  currentRole = role;
+  document.getElementById('btnAdminRole').classList.toggle('active', role === 'admin');
+  document.getElementById('btnStudentRole').classList.toggle('active', role === 'student');
+  document.getElementById('adminView').classList.toggle('hidden', role !== 'admin');
+  document.getElementById('studentView').classList.toggle('hidden', role !== 'student');
+  if (role === 'manage' || role === 'admin') renderStudentsTable();
+}
+
+function showTab(name) {
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.toggle('active', b.dataset.tab === name));
+  document.getElementById('tab-register').classList.toggle('hidden', name !== 'register');
+  document.getElementById('tab-manage').classList.toggle('hidden', name !== 'manage');
+  document.getElementById('tab-qb').classList.toggle('hidden', name !== 'qb');
+  if (name === 'manage') renderStudentsTable();
+  if (name === 'qb') qbInit();
+}
+
+function handlePhoto(e) {
+  const file = e.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = () => {
+    currentPhotoData = reader.result;
+    const img = document.getElementById('photoPreview');
+    img.src = currentPhotoData;
+    img.classList.remove('hidden');
+  };
+  reader.readAsDataURL(file);
+}
+
+const REGISTRATION_ONLY_PRICE = 10000;
+
+function addProgramRow() {
+  const div = document.createElement('div');
+  div.className = 'program-row-wrap';
+  const testOptions = Object.keys(TEST_CATALOG).map(t => `<option value="${t}">${t}</option>`).join('');
+  div.innerHTML = `
+    <div class="program-row">
+      <select class="p-test" onchange="onProgramChange(this)">${testOptions}</select>
+      <select class="p-level"><option>Beginner</option><option>Intermediate</option><option>Advanced</option></select>
+      <input type="date" class="p-start" title="Start date">
+      <input type="date" class="p-end" title="End date">
+      <input type="number" class="p-sessions" placeholder="Sessions/wk" value="2">
+      <input type="number" class="p-price" placeholder="Price CFA">
+      <button class="field-remove" onclick="this.closest('.program-row-wrap').remove(); recalcTotals();">×</button>
+    </div>
+    <div style="margin: -4px 0 8px 2px;">
+      <label style="display:inline-flex;align-items:center;gap:6px;font-weight:normal;font-size:12px;color:#444;">
+        <input type="checkbox" class="p-regonly" style="width:auto;margin:0;" onchange="onProgramChange(this.closest('.program-row-wrap').querySelector('.p-test'))">
+        Registration only — student wants to take just the actual test, no training (${REGISTRATION_ONLY_PRICE.toLocaleString()} CFA)
+      </label>
+    </div>
+  `;
+  document.getElementById('programRows').appendChild(div);
+  onProgramChange(div.querySelector('.p-test'));
+}
+
+function onProgramChange(selectEl) {
+  const test = selectEl.value;
+  const row = selectEl.closest('.program-row-wrap');
+  const regOnly = row.querySelector('.p-regonly').checked;
+  const priceInput = row.querySelector('.p-price');
+  const sessionsInput = row.querySelector('.p-sessions');
+  const startInput = row.querySelector('.p-start');
+  const endInput = row.querySelector('.p-end');
+  const levelSelect = row.querySelector('.p-level');
+  if (regOnly) {
+    priceInput.value = REGISTRATION_ONLY_PRICE;
+    sessionsInput.value = '';
+    sessionsInput.disabled = true;
+    startInput.disabled = true;
+    endInput.disabled = true;
+    levelSelect.disabled = true;
+  } else {
+    priceInput.value = TEST_CATALOG[test].price;
+    sessionsInput.disabled = false;
+    startInput.disabled = false;
+    endInput.disabled = false;
+    levelSelect.disabled = false;
+    if (!sessionsInput.value) sessionsInput.value = 2;
+  }
+  recalcTotals();
+}
+
+function recalcTotals() {
+  let total = 0;
+  document.querySelectorAll('.p-price').forEach(inp => total += Number(inp.value || 0));
+  document.getElementById('programTotal').textContent = total.toLocaleString();
+  recalcInstallments();
+}
+
+function addInstallmentRow() {
+  const div = document.createElement('div');
+  div.className = 'installment-row';
+  div.innerHTML = `
+    <input type="number" class="i-amount" placeholder="Amount CFA" oninput="recalcInstallments()">
+    <input type="date" class="i-due" title="Due date">
+    <span class="muted">CFA</span>
+    <button class="field-remove" onclick="this.parentElement.remove(); recalcInstallments();">×</button>
+  `;
+  document.getElementById('installmentRows').appendChild(div);
+}
+
+function recalcInstallments() {
+  let total = 0;
+  document.querySelectorAll('.i-amount').forEach(inp => total += Number(inp.value || 0));
+  document.getElementById('installTotal').textContent = total.toLocaleString();
+  const programTotal = Number(document.getElementById('programTotal').textContent.replace(/,/g, '') || 0);
+  const warn = document.getElementById('installWarning');
+  warn.textContent = (total !== programTotal && document.querySelectorAll('.i-amount').length > 0) ? `(does not match total of ${programTotal.toLocaleString()})` : '';
+}
+
+async function nextSeq(key) {
+  let meta = { invoiceSeq: 60, receiptSeq: 0 };
+  try {
+    const r = await window.storage.get('meta');
+    if (r) meta = JSON.parse(r.value);
+  } catch (e) {}
+  meta[key] = (meta[key] || 0) + 1;
+  await window.storage.set('meta', JSON.stringify(meta));
+  return meta[key];
+}
+
+async function submitRegistration() {
+  const name = document.getElementById('s_name').value.trim();
+  const email = document.getElementById('s_email').value.trim();
+  if (!name || !email) { alert('Full name and email are required.'); return; }
+
+  const programs = [];
+  document.querySelectorAll('.program-row-wrap').forEach(row => {
+    const regOnly = row.querySelector('.p-regonly').checked;
+    programs.push({
+      id: crypto.randomUUID(),
+      test: row.querySelector('.p-test').value,
+      level: row.querySelector('.p-level').value,
+      start: row.querySelector('.p-start').value,
+      end: row.querySelector('.p-end').value,
+      sessionsPerWeek: row.querySelector('.p-sessions').value,
+      price: Number(row.querySelector('.p-price').value || 0),
+      regOnly
+    });
+  });
+  if (programs.length === 0) { alert('Add at least one test/program.'); return; }
+
+  const installments = [];
+  document.querySelectorAll('.installment-row').forEach(row => {
+    installments.push({
+      id: crypto.randomUUID(),
+      amount: Number(row.querySelector('.i-amount').value || 0),
+      dueDate: row.querySelector('.i-due').value,
+      paid: false, paidDate: null, receiptNumber: null
+    });
+  });
+  const total = programs.reduce((s, p) => s + p.price, 0);
+  if (installments.length === 0) {
+    installments.push({ id: crypto.randomUUID(), amount: total, dueDate: '', paid: false, paidDate: null, receiptNumber: null });
+  }
+
+  const id = crypto.randomUUID();
+  const invoiceSeq = await nextSeq('invoiceSeq');
+  const invoiceNumber = 'INV-' + String(invoiceSeq).padStart(3, '0');
+
+  const student = {
+    id, fullName: name, dob: document.getElementById('s_dob').value, gender: document.getElementById('s_gender').value,
+    nationality: document.getElementById('s_nat').value, email, phone: document.getElementById('s_phone').value,
+    guardian: { name: document.getElementById('g_name').value, relationship: document.getElementById('g_rel').value,
+      phone: document.getElementById('g_phone').value, email: document.getElementById('g_email').value, address: document.getElementById('g_addr').value },
+    photoRef: currentPhotoData ? id : null,
+    programs, total, installments,
+    invoiceNumber, invoiceDate: new Date().toISOString().slice(0,10),
+    notes: document.getElementById('s_notes').value,
+    attempts: [],
+    attendance: [],
+    certificates: [],
+    createdAt: Date.now()
+  };
+
+  await window.storage.set('student:' + id, JSON.stringify(student));
+  if (currentPhotoData) await window.storage.set('photo:' + id, currentPhotoData);
+
+  alert('Student registered. Invoice ' + invoiceNumber + ' generated.');
+  resetRegistrationForm();
+  showTab('manage');
+  const list = await loadAllStudents();
+  const s = list.find(x => x.id === id);
+  if (s) openInvoice(s);
+}
+
+function resetRegistrationForm() {
+  ['s_name','s_dob','s_nat','s_email','s_phone','g_name','g_rel','g_phone','g_email','g_addr','s_notes'].forEach(id => document.getElementById(id).value = '');
+  document.getElementById('programRows').innerHTML = '';
+  document.getElementById('installmentRows').innerHTML = '';
+  document.getElementById('photoPreview').classList.add('hidden');
+  currentPhotoData = null;
+  addProgramRow();
+  recalcTotals();
+}
+
+async function loadAllStudents() {
+  const students = [];
+  try {
+    const listResult = await window.storage.list('student:');
+    if (listResult && listResult.keys) {
+      for (const key of listResult.keys) {
+        try {
+          const r = await window.storage.get(key);
+          if (r) students.push(JSON.parse(r.value));
+        } catch (e) {}
+      }
+    }
+  } catch (e) {}
+  students.sort((a, b) => a.createdAt - b.createdAt);
+  return students;
+}
+
+function balanceOf(student) {
+  const paid = student.installments.filter(i => i.paid).reduce((s, i) => s + i.amount, 0);
+  return student.total - paid;
+}
+
+function statusOf(student) {
+  const bal = balanceOf(student);
+  if (bal <= 0) return 'paid';
+  if (bal < student.total) return 'partial';
+  return 'unpaid';
+}
+
+async function renderStudentsTable() {
+  const students = await loadAllStudents();
+  const tbody = document.querySelector('#studentsTable tbody');
+  tbody.innerHTML = '';
+  document.getElementById('studentsEmpty').classList.toggle('hidden', students.length > 0);
+  students.forEach(s => {
+    const bal = balanceOf(s);
+    const status = statusOf(s);
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td>${s.fullName}</td>
+      <td>${s.programs.map(p => p.test).join(', ')}</td>
+      <td>${s.invoiceNumber}</td>
+      <td>${s.total.toLocaleString()} CFA</td>
+      <td>${bal.toLocaleString()} CFA</td>
+      <td><span class="badge ${status}">${status}</span></td>
+      <td>
+        <button class="btn ghost small" onclick="openInvoiceById('${s.id}')">Invoice</button>
+        <button class="btn ghost small" onclick="openPayments('${s.id}')">Payments</button>
+        <button class="btn ghost small" onclick="openAttendance('${s.id}')">Attendance</button>
+        <button class="btn ghost small" onclick="openProgressReport('${s.id}')">Report</button>
+        <button class="btn ghost small" onclick="openCertificateForm('${s.id}')">Certificate</button>
+      </td>
+    `;
+    tbody.appendChild(tr);
+  });
+}
+
+async function openInvoiceById(id) {
+  const students = await loadAllStudents();
+  const s = students.find(x => x.id === id);
+  if (s) openInvoice(s);
+}
+
+function openInvoice(student) {
+  const rows = student.programs.map((p, i) => {
+    const title = p.regOnly ? `${p.test} — Registration Only (Test Sitting)` : `${p.test} Preparation & Registration`;
+    const sub = p.regOnly
+      ? `Test sitting only — no training or diagnostic included`
+      : `${p.level} | ${p.start || '—'} to ${p.end || '—'}`;
+    const sessionsCell = p.regOnly ? '—' : `${p.sessionsPerWeek || '—'} / wk`;
+    return `
+    <tr>
+      <td>${String(i+1).padStart(2,'0')}</td>
+      <td><div style="font-weight:bold;color:#1a2b6b;">${title}</div>
+          <div style="font-size:11px;color:#666;font-style:italic;">${sub}</div></td>
+      <td style="text-align:center;">${sessionsCell}</td>
+      <td style="text-align:center;">1</td>
+      <td>${p.price.toLocaleString()} CFA</td>
+      <td style="text-align:right;font-weight:bold;color:#1a2b6b;">${p.price.toLocaleString()} CFA</td>
+    </tr>`;
+  }).join('');
+
+  const html = `
+    <div style="display:flex;justify-content:space-between;border-bottom:3px solid #1a2b6b;padding-bottom:16px;margin-bottom:20px;">
+      <div style="font-size:22px;font-weight:bold;color:#1a2b6b;">WAAPC Training Centre</div>
+      <div style="text-align:right;">
+        <div style="font-size:32px;font-weight:bold;color:#1a2b6b;">INVOICE</div>
+        <div style="font-size:12px;color:#666;">Testing & Examination Services</div>
+      </div>
+    </div>
+    <div style="display:flex;justify-content:space-between;margin-bottom:16px;">
+      <div><div style="font-size:11px;font-weight:bold;">BILLED TO</div>
+        <div style="font-size:18px;font-weight:bold;color:#1a2b6b;">${student.fullName}</div>
+        <div style="color:#666;font-size:12px;">Student / Client</div></div>
+      <div style="text-align:right;font-size:13px;">
+        <div><b>Invoice No.</b> ${student.invoiceNumber}</div>
+        <div><b>Invoice Date</b> ${student.invoiceDate}</div>
+      </div>
+    </div>
+    <table style="width:100%;border-collapse:collapse;margin-bottom:14px;">
+      <thead><tr style="background:#1a2b6b;color:#fff;font-size:11px;">
+        <th style="padding:8px;text-align:left;">#</th><th style="padding:8px;text-align:left;">DESCRIPTION</th>
+        <th style="padding:8px;">SESSIONS/WK</th><th style="padding:8px;">QTY</th><th style="padding:8px;text-align:left;">UNIT PRICE</th>
+        <th style="padding:8px;text-align:right;background:#b81f2c;">AMOUNT</th></tr></thead>
+      <tbody>${rows}</tbody>
+    </table>
+    <div style="width:280px;margin-left:auto;">
+      <div style="display:flex;justify-content:space-between;padding:4px 0;">
+        <span>Subtotal</span><span>${student.total.toLocaleString()} CFA</span></div>
+      <div style="background:#1a2b6b;color:#fff;display:flex;justify-content:space-between;padding:10px 14px;font-weight:bold;margin-top:6px;">
+        <span>TOTAL DUE</span><span style="background:#b81f2c;padding:4px 10px;">${student.total.toLocaleString()} CFA</span></div>
+    </div>
+    <div style="margin-top:20px;font-size:11px;color:#666;text-align:center;border-top:1px solid #e0e4ec;padding-top:10px;">
+      Send proof of payment to admissions@waapcamericanschools.com — include student name and invoice number.
+    </div>
+  `;
+  document.getElementById('docContent').innerHTML = html;
+  document.getElementById('docOverlay').classList.add('show');
+}
+
+async function openPayments(id) {
+  const students = await loadAllStudents();
+  const s = students.find(x => x.id === id);
+  if (!s) return;
+  const rows = s.installments.map((inst, i) => `
+    <tr>
+      <td>${i+1}</td>
+      <td>${inst.amount.toLocaleString()} CFA</td>
+      <td>${inst.dueDate || '—'}</td>
+      <td><span class="badge ${inst.paid ? 'paid' : 'unpaid'}">${inst.paid ? 'Paid' : 'Unpaid'}</span></td>
+      <td>${inst.paid ? `<button class="btn ghost small" onclick="viewReceipt('${s.id}','${inst.id}')">Receipt</button>` : `<button class="btn small" onclick="markPaid('${s.id}','${inst.id}')">Mark paid</button>`}</td>
+    </tr>`).join('');
+  const html = `
+    <h3 style="color:#1a2b6b;">${s.fullName} — Payment schedule</h3>
+    <p class="muted">Total ${s.total.toLocaleString()} CFA · Balance ${balanceOf(s).toLocaleString()} CFA</p>
+    <table><thead><tr><th>#</th><th>Amount</th><th>Due date</th><th>Status</th><th>Action</th></tr></thead><tbody>${rows}</tbody></table>
+  `;
+  document.getElementById('docContent').innerHTML = html;
+  document.getElementById('docOverlay').classList.add('show');
+}
+
+async function markPaid(studentId, installmentId) {
+  const method = prompt('Payment method (Bank Transfer / Cheque / Wave / Cash):', 'Cash');
+  if (method === null) return;
+  const students = await loadAllStudents();
+  const s = students.find(x => x.id === studentId);
+  const inst = s.installments.find(i => i.id === installmentId);
+  const seq = await nextSeq('receiptSeq');
+  inst.paid = true;
+  inst.paidDate = new Date().toISOString().slice(0,10);
+  inst.receiptNumber = 'RCT-' + String(seq).padStart(3, '0');
+  inst.method = method;
+  await window.storage.set('student:' + studentId, JSON.stringify(s));
+  await openPayments(studentId);
+  renderStudentsTable();
+}
+
+async function viewReceipt(studentId, installmentId) {
+  const students = await loadAllStudents();
+  const s = students.find(x => x.id === studentId);
+  const inst = s.installments.find(i => i.id === installmentId);
+  const html = `
+    <div style="display:flex;justify-content:space-between;border-bottom:3px solid #1a2b6b;padding-bottom:16px;margin-bottom:20px;">
+      <div style="font-size:22px;font-weight:bold;color:#1a2b6b;">WAAPC Training Centre</div>
+      <div style="text-align:right;"><div style="font-size:32px;font-weight:bold;color:#1a2b6b;">RECEIPT</div></div>
+    </div>
+    <div style="display:flex;justify-content:space-between;margin-bottom:20px;">
+      <div><div style="font-size:11px;font-weight:bold;">RECEIVED FROM</div>
+        <div style="font-size:18px;font-weight:bold;color:#1a2b6b;">${s.fullName}</div></div>
+      <div style="text-align:right;font-size:13px;">
+        <div><b>Receipt No.</b> ${inst.receiptNumber}</div>
+        <div><b>Date</b> ${inst.paidDate}</div>
+        <div><b>Invoice Ref.</b> ${s.invoiceNumber}</div>
+      </div>
+    </div>
+    <div style="background:#1a2b6b;color:#fff;display:flex;justify-content:space-between;padding:14px 18px;font-weight:bold;font-size:16px;margin-bottom:16px;">
+      <span>AMOUNT RECEIVED</span><span style="background:#b81f2c;padding:5px 12px;">${inst.amount.toLocaleString()} CFA</span>
+    </div>
+    <p><b>Payment method:</b> ${inst.method || '—'}</p>
+    <p style="margin-top:24px;font-size:11px;color:#666;text-align:center;border-top:1px solid #e0e4ec;padding-top:10px;">
+      Thank you for choosing WAAPC Training Centre.
+    </p>
+  `;
+  document.getElementById('docContent').innerHTML = html;
+  document.getElementById('docOverlay').classList.add('show');
+}
+
+function closeDoc() { document.getElementById('docOverlay').classList.remove('show'); }
+
+// ----- Attendance -----
+async function openAttendance(studentId) {
+  const students = await loadAllStudents();
+  const s = students.find(x => x.id === studentId);
+  if (!s) return;
+  s.attendance = s.attendance || [];
+
+  const programOptions = s.programs.map(p => `<option value="${p.id}">${p.test} (${p.level})</option>`).join('');
+  const rows = s.attendance.slice().sort((a,b) => (a.date < b.date ? 1 : -1)).map(rec => {
+    const prog = s.programs.find(p => p.id === rec.programId);
+    return `<tr>
+      <td>${rec.date}</td>
+      <td>${prog ? prog.test : 'Unknown'}</td>
+      <td><span class="badge ${rec.present ? 'paid' : 'unpaid'}">${rec.present ? 'Present' : 'Absent'}</span></td>
+    </tr>`;
+  }).join('');
+
+  const html = `
+    <h3 style="color:#1a2b6b;">${s.fullName} — Attendance</h3>
+    <div style="display:flex;gap:8px;align-items:end;margin-bottom:16px;flex-wrap:wrap;">
+      <div><label>Program</label><select id="att_program">${programOptions}</select></div>
+      <div><label>Date</label><input type="date" id="att_date" value="${new Date().toISOString().slice(0,10)}"></div>
+      <div>
+        <button class="btn small" onclick="recordAttendance('${s.id}', true)">Mark present</button>
+        <button class="btn ghost small" onclick="recordAttendance('${s.id}', false)">Mark absent</button>
+      </div>
+    </div>
+    <table><thead><tr><th>Date</th><th>Program</th><th>Status</th></tr></thead><tbody>${rows || '<tr><td colspan="3" class="muted">No attendance recorded yet.</td></tr>'}</tbody></table>
+  `;
+  document.getElementById('docContent').innerHTML = html;
+  document.getElementById('docOverlay').classList.add('show');
+}
+
+async function recordAttendance(studentId, present) {
+  const programId = document.getElementById('att_program').value;
+  const date = document.getElementById('att_date').value;
+  if (!date) { alert('Pick a date.'); return; }
+  const students = await loadAllStudents();
+  const s = students.find(x => x.id === studentId);
+  s.attendance = s.attendance || [];
+  const existing = s.attendance.find(r => r.programId === programId && r.date === date);
+  if (existing) { existing.present = present; }
+  else { s.attendance.push({ programId, date, present }); }
+  await window.storage.set('student:' + studentId, JSON.stringify(s));
+  await openAttendance(studentId);
+}
+
+function attendanceStatsFor(student, programId) {
+  const records = (student.attendance || []).filter(r => r.programId === programId);
+  const total = records.length;
+  const present = records.filter(r => r.present).length;
+  const pct = total > 0 ? Math.round((present / total) * 100) : null;
+  return { total, present, pct };
+}
+
+// ----- Progress report -----
+async function openProgressReport(studentId) {
+  const students = await loadAllStudents();
+  const s = students.find(x => x.id === studentId);
+  if (!s) return;
+  s.attempts = s.attempts || [];
+  s.attendance = s.attendance || [];
+
+  const programBlocks = s.programs.map(p => {
+    const subjects = (TEST_CATALOG[p.test] && TEST_CATALOG[p.test].subjects) || [];
+    const att = attendanceStatsFor(s, p.id);
+    const subjectRows = subjects.map(sub => {
+      const mockAttempts = s.attempts.filter(a => a.test === p.test && a.subject === sub && a.mode === 'mock');
+      const best = mockAttempts.length ? Math.max(...mockAttempts.map(a => Math.round(a.score/a.total*100))) : null;
+      const latest = mockAttempts.length ? mockAttempts[mockAttempts.length - 1] : null;
+      return `<tr>
+        <td>${sub}</td>
+        <td>${mockAttempts.length}</td>
+        <td>${best !== null ? best + '%' : '—'}</td>
+        <td>${latest ? latest.score + '/' + latest.total + ' (' + latest.date + ')' : '—'}</td>
+      </tr>`;
+    }).join('');
+    return `
+      <div style="margin-bottom:18px;">
+        <div style="font-weight:bold;color:#1a2b6b;font-size:14px;margin-bottom:6px;">${p.test} <span class="muted">(${p.level})</span></div>
+        <p class="muted" style="margin:0 0 8px 0;">Attendance: ${att.total > 0 ? att.present + ' / ' + att.total + ' sessions (' + att.pct + '%)' : 'No sessions recorded yet'}</p>
+        <table><thead><tr><th>Subject</th><th>Mock attempts</th><th>Best score</th><th>Latest attempt</th></tr></thead><tbody>${subjectRows}</tbody></table>
+      </div>`;
+  }).join('');
+
+  const html = `
+    <div style="display:flex;justify-content:space-between;border-bottom:3px solid #1a2b6b;padding-bottom:16px;margin-bottom:20px;">
+      <div style="font-size:22px;font-weight:bold;color:#1a2b6b;">WAAPC Training Centre</div>
+      <div style="text-align:right;"><div style="font-size:26px;font-weight:bold;color:#1a2b6b;">PROGRESS REPORT</div></div>
+    </div>
+    <div style="margin-bottom:18px;">
+      <div style="font-size:11px;font-weight:bold;">STUDENT</div>
+      <div style="font-size:18px;font-weight:bold;color:#1a2b6b;">${s.fullName}</div>
+      <div class="muted">Report generated ${new Date().toISOString().slice(0,10)}</div>
+    </div>
+    ${programBlocks}
+    <div style="margin-top:20px;font-size:11px;color:#666;text-align:center;border-top:1px solid #e0e4ec;padding-top:10px;">
+      WAAPC Training Centre — Testing & Examination Services
+    </div>
+  `;
+  document.getElementById('docContent').innerHTML = html;
+  document.getElementById('docOverlay').classList.add('show');
+}
+
+// ----- Certificates -----
+async function openCertificateForm(studentId) {
+  const students = await loadAllStudents();
+  const s = students.find(x => x.id === studentId);
+  if (!s) return;
+  const programOptions = s.programs.map(p => `<option value="${p.id}">${p.test} (${p.level})</option>`).join('');
+  const html = `
+    <h3 style="color:#1a2b6b;">Issue certificate — ${s.fullName}</h3>
+    <label>Program completed</label>
+    <select id="cert_program">${programOptions}</select>
+    <label>Final mock score (numerator)</label>
+    <input type="number" id="cert_score" placeholder="e.g. 13">
+    <label>Final mock score (out of)</label>
+    <input type="number" id="cert_total" placeholder="e.g. 15">
+    <button class="btn red" onclick="issueCertificate('${s.id}')">Generate certificate</button>
+  `;
+  document.getElementById('docContent').innerHTML = html;
+  document.getElementById('docOverlay').classList.add('show');
+}
+
+async function issueCertificate(studentId) {
+  const programId = document.getElementById('cert_program').value;
+  const score = Number(document.getElementById('cert_score').value || 0);
+  const total = Number(document.getElementById('cert_total').value || 0);
+  const students = await loadAllStudents();
+  const s = students.find(x => x.id === studentId);
+  const program = s.programs.find(p => p.id === programId);
+  const att = attendanceStatsFor(s, programId);
+
+  const seq = await nextSeq('certSeq');
+  const certNumber = 'CERT-' + new Date().getFullYear() + '-' + String(seq).padStart(3, '0');
+  const cert = {
+    id: crypto.randomUUID(), programId, certNumber,
+    issuedDate: new Date().toISOString().slice(0,10),
+    finalScore: score, finalTotal: total, attendancePct: att.pct
+  };
+  s.certificates = s.certificates || [];
+  s.certificates.push(cert);
+  await window.storage.set('student:' + studentId, JSON.stringify(s));
+  renderCertificate(s, program, cert);
+}
+
+function renderCertificate(student, program, cert) {
+  const pct = cert.finalTotal > 0 ? Math.round((cert.finalScore / cert.finalTotal) * 100) : null;
+  const html = `
+    <div style="border:6px double #1a2b6b;padding:40px;text-align:center;">
+      <div style="font-size:14px;letter-spacing:2px;color:#b81f2c;font-weight:bold;">WAAPC TRAINING CENTRE</div>
+      <div style="font-size:28px;font-weight:bold;color:#1a2b6b;margin:14px 0;">Certificate of Completion</div>
+      <p style="font-size:13px;color:#555;">This certifies that</p>
+      <div style="font-size:24px;font-weight:bold;color:#1a2b6b;margin:10px 0;">${student.fullName}</div>
+      <p style="font-size:13px;color:#555;">has successfully completed the</p>
+      <div style="font-size:18px;font-weight:bold;color:#b81f2c;margin:8px 0;">${program.test} Preparation Program</div>
+      <p style="font-size:13px;color:#555;margin-top:16px;">
+        ${cert.attendancePct !== null ? 'Attendance: ' + cert.attendancePct + '% &nbsp; | &nbsp; ' : ''}
+        ${pct !== null ? 'Final mock assessment: ' + cert.finalScore + '/' + cert.finalTotal + ' (' + pct + '%)' : ''}
+      </p>
+      <div style="display:flex;justify-content:space-between;margin-top:40px;font-size:12px;color:#666;">
+        <div>Certificate No. ${cert.certNumber}</div>
+        <div>Issued ${cert.issuedDate}</div>
+      </div>
+    </div>
+  `;
+  document.getElementById('docContent').innerHTML = html;
+  document.getElementById('docOverlay').classList.add('show');
+}
+
+
+async function studentLogin() {
+  const email = document.getElementById('loginEmail').value.trim().toLowerCase();
+  const students = await loadAllStudents();
+  const s = students.find(x => x.email.toLowerCase() === email);
+  if (!s) { document.getElementById('loginError').textContent = 'No student found with that email. Ask your school to check your registration.'; return; }
+  currentStudentLoggedIn = s;
+  document.getElementById('loginError').textContent = '';
+  document.getElementById('loginCard').classList.add('hidden');
+  document.getElementById('dashboardCard').classList.remove('hidden');
+  renderStudentDashboard(s);
+}
+
+function studentLogout() {
+  currentStudentLoggedIn = null;
+  document.getElementById('loginCard').classList.remove('hidden');
+  document.getElementById('dashboardCard').classList.add('hidden');
+  document.getElementById('loginEmail').value = '';
+  document.getElementById('subjectArea').innerHTML = '';
+}
+
+function renderStudentDashboard(s) {
+  document.getElementById('welcomeMsg').textContent = 'Welcome, ' + s.fullName.split(' ')[0];
+  const list = document.getElementById('enrollmentsList');
+  list.innerHTML = s.programs.map(p => {
+    const subjects = TEST_CATALOG[p.test].subjects;
+    return `<div style="margin-bottom:16px;">
+      <div style="font-weight:bold;color:#1a2b6b;font-size:15px;margin-bottom:8px;">${p.test} <span class="muted">(${p.level})</span></div>
+      ${subjects.map(sub => {
+        const attempts = s.attempts.filter(a => a.test === p.test && a.subject === sub && a.mode === 'mock');
+        const best = attempts.length ? Math.max(...attempts.map(a => Math.round(a.score/a.total*100))) : null;
+        return `<div class="subject-card">
+          <div>
+            <div class="name">${sub}</div>
+            <div class="stats">${attempts.length ? attempts.length + ' mock attempt(s) · best ' + best + '%' : 'No mock attempts yet'}</div>
+          </div>
+          <div>
+            <button class="btn ghost small" onclick="startSession('${p.test}','${sub}','practice')">Practice</button>
+            <button class="btn small" onclick="startSession('${p.test}','${sub}','mock')">Take mock exam</button>
+          </div>
+        </div>`;
+      }).join('')}
+    </div>`;
+  }).join('');
+}
+
+let sessionState = null;
+
+async function getCustomQuestions(test, subject) {
+  try {
+    const r = await window.storage.get('customq:' + test + ':' + subject);
+    return r ? JSON.parse(r.value) : [];
+  } catch (e) { return []; }
+}
+
+async function saveCustomQuestions(test, subject, list) {
+  await window.storage.set('customq:' + test + ':' + subject, JSON.stringify(list));
+}
+
+async function getCombinedBank(test, subject) {
+  const builtin = (QUESTION_BANKS[test] && QUESTION_BANKS[test][subject]) || [];
+  const custom = await getCustomQuestions(test, subject);
+  return builtin.concat(custom);
+}
+
+async function startSession(test, subject, mode) {
+  const bank = await getCombinedBank(test, subject);
+  if (bank.length === 0) {
+    document.getElementById('subjectArea').innerHTML = '<div class="card empty">Practice content for this subject is coming soon.</div>';
+    return;
+  }
+  sessionState = { test, subject, mode, bank, answers: new Array(bank.length).fill(null), submitted: false };
+  renderSession();
+}
+
+function renderSession() {
+  const { subject, mode, submitted, bank } = sessionState;
+  const test = sessionState.test;
+  let scoreHtml = '';
+  if (submitted) {
+    const correct = bank.reduce((c, q, i) => c + (sessionState.answers[i] === q.answer ? 1 : 0), 0);
+    scoreHtml = `<div class="score-banner"><div>${mode === 'mock' ? 'Mock exam result' : 'Practice result'} — ${subject}</div><div class="big">${correct} / ${bank.length}</div></div>`;
+  }
+  const qHtml = bank.map((q, i) => {
+    const optsHtml = q.options.map((opt, oi) => {
+      let cls = 'q-opt';
+      if (sessionState.answers[i] === oi) cls += ' selected';
+      if (submitted) {
+        if (oi === q.answer) cls += ' correct';
+        else if (sessionState.answers[i] === oi) cls += ' wrong';
+      }
+      return `<span class="${cls}" onclick="${submitted ? '' : `selectAnswer(${i},${oi})`}">${opt}</span>`;
+    }).join('');
+    return `<div class="q-block"><div class="qtext">${i+1}. ${q.q}</div>${optsHtml}</div>`;
+  }).join('');
+
+  document.getElementById('subjectArea').innerHTML = `
+    <div class="card">
+      <h2>${test} — ${subject} (${mode === 'mock' ? 'Mock exam' : 'Practice'})</h2>
+      ${scoreHtml}
+      ${qHtml}
+      ${submitted
+        ? `<button class="btn ghost small" onclick="closeSession()">Back to dashboard</button>`
+        : `<button class="btn red" onclick="submitSession()">Submit</button>`}
+    </div>`;
+}
+
+function selectAnswer(qIndex, optIndex) {
+  sessionState.answers[qIndex] = optIndex;
+  renderSession();
+}
+
+async function submitSession() {
+  const bank = sessionState.bank;
+  const correct = bank.reduce((c, q, i) => c + (sessionState.answers[i] === q.answer ? 1 : 0), 0);
+  sessionState.submitted = true;
+  if (sessionState.mode === 'mock') {
+    const s = currentStudentLoggedIn;
+    s.attempts.push({ test: sessionState.test, subject: sessionState.subject, mode: 'mock', score: correct, total: bank.length, date: new Date().toISOString().slice(0,10) });
+    await window.storage.set('student:' + s.id, JSON.stringify(s));
+  }
+  renderSession();
+}
+
+function closeSession() {
+  sessionState = null;
+  document.getElementById('subjectArea').innerHTML = '';
+  renderStudentDashboard(currentStudentLoggedIn);
+}
+
+// ----- Admin: Question Bank editor -----
+function qbInit() {
+  const testSelect = document.getElementById('qb_test');
+  testSelect.innerHTML = Object.keys(TEST_CATALOG).map(t => `<option value="${t}">${t}</option>`).join('');
+  qbOnTestChange();
+}
+
+function qbOnTestChange() {
+  const test = document.getElementById('qb_test').value;
+  const subjects = TEST_CATALOG[test].subjects;
+  document.getElementById('qb_subject').innerHTML = subjects.map(s => `<option value="${s}">${s}</option>`).join('');
+  qbLoadList();
+}
+
+async function qbLoadList() {
+  const test = document.getElementById('qb_test').value;
+  const subject = document.getElementById('qb_subject').value;
+  const builtin = (QUESTION_BANKS[test] && QUESTION_BANKS[test][subject]) || [];
+  const custom = await getCustomQuestions(test, subject);
+  document.getElementById('qb_count').textContent =
+    `${builtin.length} built-in question(s) + ${custom.length} added by you = ${builtin.length + custom.length} total for this subject.`;
+
+  const listDiv = document.getElementById('qb_list');
+  document.getElementById('qb_listEmpty').classList.toggle('hidden', custom.length > 0);
+  listDiv.innerHTML = custom.map((q, i) => `
+    <div class="q-block">
+      <div class="qtext">${i + 1}. ${q.q}</div>
+      ${q.options.map((opt, oi) => `<div style="padding:4px 0;${oi === q.answer ? 'color:#1e7a45;font-weight:bold;' : ''}">${oi === q.answer ? '✓ ' : '　'} ${opt}</div>`).join('')}
+      <button class="btn ghost small" style="margin-top:6px;" onclick="qbDeleteQuestion(${i})">Remove this question</button>
+    </div>
+  `).join('');
+}
+
+async function qbAddQuestion() {
+  const test = document.getElementById('qb_test').value;
+  const subject = document.getElementById('qb_subject').value;
+  const qtext = document.getElementById('qb_qtext').value.trim();
+  const a = document.getElementById('qb_optA').value.trim();
+  const b = document.getElementById('qb_optB').value.trim();
+  const c = document.getElementById('qb_optC').value.trim();
+  const d = document.getElementById('qb_optD').value.trim();
+  const correct = Number(document.getElementById('qb_correct').value);
+
+  if (!qtext || !a || !b || !c || !d) {
+    alert('Please fill in the question text and all four options before adding.');
+    return;
+  }
+
+  const custom = await getCustomQuestions(test, subject);
+  custom.push({ q: qtext, options: [a, b, c, d], answer: correct });
+  await saveCustomQuestions(test, subject, custom);
+
+  document.getElementById('qb_qtext').value = '';
+  document.getElementById('qb_optA').value = '';
+  document.getElementById('qb_optB').value = '';
+  document.getElementById('qb_optC').value = '';
+  document.getElementById('qb_optD').value = '';
+  document.getElementById('qb_correct').value = '0';
+
+  alert('Question added.');
+  qbLoadList();
+}
+
+async function qbDeleteQuestion(index) {
+  const test = document.getElementById('qb_test').value;
+  const subject = document.getElementById('qb_subject').value;
+  const custom = await getCustomQuestions(test, subject);
+  custom.splice(index, 1);
+  await saveCustomQuestions(test, subject, custom);
+  qbLoadList();
+}
+
+// ----- Bulk CSV import -----
+function qbLoadCsvFile(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = () => { document.getElementById('qb_csvtext').value = reader.result; };
+  reader.readAsText(file);
+}
+
+function parseCsv(text) {
+  const rows = [];
+  let row = [], field = '', inQuotes = false;
+  for (let i = 0; i < text.length; i++) {
+    const c = text[i], next = text[i + 1];
+    if (inQuotes) {
+      if (c === '"' && next === '"') { field += '"'; i++; }
+      else if (c === '"') { inQuotes = false; }
+      else { field += c; }
+    } else {
+      if (c === '"') { inQuotes = true; }
+      else if (c === ',') { row.push(field); field = ''; }
+      else if (c === '\n' || c === '\r') {
+        if (c === '\r' && next === '\n') i++;
+        row.push(field); field = '';
+        if (row.some(f => f.trim() !== '')) rows.push(row);
+        row = [];
+      } else { field += c; }
+    }
+  }
+  if (field !== '' || row.length > 0) { row.push(field); if (row.some(f => f.trim() !== '')) rows.push(row); }
+  return rows;
+}
+
+function findTestKey(name) {
+  const target = name.trim().toLowerCase();
+  return Object.keys(TEST_CATALOG).find(k => k.toLowerCase() === target) || null;
+}
+
+function findSubjectName(testKey, name) {
+  const target = name.trim().toLowerCase();
+  return TEST_CATALOG[testKey].subjects.find(s => s.toLowerCase() === target) || null;
+}
+
+async function qbBulkImport() {
+  const text = document.getElementById('qb_csvtext').value.trim();
+  const resultDiv = document.getElementById('qb_importResult');
+  if (!text) { resultDiv.innerHTML = '<p style="color:#b81f2c;">Paste or upload some CSV content first.</p>'; return; }
+
+  const rows = parseCsv(text);
+  if (rows.length < 2) { resultDiv.innerHTML = '<p style="color:#b81f2c;">No data rows found below the header.</p>'; return; }
+
+  const header = rows[0].map(h => h.trim().toLowerCase());
+  const idx = {
+    test: header.indexOf('test'), subject: header.indexOf('subject'), question: header.indexOf('question'),
+    a: header.indexOf('optiona'), b: header.indexOf('optionb'), c: header.indexOf('optionc'), d: header.indexOf('optiond'),
+    correct: header.indexOf('correct')
+  };
+  const missingCols = Object.keys(idx).filter(k => idx[k] === -1);
+  if (missingCols.length > 0) {
+    resultDiv.innerHTML = `<p style="color:#b81f2c;">Missing required column(s): ${missingCols.join(', ')}. Check the header row matches the format shown above.</p>`;
+    return;
+  }
+
+  const toSave = {}; // key: "Test||Subject" -> array of new questions
+  const errors = [];
+  let added = 0;
+
+  for (let r = 1; r < rows.length; r++) {
+    const row = rows[r];
+    const rawTest = (row[idx.test] || '').trim();
+    const rawSubject = (row[idx.subject] || '').trim();
+    const qtext = (row[idx.question] || '').trim();
+    const opts = [row[idx.a], row[idx.b], row[idx.c], row[idx.d]].map(o => (o || '').trim());
+    const correctRaw = (row[idx.correct] || '').trim().toUpperCase();
+    const correctMap = { A: 0, B: 1, C: 2, D: 3, '1': 0, '2': 1, '3': 2, '4': 3 };
+
+    if (!rawTest && !rawSubject && !qtext) continue; // skip fully blank rows
+
+    const testKey = findTestKey(rawTest);
+    if (!testKey) { errors.push(`Row ${r + 1}: Test "${rawTest}" not recognized.`); continue; }
+    const subjectName = findSubjectName(testKey, rawSubject);
+    if (!subjectName) { errors.push(`Row ${r + 1}: Subject "${rawSubject}" not found under ${testKey}.`); continue; }
+    if (!qtext || opts.some(o => !o)) { errors.push(`Row ${r + 1}: Question text or one of the four options is empty.`); continue; }
+    if (!(correctRaw in correctMap)) { errors.push(`Row ${r + 1}: Correct answer "${correctRaw}" must be A, B, C, or D.`); continue; }
+
+    const key = testKey + '||' + subjectName;
+    if (!toSave[key]) toSave[key] = [];
+    toSave[key].push({ q: qtext, options: opts, answer: correctMap[correctRaw] });
+    added++;
+  }
+
+  for (const key of Object.keys(toSave)) {
+    const [testKey, subjectName] = key.split('||');
+    const existing = await getCustomQuestions(testKey, subjectName);
+    await saveCustomQuestions(testKey, subjectName, existing.concat(toSave[key]));
+  }
+
+  let html = `<p style="color:#1e7a45;font-weight:bold;">${added} question(s) imported successfully across ${Object.keys(toSave).length} subject(s).</p>`;
+  if (errors.length > 0) {
+    html += `<p style="color:#b81f2c;font-weight:bold;">${errors.length} row(s) skipped:</p><ul style="font-size:12px;color:#b81f2c;">${errors.map(e => `<li>${e}</li>`).join('')}</ul>`;
+  }
+  resultDiv.innerHTML = html;
+  if (added > 0) qbLoadList();
+}
+
+addProgramRow();
+recalcTotals();
+renderStudentsTable();
+</script>
+</body>
+</html>
