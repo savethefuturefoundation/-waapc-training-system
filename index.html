@@ -11,6 +11,7 @@
   <h1>WAAPC Training Centre — Console</h1>
   <div class="role-switch">
     <button id="btnAdminRole" class="active" onclick="setRole('admin')">Admin</button>
+    <button id="btnTeacherRole" onclick="setRole('teacher')">Teacher</button>
     <button id="btnStudentRole" onclick="setRole('student')">Student Portal</button>
   </div>
 </div>
@@ -152,6 +153,8 @@ GED,Mathematical Reasoning,What is 7 x 8?,54,56,58,60,B"></textarea>
       <div id="qb_listeningPanel" class="hidden">
         <div class="card">
           <h2>Listening passages</h2>
+          <label>Filter by group</label>
+          <select id="qb_passageGroupFilter" onchange="qbLoadPassages()"></select>
           <div id="qb_passageList"></div>
           <div id="qb_passageListEmpty" class="empty hidden">No listening passages yet for this subject.</div>
         </div>
@@ -160,6 +163,8 @@ GED,Mathematical Reasoning,What is 7 x 8?,54,56,58,60,B"></textarea>
           <h2>Add a new passage</h2>
           <label>Title (optional)</label>
           <input id="qb_passageTitle" placeholder="e.g. Section 1">
+          <label>Group / test label (optional)</label>
+          <input id="qb_passageGroupLabel" placeholder="e.g. Test A — leave blank if this subject only has one set">
           <label>Audio file</label>
           <input type="file" id="qb_passageAudio" accept="audio/*">
           <button class="btn red" onclick="qbAddPassage()">Add passage</button>
@@ -202,6 +207,33 @@ GED,Mathematical Reasoning,What is 7 x 8?,54,56,58,60,B"></textarea>
         </div>
       </div>
     </div>
+    </div>
+  </div>
+
+  <div id="teacherView" class="hidden">
+    <div id="teacherLoginCard" class="card">
+      <h2>Teacher login</h2>
+      <label>Email</label>
+      <input id="teacherEmail" type="email">
+      <label>Password</label>
+      <input id="teacherPassword" type="password">
+      <button class="btn" onclick="teacherLogin()">Log in</button>
+      <p id="teacherLoginError" class="muted" style="color:#b81f2c;"></p>
+    </div>
+
+    <div id="teacherDashboard" class="hidden">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+        <span class="muted" id="teacherEmailDisplay"></span>
+        <button class="btn ghost small" onclick="teacherLogout()">Log out</button>
+      </div>
+      <div class="card">
+        <h2>Students</h2>
+        <table id="teacherStudentsTable">
+          <thead><tr><th>Name</th><th>Program(s)</th><th>Actions</th></tr></thead>
+          <tbody></tbody>
+        </table>
+        <div id="teacherStudentsEmpty" class="empty hidden">No students registered yet.</div>
+      </div>
     </div>
   </div>
 

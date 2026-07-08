@@ -14,13 +14,18 @@ let pendingLoginEmail = null;
 async function setRole(portal) {
   currentPortal = portal;
   document.getElementById('btnAdminRole').classList.toggle('active', portal === 'admin');
+  document.getElementById('btnTeacherRole').classList.toggle('active', portal === 'teacher');
   document.getElementById('btnStudentRole').classList.toggle('active', portal === 'student');
   document.getElementById('adminView').classList.toggle('hidden', portal !== 'admin');
+  document.getElementById('teacherView').classList.toggle('hidden', portal !== 'teacher');
   document.getElementById('studentView').classList.toggle('hidden', portal !== 'student');
 
   if (portal === 'admin') {
     if (currentSession && currentSession.role === 'admin') await showAdminDashboard();
     else showAdminLogin();
+  } else if (portal === 'teacher') {
+    if (currentSession && currentSession.role === 'teacher') await showTeacherDashboard();
+    else showTeacherLogin();
   } else {
     if (currentStudentRecord) await showStudentDashboardView();
     else showStudentLoginStep1();
@@ -71,6 +76,67 @@ async function adminLogout() {
   await db.signOut();
   currentSession = null;
   showAdminLogin();
+}
+
+function showTeacherLogin() {
+  document.getElementById('teacherDashboard').classList.add('hidden');
+  document.getElementById('teacherLoginCard').classList.remove('hidden');
+}
+
+async function showTeacherDashboard() {
+  document.getElementById('teacherLoginCard').classList.add('hidden');
+  document.getElementById('teacherDashboard').classList.remove('hidden');
+  document.getElementById('teacherEmailDisplay').textContent = currentSession.email;
+  await ensureCatalog();
+  renderTeacherStudentsTable();
+}
+
+async function teacherLogin() {
+  const email = document.getElementById('teacherEmail').value.trim();
+  const password = document.getElementById('teacherPassword').value;
+  const errEl = document.getElementById('teacherLoginError');
+  errEl.textContent = '';
+  try {
+    await db.adminSignIn(email, password);
+    const session = await db.getCurrentSessionInfo();
+    if (!session || session.role !== 'teacher') {
+      await db.signOut();
+      errEl.textContent = 'This account is not set up as a teacher.';
+      return;
+    }
+    currentSession = session;
+    document.getElementById('teacherEmail').value = '';
+    document.getElementById('teacherPassword').value = '';
+    await showTeacherDashboard();
+  } catch (e) {
+    errEl.textContent = e.message || 'Login failed.';
+  }
+}
+
+async function teacherLogout() {
+  await db.signOut();
+  currentSession = null;
+  showTeacherLogin();
+}
+
+async function renderTeacherStudentsTable() {
+  const students = await db.loadAllStudents();
+  const tbody = document.querySelector('#teacherStudentsTable tbody');
+  tbody.innerHTML = '';
+  document.getElementById('teacherStudentsEmpty').classList.toggle('hidden', students.length > 0);
+  students.forEach((s) => {
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td>${s.fullName}</td>
+      <td>${s.programs.map((p) => p.test).join(', ')}</td>
+      <td>
+        <button class="btn ghost small" onclick="openAttendance('${s.id}')">Attendance</button>
+        <button class="btn ghost small" onclick="openProgressReport('${s.id}')">Report</button>
+        <button class="btn ghost small" onclick="openSpeakingSubmissions('${s.id}')">Speaking</button>
+      </td>
+    `;
+    tbody.appendChild(tr);
+  });
 }
 
 function showTab(name) {
@@ -831,9 +897,19 @@ async function startQuizSession(test, subject, mode) {
   renderSession();
 }
 
-async function startListeningSession(test, subject, mode) {
+async function startListeningSession(test, subject, mode, groupLabel) {
   const subjectId = findSubjectId(test, subject);
-  const passages = subjectId ? await db.listListeningPassages(subjectId) : [];
+
+  if (groupLabel === undefined) {
+    const groups = subjectId ? await db.listListeningGroups(subjectId) : [];
+    if (groups.length > 1) {
+      renderListeningGroupChooser(test, subject, mode, groups);
+      return;
+    }
+    groupLabel = groups[0];
+  }
+
+  const passages = subjectId ? await db.listListeningPassages(subjectId, groupLabel) : [];
   const bank = [];
   const passageGroups = [];
   for (const p of passages) {
@@ -845,8 +921,18 @@ async function startListeningSession(test, subject, mode) {
     document.getElementById('subjectArea').innerHTML = '<div class="card empty">Practice content for this subject is coming soon.</div>';
     return;
   }
-  sessionState = { kind: 'listening', test, subject, subjectId, mode, bank, passageGroups, answers: new Array(bank.length).fill(null), submitted: false };
+  sessionState = { kind: 'listening', test, subject, subjectId, mode, groupLabel, bank, passageGroups, answers: new Array(bank.length).fill(null), submitted: false };
   renderSession();
+}
+
+function renderListeningGroupChooser(test, subject, mode, groups) {
+  document.getElementById('subjectArea').innerHTML = `
+    <div class="card">
+      <h2>${test} — ${subject}</h2>
+      <p class="muted">Choose which set to practice:</p>
+      ${groups.map((g) => `<button class="btn small" style="margin:4px 8px 4px 0;" onclick="startListeningSession('${test}','${subject}','${mode}','${g}')">${g}</button>`).join('')}
+      <div><button class="btn ghost small" style="margin-top:10px;" onclick="closeSession()">Back to dashboard</button></div>
+    </div>`;
 }
 
 function renderSession() {
@@ -1135,7 +1221,18 @@ async function qbLoadPassages() {
   const test = document.getElementById('qb_test').value;
   const subject = document.getElementById('qb_subject').value;
   const subjectId = findSubjectId(test, subject);
-  const passages = subjectId ? await db.listListeningPassages(subjectId) : [];
+
+  const groups = subjectId ? await db.listListeningGroups(subjectId) : [];
+  const groupFilterEl = document.getElementById('qb_passageGroupFilter');
+  const previousFilter = groupFilterEl.value;
+  groupFilterEl.innerHTML =
+    groups.length > 0
+      ? `<option value="">All groups</option>` + groups.map((g) => `<option value="${g}">${g}</option>`).join('')
+      : `<option value="">(no groups on this subject)</option>`;
+  if (groups.includes(previousFilter)) groupFilterEl.value = previousFilter;
+  const selectedGroup = groupFilterEl.value;
+
+  const passages = subjectId ? await db.listListeningPassages(subjectId, selectedGroup || undefined) : [];
 
   document.getElementById('qb_passageListEmpty').classList.toggle('hidden', passages.length > 0);
   document.getElementById('qb_passageList').innerHTML = passages
@@ -1170,6 +1267,7 @@ async function qbAddPassage() {
   const subject = document.getElementById('qb_subject').value;
   const subjectId = findSubjectId(test, subject);
   const title = document.getElementById('qb_passageTitle').value.trim();
+  const groupLabel = document.getElementById('qb_passageGroupLabel').value.trim();
   const audioFile = document.getElementById('qb_passageAudio').files[0];
 
   if (!audioFile) {
@@ -1178,13 +1276,14 @@ async function qbAddPassage() {
   }
 
   try {
-    await db.addListeningPassage(subjectId, { title, audioFile });
+    await db.addListeningPassage(subjectId, { title, audioFile, groupLabel });
   } catch (e) {
     alert('Could not add passage: ' + (e.message || e));
     return;
   }
 
   document.getElementById('qb_passageTitle').value = '';
+  document.getElementById('qb_passageGroupLabel').value = '';
   document.getElementById('qb_passageAudio').value = '';
   qbLoadPassages();
 }
@@ -1452,7 +1551,8 @@ async function initApp() {
     currentStudentRecord = students[0] || null;
   }
 
-  await setRole(currentSession && currentSession.role === 'student' ? 'student' : 'admin');
+  const portal = currentSession && (currentSession.role === 'student' || currentSession.role === 'teacher') ? currentSession.role : 'admin';
+  await setRole(portal);
 }
 
 initApp();
@@ -1465,6 +1565,8 @@ Object.assign(window, {
   showTab,
   adminLogin,
   adminLogout,
+  teacherLogin,
+  teacherLogout,
   handlePhoto,
   addProgramRow,
   onProgramChange,
@@ -1492,6 +1594,7 @@ Object.assign(window, {
   selectAnswer,
   closeSession,
   startSession,
+  startListeningSession,
   submitSession,
   speakStartRecording,
   speakStopRecording,
@@ -1502,6 +1605,7 @@ Object.assign(window, {
   qbAddQuestion,
   qbDeleteQuestion,
   qbBulkImport,
+  qbLoadPassages,
   qbAddPassage,
   qbDeletePassage,
   qbAddListeningQuestion,

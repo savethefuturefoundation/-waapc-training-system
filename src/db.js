@@ -348,22 +348,35 @@ export async function getCurrentSessionInfo() {
 // ---------------------------------------------------------------------
 // Listening — passages (one audio clip shared by a group of questions).
 // ---------------------------------------------------------------------
-export async function listListeningPassages(subjectId) {
+export async function listListeningGroups(subjectId) {
   const { data, error } = await supabase
     .from('listening_passages')
-    .select('id, title, audio_url, questions(id, question_text, options, correct_index)')
+    .select('group_label')
+    .eq('subject_id', subjectId)
+    .not('group_label', 'is', null);
+  if (error) throw error;
+  return [...new Set(data.map((p) => p.group_label))].sort();
+}
+
+export async function listListeningPassages(subjectId, groupLabel) {
+  let query = supabase
+    .from('listening_passages')
+    .select('id, title, group_label, audio_url, questions(id, question_text, options, correct_index)')
     .eq('subject_id', subjectId)
     .order('created_at');
+  if (groupLabel) query = query.eq('group_label', groupLabel);
+  const { data, error } = await query;
   if (error) throw error;
   return data.map((p) => ({
     id: p.id,
     title: p.title,
+    groupLabel: p.group_label,
     audioUrl: supabase.storage.from('listening-audio').getPublicUrl(p.audio_url).data.publicUrl,
     questions: (p.questions || []).map((q) => ({ id: q.id, q: q.question_text, options: q.options, answer: q.correct_index })),
   }));
 }
 
-export async function addListeningPassage(subjectId, { title, audioFile }) {
+export async function addListeningPassage(subjectId, { title, audioFile, groupLabel }) {
   const ext = (audioFile.name.split('.').pop() || 'mp3').toLowerCase();
   const path = `${subjectId}/${crypto.randomUUID()}.${ext}`;
   const { error: upErr } = await supabase.storage.from('listening-audio').upload(path, audioFile);
@@ -371,7 +384,7 @@ export async function addListeningPassage(subjectId, { title, audioFile }) {
 
   const { data, error } = await supabase
     .from('listening_passages')
-    .insert({ subject_id: subjectId, title, audio_url: path })
+    .insert({ subject_id: subjectId, title, audio_url: path, group_label: groupLabel || null })
     .select()
     .single();
   if (error) throw error;
