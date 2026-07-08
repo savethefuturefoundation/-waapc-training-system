@@ -1,0 +1,16 @@
+#!/bin/sh
+# Reminds you when local commits haven't been pushed yet, so finished work
+# doesn't sit unpushed while Cloudflare Pages keeps serving an older build.
+# Enable with: git config core.hooksPath .githooks
+
+upstream=$(git rev-parse --abbrev-ref --symbolic-full-name '@{u}' 2>/dev/null)
+if [ -z "$upstream" ]; then
+  exit 0
+fi
+
+count=$(git rev-list --count "@{u}..HEAD" 2>/dev/null)
+if [ -n "$count" ] && [ "$count" -gt 0 ] 2>/dev/null; then
+  echo ""
+  echo "Note: $count commit(s) ahead of $upstream — git push when ready so the live site matches."
+  echo ""
+fi

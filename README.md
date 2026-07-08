@@ -58,3 +58,22 @@ are needed.
 Optional: in Supabase, under **Authentication → URL Configuration**, add your Cloudflare Pages URL
 (e.g. `https://your-project.pages.dev`) to the allowed URLs — not required for the email/password
 login flow this app uses, but good practice if you add email links or OAuth later.
+
+## Keeping local and live in sync
+
+Cloudflare Pages only deploys what's pushed to `main` on GitHub — a feature finished
+locally won't appear on the live site until it's pushed.
+
+One-time setup, so `git commit` reminds you when you're ahead of `origin`:
+```
+git config core.hooksPath .githooks
+```
+
+To check manually at any time, list commits that exist locally but haven't been pushed:
+```
+git log origin/main..HEAD --oneline
+```
+
+To confirm what's actually live, open the Cloudflare Pages project's **Deployments** tab —
+each deployment lists the commit hash it was built from. Compare it to your local
+`git rev-parse --short HEAD` to see whether the live site matches your latest commit.
