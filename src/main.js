@@ -25,7 +25,7 @@ async function setRole(portal) {
     else showAdminLogin();
   } else if (portal === 'teacher') {
     if (currentSession && currentSession.role === 'teacher') await showTeacherDashboard();
-    else showTeacherLogin();
+    else showTeacherLoginStep1();
   } else {
     if (currentStudentRecord) await showStudentDashboardView();
     else showStudentLoginStep1();
@@ -78,9 +78,15 @@ async function adminLogout() {
   showAdminLogin();
 }
 
-function showTeacherLogin() {
+let teacherLoginMode = null; // 'signup' | 'signin'
+let pendingTeacherEmail = null;
+
+function showTeacherLoginStep1() {
   document.getElementById('teacherDashboard').classList.add('hidden');
   document.getElementById('teacherLoginCard').classList.remove('hidden');
+  document.getElementById('teacherLoginStep1').classList.remove('hidden');
+  document.getElementById('teacherLoginStep2').classList.add('hidden');
+  document.getElementById('teacherLoginError').textContent = '';
 }
 
 async function showTeacherDashboard() {
@@ -91,13 +97,51 @@ async function showTeacherDashboard() {
   renderTeacherStudentsTable();
 }
 
-async function teacherLogin() {
-  const email = document.getElementById('teacherEmail').value.trim();
+async function teacherCheckEmail() {
+  const email = document.getElementById('teacherEmail').value.trim().toLowerCase();
+  const errEl = document.getElementById('teacherLoginError');
+  errEl.textContent = '';
+  if (!email) {
+    errEl.textContent = 'Enter your email.';
+    return;
+  }
+  let status;
+  try {
+    status = await db.teacherAccountStatus(email);
+  } catch (e) {
+    errEl.textContent = 'Something went wrong checking that email. Please try again.';
+    return;
+  }
+  if (status === 'not_invited') {
+    errEl.textContent = "This email hasn't been invited as a teacher yet. Please contact the admin.";
+    return;
+  }
+  pendingTeacherEmail = email;
+  teacherLoginMode = status === 'needs_signup' ? 'signup' : 'signin';
+  document.getElementById('teacherLoginStep1').classList.add('hidden');
+  document.getElementById('teacherLoginStep2').classList.remove('hidden');
+  document.getElementById('teacherPasswordLabel').textContent =
+    teacherLoginMode === 'signup' ? 'Create a password (first login)' : 'Password';
+  document.getElementById('teacherSubmitBtn').textContent = teacherLoginMode === 'signup' ? 'Create account & log in' : 'Log in';
+  document.getElementById('teacherPassword').value = '';
+}
+
+function teacherBackToEmail() {
+  showTeacherLoginStep1();
+}
+
+async function teacherSubmitPassword() {
   const password = document.getElementById('teacherPassword').value;
   const errEl = document.getElementById('teacherLoginError');
   errEl.textContent = '';
+  if (!password || password.length < 6) {
+    errEl.textContent = 'Password must be at least 6 characters.';
+    return;
+  }
   try {
-    await db.adminSignIn(email, password);
+    if (teacherLoginMode === 'signup') await db.teacherSignUp(pendingTeacherEmail, password);
+    else await db.adminSignIn(pendingTeacherEmail, password);
+
     const session = await db.getCurrentSessionInfo();
     if (!session || session.role !== 'teacher') {
       await db.signOut();
@@ -105,18 +149,17 @@ async function teacherLogin() {
       return;
     }
     currentSession = session;
-    document.getElementById('teacherEmail').value = '';
     document.getElementById('teacherPassword').value = '';
     await showTeacherDashboard();
   } catch (e) {
-    errEl.textContent = e.message || 'Login failed.';
+    errEl.textContent = e.message || 'Login failed. Please check your password and try again.';
   }
 }
 
 async function teacherLogout() {
   await db.signOut();
   currentSession = null;
-  showTeacherLogin();
+  showTeacherLoginStep1();
 }
 
 async function renderTeacherStudentsTable() {
@@ -139,13 +182,56 @@ async function renderTeacherStudentsTable() {
   });
 }
 
+async function renderTeacherInvites() {
+  const invites = await db.listTeacherInvites();
+  const tbody = document.querySelector('#teacherInvitesTable tbody');
+  tbody.innerHTML = '';
+  document.getElementById('teacherInvitesEmpty').classList.toggle('hidden', invites.length > 0);
+  invites.forEach((inv) => {
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td>${inv.full_name || ''}</td>
+      <td>${inv.email}</td>
+      <td>${new Date(inv.created_at).toLocaleDateString()}</td>
+      <td><button class="btn ghost small" onclick="revokeTeacherInvite('${inv.id}')">Revoke</button></td>
+    `;
+    tbody.appendChild(tr);
+  });
+}
+
+async function addTeacherInvite() {
+  const name = document.getElementById('t_name').value.trim();
+  const email = document.getElementById('t_email').value.trim();
+  const errEl = document.getElementById('t_inviteError');
+  errEl.textContent = '';
+  if (!email) {
+    errEl.textContent = 'Enter an email.';
+    return;
+  }
+  try {
+    await db.addTeacherInvite(email, name);
+    document.getElementById('t_name').value = '';
+    document.getElementById('t_email').value = '';
+    await renderTeacherInvites();
+  } catch (e) {
+    errEl.textContent = e.message || 'Could not send invite.';
+  }
+}
+
+async function revokeTeacherInvite(id) {
+  await db.revokeTeacherInvite(id);
+  await renderTeacherInvites();
+}
+
 function showTab(name) {
   document.querySelectorAll('.tab-btn').forEach((b) => b.classList.toggle('active', b.dataset.tab === name));
   document.getElementById('tab-register').classList.toggle('hidden', name !== 'register');
   document.getElementById('tab-manage').classList.toggle('hidden', name !== 'manage');
   document.getElementById('tab-qb').classList.toggle('hidden', name !== 'qb');
+  document.getElementById('tab-staff').classList.toggle('hidden', name !== 'staff');
   if (name === 'manage') renderStudentsTable();
   if (name === 'qb') qbInit();
+  if (name === 'staff') renderTeacherInvites();
 }
 
 // =====================================================================
@@ -1565,8 +1651,12 @@ Object.assign(window, {
   showTab,
   adminLogin,
   adminLogout,
-  teacherLogin,
+  teacherCheckEmail,
+  teacherBackToEmail,
+  teacherSubmitPassword,
   teacherLogout,
+  addTeacherInvite,
+  revokeTeacherInvite,
   handlePhoto,
   addProgramRow,
   onProgramChange,

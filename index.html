@@ -38,6 +38,7 @@
       <button class="tab-btn active" data-tab="register" onclick="showTab('register')">New Registration</button>
       <button class="tab-btn" data-tab="manage" onclick="showTab('manage')">Students & Payments</button>
       <button class="tab-btn" data-tab="qb" onclick="showTab('qb')">Question Bank</button>
+      <button class="tab-btn" data-tab="staff" onclick="showTab('staff')">Teachers</button>
     </div>
 
     <div id="tab-register" class="tab-panel">
@@ -207,17 +208,45 @@ GED,Mathematical Reasoning,What is 7 x 8?,54,56,58,60,B"></textarea>
         </div>
       </div>
     </div>
+
+    <div id="tab-staff" class="tab-panel hidden">
+      <div class="card">
+        <h2>Invite a teacher</h2>
+        <p class="muted">Add their email below, then have them open the Teacher portal — the login screen will let them set a password on first login.</p>
+        <div class="grid2">
+          <div><label>Full name</label><input id="t_name"></div>
+          <div><label>Email</label><input id="t_email" type="email"></div>
+        </div>
+        <button class="btn red" onclick="addTeacherInvite()">Send invite</button>
+        <p id="t_inviteError" class="muted" style="color:#b81f2c;"></p>
+      </div>
+
+      <div class="card">
+        <h2>Pending invites</h2>
+        <table id="teacherInvitesTable">
+          <thead><tr><th>Name</th><th>Email</th><th>Invited</th><th>Actions</th></tr></thead>
+          <tbody></tbody>
+        </table>
+        <div id="teacherInvitesEmpty" class="empty hidden">No pending invites. A teacher disappears from this list once they've logged in.</div>
+      </div>
+    </div>
     </div>
   </div>
 
   <div id="teacherView" class="hidden">
     <div id="teacherLoginCard" class="card">
       <h2>Teacher login</h2>
-      <label>Email</label>
-      <input id="teacherEmail" type="email">
-      <label>Password</label>
-      <input id="teacherPassword" type="password">
-      <button class="btn" onclick="teacherLogin()">Log in</button>
+      <div id="teacherLoginStep1">
+        <label>Email</label>
+        <input id="teacherEmail" type="email" placeholder="Enter the email the school invited you with">
+        <button class="btn" onclick="teacherCheckEmail()">Continue</button>
+      </div>
+      <div id="teacherLoginStep2" class="hidden">
+        <label id="teacherPasswordLabel">Password</label>
+        <input id="teacherPassword" type="password">
+        <button class="btn" id="teacherSubmitBtn" onclick="teacherSubmitPassword()">Log in</button>
+        <button class="btn ghost small" onclick="teacherBackToEmail()">Use a different email</button>
+      </div>
       <p id="teacherLoginError" class="muted" style="color:#b81f2c;"></p>
     </div>
 

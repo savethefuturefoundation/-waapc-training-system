@@ -27,11 +27,15 @@ Requirements: [Node.js](https://nodejs.org/) (LTS) and a Supabase project.
    - `extra_schema.sql` — invoice/receipt/certificate numbering, student self-signup RPCs, student photo storage bucket
    - `seed_questions.sql` — seeds the built-in practice question bank
    - `extra_schema_2.sql` — Listening passages, Speaking prompts/submissions, storage buckets
-4. In Supabase **Authentication → Providers → Email**, turn off "Confirm email" (so a student's first-login signup works immediately).
+   - `extra_schema_3.sql` — Listening passage groups (e.g. "Test A" / "Test B")
+   - `extra_schema_4.sql` — Teacher role (attendance, progress reports, Speaking review)
+   - `extra_schema_5.sql` — Teacher self-signup (admin invites by email from the Teachers tab)
+4. In Supabase **Authentication → Providers → Email**, turn off "Confirm email" (so a student's or teacher's first-login signup works immediately).
 5. Create your admin account: **Authentication → Users → Add user** (check "Auto Confirm User"), then in the SQL Editor:
    ```sql
    update profiles set role = 'admin' where id = (select id from auth.users where email = 'YOUR_ADMIN_EMAIL');
    ```
+   Teachers don't need this manual step — invite them from the Admin dashboard's **Teachers** tab instead.
 6. Run the dev server:
    ```
    npm run dev

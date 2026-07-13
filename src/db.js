@@ -327,6 +327,35 @@ export async function studentSignIn(email, password) {
   if (error) throw error;
 }
 
+export async function teacherAccountStatus(email) {
+  const { data, error } = await supabase.rpc('teacher_account_status', { p_email: email });
+  if (error) throw error;
+  return data; // 'not_invited' | 'needs_signup' | 'has_account'
+}
+
+export async function teacherSignUp(email, password) {
+  const { error } = await supabase.auth.signUp({ email, password });
+  if (error) throw error;
+  const { error: claimErr } = await supabase.rpc('claim_teacher_account');
+  if (claimErr) throw claimErr;
+}
+
+export async function addTeacherInvite(email, fullName) {
+  const { error } = await supabase.from('teacher_invites').insert({ email: email.toLowerCase(), full_name: fullName || null });
+  if (error) throw error;
+}
+
+export async function listTeacherInvites() {
+  const { data, error } = await supabase.from('teacher_invites').select('*').order('created_at', { ascending: false });
+  if (error) throw error;
+  return data;
+}
+
+export async function revokeTeacherInvite(id) {
+  const { error } = await supabase.from('teacher_invites').delete().eq('id', id);
+  if (error) throw error;
+}
+
 export async function adminSignIn(email, password) {
   const { error } = await supabase.auth.signInWithPassword({ email, password });
   if (error) throw error;
