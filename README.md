@@ -30,6 +30,7 @@ Requirements: [Node.js](https://nodejs.org/) (LTS) and a Supabase project.
    - `extra_schema_3.sql` — Listening passage groups (e.g. "Test A" / "Test B")
    - `extra_schema_4.sql` — Teacher role (attendance, progress reports, Speaking review)
    - `extra_schema_5.sql` — Teacher self-signup (admin invites by email from the Teachers tab)
+   - `extra_schema_6.sql` — Removes any stray Speaking subject from GED/SAT/ACT
 4. In Supabase **Authentication → Providers → Email**, turn off "Confirm email" (so a student's or teacher's first-login signup works immediately).
 5. Create your admin account: **Authentication → Users → Add user** (check "Auto Confirm User"), then in the SQL Editor:
    ```sql

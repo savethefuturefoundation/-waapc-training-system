@@ -73,7 +73,7 @@
   .hidden { display: none !important; }
   .field-remove { background: #fbe1e3; color: #b81f2c; border: none; border-radius: 4px; width: 26px; height: 26px; cursor: pointer; }
   @media print {
-    .topbar, .tabs, .no-print { display: none !important; }
+    .topbar, .container, .no-print { display: none !important; }
     .doc-overlay { position: static !important; background: none !important; padding: 0 !important; overflow: visible !important; }
     .doc-page { box-shadow: none !important; margin: 0 !important; }
     body { background: #fff; }

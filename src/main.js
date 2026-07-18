@@ -972,13 +972,26 @@ async function startSession(test, subject, mode) {
   return startQuizSession(test, subject, mode);
 }
 
+function shuffleArray(arr) {
+  const a = arr.slice();
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+}
+
 async function startQuizSession(test, subject, mode) {
   const subjectId = findSubjectId(test, subject);
-  const bank = subjectId ? await db.listQuestions(subjectId) : [];
+  let bank = subjectId ? await db.listQuestions(subjectId) : [];
   if (bank.length === 0) {
     document.getElementById('subjectArea').innerHTML = '<div class="card empty">Practice content for this subject is coming soon.</div>';
     return;
   }
+  bank = shuffleArray(bank);
+  // Practice runs use a random slice of the bank (not the full set) so
+  // repeated practice sessions don't show the identical question set.
+  if (mode === 'practice' && bank.length > 10) bank = bank.slice(0, Math.ceil(bank.length * 0.75));
   sessionState = { kind: 'quiz', test, subject, subjectId, mode, bank, answers: new Array(bank.length).fill(null), submitted: false };
   renderSession();
 }
