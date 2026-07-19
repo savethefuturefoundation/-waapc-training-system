@@ -98,4 +98,6 @@ drop policy if exists "attempts parent read" on attempts;
 create policy "attempts parent read" on attempts for select using (is_parent() and is_my_child(student_id));
 
 drop policy if exists "attendance parent read" on attendance;
-create policy "attendance parent read" on attendance for select using (is_parent() and is_my_child(student_id));
+create policy "attendance parent read" on attendance for select using (
+  is_parent() and exists (select 1 from enrollments e where e.id = enrollment_id and is_my_child(e.student_id))
+);
