@@ -1,9 +1,10 @@
 # WAAPC Training Centre System
 
-Admin console + student portal for WAAPC Training Centre: registration, flexible
-payment plans, invoices/receipts, practice & mock exams (including Listening
+Admin, Teacher, Parent, and Student portals for WAAPC Training Centre: registration,
+flexible payment plans, invoices/receipts, practice & mock exams (including Listening
 audio passages and Speaking recorded prompts), attendance, progress reports,
-certificates, and a Question Bank editor with CSV bulk import.
+certificates, a Question Bank editor with CSV bulk import, and teacher-assigned
+homework (with optional external links, text responses, and file uploads).
 
 Built with vanilla JS + [Vite](https://vitejs.dev/) and [Supabase](https://supabase.com/)
 (Postgres, Auth, Storage, Row Level Security).
@@ -31,12 +32,15 @@ Requirements: [Node.js](https://nodejs.org/) (LTS) and a Supabase project.
    - `extra_schema_4.sql` — Teacher role (attendance, progress reports, Speaking review)
    - `extra_schema_5.sql` — Teacher self-signup (admin invites by email from the Teachers tab)
    - `extra_schema_6.sql` — Removes any stray Speaking subject from GED/SAT/ACT
-4. In Supabase **Authentication → Providers → Email**, turn off "Confirm email" (so a student's or teacher's first-login signup works immediately).
+   - `extra_schema_7.sql` — Parent role + self-signup (matched by the guardian email already on file)
+   - `extra_schema_8.sql` — Assignments (teacher/admin → student, with optional link/file, storage bucket)
+4. In Supabase **Authentication → Providers → Email**, turn off "Confirm email" (so a student's, teacher's, or parent's first-login signup works immediately).
 5. Create your admin account: **Authentication → Users → Add user** (check "Auto Confirm User"), then in the SQL Editor:
    ```sql
    update profiles set role = 'admin' where id = (select id from auth.users where email = 'YOUR_ADMIN_EMAIL');
    ```
    Teachers don't need this manual step — invite them from the Admin dashboard's **Teachers** tab instead.
+   Parents don't either — they sign up directly on the Parent portal using the guardian email captured at registration.
 6. Run the dev server:
    ```
    npm run dev

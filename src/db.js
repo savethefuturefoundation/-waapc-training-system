@@ -356,6 +356,24 @@ export async function revokeTeacherInvite(id) {
   if (error) throw error;
 }
 
+export async function parentAccountStatus(email) {
+  const { data, error } = await supabase.rpc('parent_account_status', { p_email: email });
+  if (error) throw error;
+  return data; // 'not_registered' | 'needs_signup' | 'has_account'
+}
+
+export async function parentSignUp(email, password) {
+  const { error } = await supabase.auth.signUp({ email, password });
+  if (error) throw error;
+  const { error: claimErr } = await supabase.rpc('claim_parent_account');
+  if (claimErr) throw claimErr;
+}
+
+export async function parentSignIn(email, password) {
+  const { error } = await supabase.auth.signInWithPassword({ email, password });
+  if (error) throw error;
+}
+
 export async function adminSignIn(email, password) {
   const { error } = await supabase.auth.signInWithPassword({ email, password });
   if (error) throw error;
@@ -491,4 +509,97 @@ export async function listSpeakingSubmissions(studentId) {
     })
   );
   return withUrls;
+}
+
+// ---------------------------------------------------------------------
+// Assignments — teacher/admin assign work (optionally linking out to
+// another practice site) to specific students; students mark it done,
+// optionally with a text response and/or an uploaded file.
+// ---------------------------------------------------------------------
+export async function createAssignment({ title, description, linkUrl, dueDate, studentIds }) {
+  const { data: a, error } = await supabase
+    .from('assignments')
+    .insert({ title, description: description || null, link_url: linkUrl || null, due_date: dueDate || null })
+    .select('id')
+    .single();
+  if (error) throw error;
+
+  if (studentIds.length > 0) {
+    const { error: tErr } = await supabase
+      .from('assignment_targets')
+      .insert(studentIds.map((student_id) => ({ assignment_id: a.id, student_id })));
+    if (tErr) throw tErr;
+  }
+  return a.id;
+}
+
+export async function deleteAssignment(id) {
+  const { error } = await supabase.from('assignments').delete().eq('id', id);
+  if (error) throw error;
+}
+
+export async function listAssignments() {
+  const { data, error } = await supabase
+    .from('assignments')
+    .select(
+      'id, title, description, link_url, due_date, created_at, assignment_targets(student_id, students(full_name)), assignment_submissions(student_id, status, submitted_at)'
+    )
+    .order('created_at', { ascending: false });
+  if (error) throw error;
+  return data.map((a) => ({
+    id: a.id,
+    title: a.title,
+    description: a.description,
+    linkUrl: a.link_url,
+    dueDate: a.due_date,
+    targets: (a.assignment_targets || []).map((t) => ({
+      studentId: t.student_id,
+      fullName: t.students?.full_name,
+      submission: (a.assignment_submissions || []).find((s) => s.student_id === t.student_id) || null,
+    })),
+  }));
+}
+
+// Used by both the student portal (own assignments, editable) and the
+// parent portal (a child's assignments, read-only).
+export async function listAssignmentsForStudent(studentId) {
+  const { data, error } = await supabase
+    .from('assignments')
+    .select(
+      'id, title, description, link_url, due_date, created_at, assignment_targets!inner(student_id), assignment_submissions(status, response_text, file_url, submitted_at, student_id)'
+    )
+    .eq('assignment_targets.student_id', studentId)
+    .order('created_at', { ascending: false });
+  if (error) throw error;
+  return data.map((a) => ({
+    id: a.id,
+    title: a.title,
+    description: a.description,
+    linkUrl: a.link_url,
+    dueDate: a.due_date,
+    submission: (a.assignment_submissions || []).find((s) => s.student_id === studentId) || null,
+  }));
+}
+
+export async function submitAssignment({ assignmentId, studentId, status, responseText, file }) {
+  const payload = {
+    assignment_id: assignmentId,
+    student_id: studentId,
+    status,
+    response_text: responseText || null,
+    submitted_at: new Date().toISOString(),
+  };
+  if (file) {
+    const path = `${studentId}/${Date.now()}_${file.name}`;
+    const { error: upErr } = await supabase.storage.from('assignment-files').upload(path, file, { upsert: true });
+    if (upErr) throw upErr;
+    payload.file_url = path;
+  }
+  const { error } = await supabase.from('assignment_submissions').upsert(payload, { onConflict: 'assignment_id,student_id' });
+  if (error) throw error;
+}
+
+export async function getAssignmentFileUrl(path) {
+  const { data } = await supabase.storage.from('assignment-files').createSignedUrl(path, 3600);
+  return data?.signedUrl;
 }

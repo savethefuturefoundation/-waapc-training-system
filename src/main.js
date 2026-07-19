@@ -15,9 +15,11 @@ async function setRole(portal) {
   currentPortal = portal;
   document.getElementById('btnAdminRole').classList.toggle('active', portal === 'admin');
   document.getElementById('btnTeacherRole').classList.toggle('active', portal === 'teacher');
+  document.getElementById('btnParentRole').classList.toggle('active', portal === 'parent');
   document.getElementById('btnStudentRole').classList.toggle('active', portal === 'student');
   document.getElementById('adminView').classList.toggle('hidden', portal !== 'admin');
   document.getElementById('teacherView').classList.toggle('hidden', portal !== 'teacher');
+  document.getElementById('parentView').classList.toggle('hidden', portal !== 'parent');
   document.getElementById('studentView').classList.toggle('hidden', portal !== 'student');
 
   if (portal === 'admin') {
@@ -26,6 +28,9 @@ async function setRole(portal) {
   } else if (portal === 'teacher') {
     if (currentSession && currentSession.role === 'teacher') await showTeacherDashboard();
     else showTeacherLoginStep1();
+  } else if (portal === 'parent') {
+    if (currentSession && currentSession.role === 'parent') await showParentDashboard();
+    else showParentLoginStep1();
   } else {
     if (currentStudentRecord) await showStudentDashboardView();
     else showStudentLoginStep1();
@@ -95,6 +100,8 @@ async function showTeacherDashboard() {
   document.getElementById('teacherEmailDisplay').textContent = currentSession.email;
   await ensureCatalog();
   renderTeacherStudentsTable();
+  renderAssignTargets('tas');
+  renderAssignmentsList('tas');
 }
 
 async function teacherCheckEmail() {
@@ -182,6 +189,117 @@ async function renderTeacherStudentsTable() {
   });
 }
 
+// =====================================================================
+// Parent portal (read-only: attendance, progress reports, assignments)
+// =====================================================================
+let parentLoginMode = null; // 'signup' | 'signin'
+let pendingParentEmail = null;
+
+function showParentLoginStep1() {
+  document.getElementById('parentDashboard').classList.add('hidden');
+  document.getElementById('parentLoginCard').classList.remove('hidden');
+  document.getElementById('parentLoginStep1').classList.remove('hidden');
+  document.getElementById('parentLoginStep2').classList.add('hidden');
+  document.getElementById('parentLoginError').textContent = '';
+}
+
+async function showParentDashboard() {
+  document.getElementById('parentLoginCard').classList.add('hidden');
+  document.getElementById('parentDashboard').classList.remove('hidden');
+  document.getElementById('parentEmailDisplay').textContent = currentSession.email;
+  await ensureCatalog();
+  await renderParentChildren();
+}
+
+async function parentCheckEmail() {
+  const email = document.getElementById('parentEmail').value.trim().toLowerCase();
+  const errEl = document.getElementById('parentLoginError');
+  errEl.textContent = '';
+  if (!email) {
+    errEl.textContent = 'Enter your email.';
+    return;
+  }
+  let status;
+  try {
+    status = await db.parentAccountStatus(email);
+  } catch (e) {
+    errEl.textContent = 'Something went wrong checking that email. Please try again.';
+    return;
+  }
+  if (status === 'not_registered') {
+    errEl.textContent = "This email isn't on file as a parent/guardian yet. Please contact the school.";
+    return;
+  }
+  pendingParentEmail = email;
+  parentLoginMode = status === 'needs_signup' ? 'signup' : 'signin';
+  document.getElementById('parentLoginStep1').classList.add('hidden');
+  document.getElementById('parentLoginStep2').classList.remove('hidden');
+  document.getElementById('parentPasswordLabel').textContent =
+    parentLoginMode === 'signup' ? 'Create a password (first login)' : 'Password';
+  document.getElementById('parentSubmitBtn').textContent = parentLoginMode === 'signup' ? 'Create account & log in' : 'Log in';
+  document.getElementById('parentPassword').value = '';
+}
+
+function parentBackToEmail() {
+  showParentLoginStep1();
+}
+
+async function parentSubmitPassword() {
+  const password = document.getElementById('parentPassword').value;
+  const errEl = document.getElementById('parentLoginError');
+  errEl.textContent = '';
+  if (!password || password.length < 6) {
+    errEl.textContent = 'Password must be at least 6 characters.';
+    return;
+  }
+  try {
+    if (parentLoginMode === 'signup') await db.parentSignUp(pendingParentEmail, password);
+    else await db.parentSignIn(pendingParentEmail, password);
+
+    const session = await db.getCurrentSessionInfo();
+    if (!session || session.role !== 'parent') {
+      await db.signOut();
+      errEl.textContent = 'This account is not set up as a parent.';
+      return;
+    }
+    currentSession = session;
+    document.getElementById('parentPassword').value = '';
+    await showParentDashboard();
+  } catch (e) {
+    errEl.textContent = e.message || 'Login failed. Please check your password and try again.';
+  }
+}
+
+async function parentLogout() {
+  await db.signOut();
+  currentSession = null;
+  showParentLoginStep1();
+}
+
+async function renderParentChildren() {
+  const children = await db.loadAllStudents();
+  const container = document.getElementById('parentChildren');
+  document.getElementById('parentChildrenEmpty').classList.toggle('hidden', children.length > 0);
+
+  const cards = await Promise.all(
+    children.map(async (s) => {
+      const assignments = await db.listAssignmentsForStudent(s.id);
+      const assignmentsHtml = assignments.length
+        ? assignments.map((a) => renderAssignmentCard(a, { editable: false })).join('')
+        : '<p class="muted">No assignments yet.</p>';
+      return `<div class="card">
+        <h2>${s.fullName}</h2>
+        <p class="muted">${s.programs.map((p) => p.test).join(', ') || 'No programs enrolled'}</p>
+        <button class="btn ghost small" onclick="openAttendance('${s.id}')">View attendance</button>
+        <button class="btn ghost small" onclick="openProgressReport('${s.id}')">View progress report</button>
+        <h3 style="margin-top:16px;color:#1a2b6b;">Assignments</h3>
+        ${assignmentsHtml}
+      </div>`;
+    })
+  );
+  container.innerHTML = cards.join('');
+}
+
 async function renderTeacherInvites() {
   const invites = await db.listTeacherInvites();
   const tbody = document.querySelector('#teacherInvitesTable tbody');
@@ -223,15 +341,108 @@ async function revokeTeacherInvite(id) {
   await renderTeacherInvites();
 }
 
+// =====================================================================
+// Assignments (Admin + Teacher: create/manage; shared by both portals
+// via a DOM id prefix — 'as' on the Admin tab, 'tas' on the Teacher tab)
+// =====================================================================
+async function renderAssignTargets(prefix) {
+  const students = await db.loadAllStudents();
+  const container = document.getElementById(`${prefix}_targets`);
+  container.innerHTML =
+    students.map((s) => `<label style="display:block;padding:2px 0;"><input type="checkbox" value="${s.id}"> ${s.fullName}</label>`).join('') ||
+    '<p class="muted">No students registered yet.</p>';
+}
+
+function toggleAllAssignTargets(containerId, select) {
+  document.querySelectorAll(`#${containerId} input[type=checkbox]`).forEach((cb) => (cb.checked = select));
+}
+
+async function createAssignment(prefix) {
+  const title = document.getElementById(`${prefix}_title`).value.trim();
+  const description = document.getElementById(`${prefix}_desc`).value.trim();
+  const linkUrl = document.getElementById(`${prefix}_link`).value.trim();
+  const dueDate = document.getElementById(`${prefix}_due`).value;
+  const studentIds = Array.from(document.querySelectorAll(`#${prefix}_targets input[type=checkbox]:checked`)).map((cb) => cb.value);
+  const errEl = document.getElementById(`${prefix}_error`);
+  errEl.textContent = '';
+  if (!title) {
+    errEl.textContent = 'Enter a title.';
+    return;
+  }
+  if (studentIds.length === 0) {
+    errEl.textContent = 'Select at least one student.';
+    return;
+  }
+  try {
+    await db.createAssignment({ title, description, linkUrl, dueDate, studentIds });
+    document.getElementById(`${prefix}_title`).value = '';
+    document.getElementById(`${prefix}_desc`).value = '';
+    document.getElementById(`${prefix}_link`).value = '';
+    document.getElementById(`${prefix}_due`).value = '';
+    toggleAllAssignTargets(`${prefix}_targets`, false);
+    await renderAssignmentsList(prefix);
+  } catch (e) {
+    errEl.textContent = e.message || 'Could not create assignment.';
+  }
+}
+
+async function renderAssignmentsList(prefix) {
+  const assignments = await db.listAssignments();
+  const listEl = document.getElementById(`${prefix}_list`);
+  document.getElementById(`${prefix}_listEmpty`).classList.toggle('hidden', assignments.length > 0);
+  listEl.innerHTML = assignments
+    .map((a) => {
+      const doneCount = a.targets.filter((t) => t.submission?.status === 'done').length;
+      const rows = a.targets
+        .map(
+          (t) => `<tr>
+        <td>${t.fullName || 'Unknown'}</td>
+        <td>${t.submission?.status === 'done' ? 'Done' : 'Not started'}</td>
+        <td>${t.submission?.submitted_at ? new Date(t.submission.submitted_at).toLocaleDateString() : '—'}</td>
+      </tr>`
+        )
+        .join('');
+      return `<div class="subject-card" style="display:block;">
+        <div style="display:flex;justify-content:space-between;align-items:start;">
+          <div>
+            <div class="name">${a.title}</div>
+            <div class="stats">${a.dueDate ? 'Due ' + a.dueDate + ' &middot; ' : ''}${doneCount}/${a.targets.length} done${
+        a.linkUrl ? ' &middot; <a href="' + a.linkUrl + '" target="_blank" rel="noopener">Link</a>' : ''
+      }</div>
+            ${a.description ? `<p class="muted" style="margin:6px 0 0 0;">${a.description}</p>` : ''}
+          </div>
+          <button class="btn ghost small" onclick="deleteAssignment('${a.id}','${prefix}')">Delete</button>
+        </div>
+        <table style="margin-top:8px;"><thead><tr><th>Student</th><th>Status</th><th>Submitted</th></tr></thead><tbody>${rows}</tbody></table>
+      </div>`;
+    })
+    .join('');
+}
+
+async function deleteAssignment(id, prefix) {
+  try {
+    await db.deleteAssignment(id);
+  } catch (e) {
+    alert('Could not delete assignment: ' + (e.message || e));
+    return;
+  }
+  await renderAssignmentsList(prefix);
+}
+
 function showTab(name) {
   document.querySelectorAll('.tab-btn').forEach((b) => b.classList.toggle('active', b.dataset.tab === name));
   document.getElementById('tab-register').classList.toggle('hidden', name !== 'register');
   document.getElementById('tab-manage').classList.toggle('hidden', name !== 'manage');
   document.getElementById('tab-qb').classList.toggle('hidden', name !== 'qb');
   document.getElementById('tab-staff').classList.toggle('hidden', name !== 'staff');
+  document.getElementById('tab-assignments').classList.toggle('hidden', name !== 'assignments');
   if (name === 'manage') renderStudentsTable();
   if (name === 'qb') qbInit();
   if (name === 'staff') renderTeacherInvites();
+  if (name === 'assignments') {
+    renderAssignTargets('as');
+    renderAssignmentsList('as');
+  }
 }
 
 // =====================================================================
@@ -841,6 +1052,63 @@ async function showStudentDashboardView() {
   document.getElementById('dashboardCard').classList.remove('hidden');
   await ensureCatalog();
   renderStudentDashboard(currentStudentRecord);
+  renderMyAssignments();
+}
+
+// =====================================================================
+// Assignments (Student: view + submit; Parent: read-only via renderChildAssignments)
+// =====================================================================
+function renderAssignmentCard(a, { editable }) {
+  const done = a.submission?.status === 'done';
+  const bodyId = `assign_${a.id}`;
+  return `<div class="subject-card" style="display:block;">
+    <div style="display:flex;justify-content:space-between;align-items:start;">
+      <div>
+        <div class="name">${a.title} ${done ? '<span class="badge paid">Done</span>' : '<span class="badge unpaid">Not started</span>'}</div>
+        <div class="stats">${a.dueDate ? 'Due ' + a.dueDate : 'No due date'}${
+    a.linkUrl ? ' &middot; <a href="' + a.linkUrl + '" target="_blank" rel="noopener">Open link</a>' : ''
+  }</div>
+        ${a.description ? `<p class="muted" style="margin:6px 0 0 0;">${a.description}</p>` : ''}
+      </div>
+    </div>
+    ${
+      editable
+        ? `<div id="${bodyId}" style="margin-top:10px;">
+      <label>Notes (optional)</label>
+      <textarea id="${bodyId}_text" rows="2">${a.submission?.response_text || ''}</textarea>
+      <label>Attach a file (optional)</label>
+      <input type="file" id="${bodyId}_file">
+      <button class="btn small" onclick="submitMyAssignment('${a.id}')">${done ? 'Update' : 'Mark as done'}</button>
+      <p id="${bodyId}_error" class="muted" style="color:#b81f2c;"></p>
+    </div>`
+        : a.submission?.response_text
+        ? `<p class="muted" style="margin-top:8px;">Student notes: ${a.submission.response_text}</p>`
+        : ''
+    }
+  </div>`;
+}
+
+async function renderMyAssignments() {
+  if (!currentStudentRecord) return;
+  const assignments = await db.listAssignmentsForStudent(currentStudentRecord.id);
+  const listEl = document.getElementById('myAssignmentsList');
+  document.getElementById('myAssignmentsEmpty').classList.toggle('hidden', assignments.length > 0);
+  listEl.innerHTML = assignments.map((a) => renderAssignmentCard(a, { editable: true })).join('');
+}
+
+async function submitMyAssignment(assignmentId) {
+  const bodyId = `assign_${assignmentId}`;
+  const responseText = document.getElementById(`${bodyId}_text`).value.trim();
+  const fileInput = document.getElementById(`${bodyId}_file`);
+  const file = fileInput.files[0] || null;
+  const errEl = document.getElementById(`${bodyId}_error`);
+  errEl.textContent = '';
+  try {
+    await db.submitAssignment({ assignmentId, studentId: currentStudentRecord.id, status: 'done', responseText, file });
+    await renderMyAssignments();
+  } catch (e) {
+    errEl.textContent = e.message || 'Could not submit. Please try again.';
+  }
 }
 
 async function studentCheckEmail() {
@@ -1668,8 +1936,15 @@ Object.assign(window, {
   teacherBackToEmail,
   teacherSubmitPassword,
   teacherLogout,
+  parentCheckEmail,
+  parentBackToEmail,
+  parentSubmitPassword,
+  parentLogout,
   addTeacherInvite,
   revokeTeacherInvite,
+  toggleAllAssignTargets,
+  createAssignment,
+  deleteAssignment,
   handlePhoto,
   addProgramRow,
   onProgramChange,
@@ -1694,6 +1969,7 @@ Object.assign(window, {
   studentBackToEmail,
   studentSubmitPassword,
   studentLogout,
+  submitMyAssignment,
   selectAnswer,
   closeSession,
   startSession,

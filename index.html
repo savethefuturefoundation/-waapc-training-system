@@ -12,6 +12,7 @@
   <div class="role-switch">
     <button id="btnAdminRole" class="active" onclick="setRole('admin')">Admin</button>
     <button id="btnTeacherRole" onclick="setRole('teacher')">Teacher</button>
+    <button id="btnParentRole" onclick="setRole('parent')">Parent</button>
     <button id="btnStudentRole" onclick="setRole('student')">Student Portal</button>
   </div>
 </div>
@@ -39,6 +40,7 @@
       <button class="tab-btn" data-tab="manage" onclick="showTab('manage')">Students & Payments</button>
       <button class="tab-btn" data-tab="qb" onclick="showTab('qb')">Question Bank</button>
       <button class="tab-btn" data-tab="staff" onclick="showTab('staff')">Teachers</button>
+      <button class="tab-btn" data-tab="assignments" onclick="showTab('assignments')">Assignments</button>
     </div>
 
     <div id="tab-register" class="tab-panel">
@@ -230,6 +232,34 @@ GED,Mathematical Reasoning,What is 7 x 8?,54,56,58,60,B"></textarea>
         <div id="teacherInvitesEmpty" class="empty hidden">No pending invites. A teacher disappears from this list once they've logged in.</div>
       </div>
     </div>
+
+    <div id="tab-assignments" class="tab-panel hidden">
+      <div class="card">
+        <h2>New assignment</h2>
+        <div class="grid2">
+          <div><label>Title</label><input id="as_title" placeholder="e.g. Complete GED Math practice set"></div>
+          <div><label>Due date (optional)</label><input id="as_due" type="date"></div>
+        </div>
+        <label>Description (optional)</label>
+        <textarea id="as_desc" rows="2"></textarea>
+        <label>Link (optional) — e.g. a practice site the student should visit</label>
+        <input id="as_link" type="url" placeholder="https://...">
+        <label>Assign to</label>
+        <div style="margin-bottom:6px;">
+          <button class="btn ghost small" onclick="toggleAllAssignTargets('as_targets', true)">Select all</button>
+          <button class="btn ghost small" onclick="toggleAllAssignTargets('as_targets', false)">Select none</button>
+        </div>
+        <div id="as_targets" style="max-height:200px;overflow-y:auto;border:1px solid #ddd;border-radius:6px;padding:8px;"></div>
+        <button class="btn red" style="margin-top:10px;" onclick="createAssignment('as')">Create assignment</button>
+        <p id="as_error" class="muted" style="color:#b81f2c;"></p>
+      </div>
+
+      <div class="card">
+        <h2>All assignments</h2>
+        <div id="as_list"></div>
+        <div id="as_listEmpty" class="empty hidden">No assignments created yet.</div>
+      </div>
+    </div>
     </div>
   </div>
 
@@ -263,6 +293,59 @@ GED,Mathematical Reasoning,What is 7 x 8?,54,56,58,60,B"></textarea>
         </table>
         <div id="teacherStudentsEmpty" class="empty hidden">No students registered yet.</div>
       </div>
+
+      <div class="card">
+        <h2>New assignment</h2>
+        <div class="grid2">
+          <div><label>Title</label><input id="tas_title" placeholder="e.g. Complete GED Math practice set"></div>
+          <div><label>Due date (optional)</label><input id="tas_due" type="date"></div>
+        </div>
+        <label>Description (optional)</label>
+        <textarea id="tas_desc" rows="2"></textarea>
+        <label>Link (optional) — e.g. a practice site the student should visit</label>
+        <input id="tas_link" type="url" placeholder="https://...">
+        <label>Assign to</label>
+        <div style="margin-bottom:6px;">
+          <button class="btn ghost small" onclick="toggleAllAssignTargets('tas_targets', true)">Select all</button>
+          <button class="btn ghost small" onclick="toggleAllAssignTargets('tas_targets', false)">Select none</button>
+        </div>
+        <div id="tas_targets" style="max-height:200px;overflow-y:auto;border:1px solid #ddd;border-radius:6px;padding:8px;"></div>
+        <button class="btn red" style="margin-top:10px;" onclick="createAssignment('tas')">Create assignment</button>
+        <p id="tas_error" class="muted" style="color:#b81f2c;"></p>
+      </div>
+
+      <div class="card">
+        <h2>Assignments</h2>
+        <div id="tas_list"></div>
+        <div id="tas_listEmpty" class="empty hidden">No assignments created yet.</div>
+      </div>
+    </div>
+  </div>
+
+  <div id="parentView" class="hidden">
+    <div id="parentLoginCard" class="card">
+      <h2>Parent login</h2>
+      <div id="parentLoginStep1">
+        <label>Email</label>
+        <input id="parentEmail" type="email" placeholder="Enter the email on file as parent/guardian">
+        <button class="btn" onclick="parentCheckEmail()">Continue</button>
+      </div>
+      <div id="parentLoginStep2" class="hidden">
+        <label id="parentPasswordLabel">Password</label>
+        <input id="parentPassword" type="password">
+        <button class="btn" id="parentSubmitBtn" onclick="parentSubmitPassword()">Log in</button>
+        <button class="btn ghost small" onclick="parentBackToEmail()">Use a different email</button>
+      </div>
+      <p id="parentLoginError" class="muted" style="color:#b81f2c;"></p>
+    </div>
+
+    <div id="parentDashboard" class="hidden">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+        <span class="muted" id="parentEmailDisplay"></span>
+        <button class="btn ghost small" onclick="parentLogout()">Log out</button>
+      </div>
+      <div id="parentChildren"></div>
+      <div id="parentChildrenEmpty" class="empty hidden">No student record lists this email as parent/guardian yet. Contact the school.</div>
     </div>
   </div>
 
@@ -287,6 +370,11 @@ GED,Mathematical Reasoning,What is 7 x 8?,54,56,58,60,B"></textarea>
       <div class="card">
         <h2 id="welcomeMsg"></h2>
         <div id="enrollmentsList"></div>
+      </div>
+      <div class="card">
+        <h2>Assignments</h2>
+        <div id="myAssignmentsList"></div>
+        <div id="myAssignmentsEmpty" class="empty hidden">No assignments yet.</div>
       </div>
       <div id="subjectArea"></div>
       <button class="btn ghost small" onclick="studentLogout()">Log out</button>
