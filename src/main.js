@@ -484,6 +484,7 @@ function showTab(name) {
   if (name === 'timetable') renderTimetablePage();
   if (name === 'attendance') renderAttendancePage();
   if (name === 'parents') renderParentsPage();
+  if (name === 'finance') renderFinancePage();
 }
 
 // =====================================================================
@@ -567,6 +568,12 @@ function addInstallmentRow() {
   div.className = 'installment-row';
   div.innerHTML = `
     <input type="number" class="i-amount" placeholder="Amount CFA" oninput="recalcInstallments()">
+    <select class="i-category">
+      <option value="registration">Registration</option>
+      <option value="training" selected>Training</option>
+      <option value="test">Test</option>
+      <option value="other">Other</option>
+    </select>
     <input type="date" class="i-due" title="Due date">
     <span class="muted">CFA</span>
     <button class="field-remove" onclick="this.parentElement.remove(); recalcInstallments();">×</button>
@@ -618,12 +625,13 @@ async function submitRegistration() {
   document.querySelectorAll('.installment-row').forEach((row) => {
     installments.push({
       amount: Number(row.querySelector('.i-amount').value || 0),
+      category: row.querySelector('.i-category').value,
       dueDate: row.querySelector('.i-due').value || null,
     });
   });
   const total = programs.reduce((s, p) => s + p.price, 0);
   if (installments.length === 0) {
-    installments.push({ amount: total, dueDate: null });
+    installments.push({ amount: total, category: 'training', dueDate: null });
   }
 
   const student = {
@@ -931,29 +939,92 @@ function openInvoice(student) {
   document.getElementById('docOverlay').classList.add('show');
 }
 
+const FEE_CATEGORY_LABELS = { registration: 'Registration', training: 'Training', test: 'Test', other: 'Other' };
+let editingInstallmentId = null;
+
 async function openPayments(id) {
+  editingInstallmentId = null;
+  await renderPaymentsView(id);
+  document.getElementById('docOverlay').classList.add('show');
+}
+
+async function renderPaymentsView(studentId) {
   const students = await db.loadAllStudents();
-  const s = students.find((x) => x.id === id);
+  const s = students.find((x) => x.id === studentId);
   if (!s) return;
+
+  const paidByCategory = {};
+  s.installments.forEach((inst) => {
+    if (!inst.paid) return;
+    const cat = inst.category || 'other';
+    paidByCategory[cat] = (paidByCategory[cat] || 0) + inst.amount;
+  });
+  const breakdown = Object.keys(FEE_CATEGORY_LABELS)
+    .filter((c) => paidByCategory[c])
+    .map((c) => `${FEE_CATEGORY_LABELS[c]}: ${paidByCategory[c].toLocaleString()} CFA`)
+    .join(' &middot; ');
+
   const rows = s.installments
-    .map(
-      (inst, i) => `
-    <tr>
+    .map((inst, i) => {
+      if (editingInstallmentId === inst.id) {
+        return `<tr>
       <td>${i + 1}</td>
-      <td>${inst.amount.toLocaleString()} CFA</td>
+      <td><input type="number" id="edit_amount" value="${inst.amount}" style="margin-bottom:0;"></td>
+      <td><select id="edit_category" style="margin-bottom:0;">${Object.keys(FEE_CATEGORY_LABELS)
+        .map((c) => `<option value="${c}" ${inst.category === c ? 'selected' : ''}>${FEE_CATEGORY_LABELS[c]}</option>`)
+        .join('')}</select></td>
       <td>${inst.dueDate || '—'}</td>
       <td><span class="badge ${inst.paid ? 'paid' : 'unpaid'}">${inst.paid ? 'Paid' : 'Unpaid'}</span></td>
-      <td>${inst.paid ? `<button class="btn ghost small" onclick="viewReceipt('${s.id}','${inst.id}')">Receipt</button>` : `<button class="btn small" onclick="markPaid('${s.id}','${inst.id}')">Mark paid</button>`}</td>
-    </tr>`
-    )
+      <td>
+        <button class="btn small" onclick="saveInstallmentEdit('${studentId}','${inst.id}')">Save</button>
+        <button class="btn ghost small" onclick="cancelInstallmentEdit('${studentId}')">Cancel</button>
+      </td>
+    </tr>`;
+      }
+      return `<tr>
+      <td>${i + 1}</td>
+      <td>${inst.amount.toLocaleString()} CFA</td>
+      <td>${FEE_CATEGORY_LABELS[inst.category] || 'Other'}</td>
+      <td>${inst.dueDate || '—'}</td>
+      <td><span class="badge ${inst.paid ? 'paid' : 'unpaid'}">${inst.paid ? 'Paid' : 'Unpaid'}</span></td>
+      <td>
+        ${inst.paid ? `<button class="btn ghost small" onclick="viewReceipt('${s.id}','${inst.id}')">Receipt</button>` : `<button class="btn small" onclick="markPaid('${s.id}','${inst.id}')">Mark paid</button>`}
+        <button class="btn ghost small" onclick="editInstallmentClick('${inst.id}','${studentId}')">Edit</button>
+      </td>
+    </tr>`;
+    })
     .join('');
   const html = `
-    <h3 style="color:#1a2b6b;">${s.fullName} — Payment schedule</h3>
-    <p class="muted">Total ${s.total.toLocaleString()} CFA · Balance ${balanceOf(s).toLocaleString()} CFA</p>
-    <table><thead><tr><th>#</th><th>Amount</th><th>Due date</th><th>Status</th><th>Action</th></tr></thead><tbody>${rows}</tbody></table>
+    <h3 style="color:var(--navy);">${s.fullName} — Payment schedule</h3>
+    <p class="muted">Total ${s.total.toLocaleString()} CFA &middot; Balance ${balanceOf(s).toLocaleString()} CFA</p>
+    ${breakdown ? `<p class="muted">Paid so far — ${breakdown}</p>` : ''}
+    <table><thead><tr><th>#</th><th>Amount</th><th>For</th><th>Due date</th><th>Status</th><th>Action</th></tr></thead><tbody>${rows}</tbody></table>
   `;
   document.getElementById('docContent').innerHTML = html;
-  document.getElementById('docOverlay').classList.add('show');
+}
+
+function editInstallmentClick(instId, studentId) {
+  editingInstallmentId = instId;
+  renderPaymentsView(studentId);
+}
+
+function cancelInstallmentEdit(studentId) {
+  editingInstallmentId = null;
+  renderPaymentsView(studentId);
+}
+
+async function saveInstallmentEdit(studentId, instId) {
+  const amount = Number(document.getElementById('edit_amount').value || 0);
+  const category = document.getElementById('edit_category').value;
+  try {
+    await db.updateInstallment(instId, { amount, category });
+  } catch (e) {
+    alert('Could not save changes: ' + (e.message || e));
+    return;
+  }
+  editingInstallmentId = null;
+  await renderPaymentsView(studentId);
+  renderStudentsTable();
 }
 
 async function markPaid(studentId, installmentId) {
@@ -965,7 +1036,7 @@ async function markPaid(studentId, installmentId) {
     alert('Could not record payment: ' + (e.message || e));
     return;
   }
-  await openPayments(studentId);
+  await renderPaymentsView(studentId);
   renderStudentsTable();
 }
 
@@ -990,6 +1061,7 @@ async function viewReceipt(studentId, installmentId) {
     <div style="background:#1a2b6b;color:#fff;display:flex;justify-content:space-between;padding:14px 18px;font-weight:bold;font-size:16px;margin-bottom:16px;">
       <span>AMOUNT RECEIVED</span><span style="background:#b81f2c;padding:5px 12px;">${inst.amount.toLocaleString()} CFA</span>
     </div>
+    <p><b>For:</b> ${FEE_CATEGORY_LABELS[inst.category] || 'Other'}</p>
     <p><b>Payment method:</b> ${inst.method || '—'}</p>
     <p style="margin-top:24px;font-size:11px;color:#666;text-align:center;border-top:1px solid #e0e4ec;padding-top:10px;">
       Thank you for choosing WAAPC Training Centre.
@@ -2478,6 +2550,78 @@ async function deleteTimetableEntryClick(id) {
 }
 
 // =====================================================================
+// Finance (Admin only) — income (from paid installments) vs. expenses
+// =====================================================================
+async function renderFinancePage() {
+  const [students, expenses] = await Promise.all([db.loadAllStudents(), db.listExpenses()]);
+
+  const incomeByCategory = {};
+  let totalIncome = 0;
+  students.forEach((s) => {
+    s.installments.forEach((inst) => {
+      if (!inst.paid) return;
+      const cat = inst.category || 'other';
+      incomeByCategory[cat] = (incomeByCategory[cat] || 0) + inst.amount;
+      totalIncome += inst.amount;
+    });
+  });
+  const totalExpenses = expenses.reduce((sum, e) => sum + Number(e.amount), 0);
+  const net = totalIncome - totalExpenses;
+
+  document.getElementById('fin_income').textContent = totalIncome.toLocaleString();
+  document.getElementById('fin_expenses').textContent = totalExpenses.toLocaleString();
+  document.getElementById('fin_net').textContent = net.toLocaleString();
+
+  document.getElementById('fin_breakdown').innerHTML =
+    Object.keys(FEE_CATEGORY_LABELS)
+      .filter((c) => incomeByCategory[c])
+      .map(
+        (c) => `<div class="subject-card"><div class="name">${FEE_CATEGORY_LABELS[c]}</div><div style="font-weight:bold;color:var(--navy);">${incomeByCategory[c].toLocaleString()} CFA</div></div>`
+      )
+      .join('') || '<p class="muted">No income recorded yet.</p>';
+
+  const listEl = document.querySelector('#fin_expenseTable tbody');
+  document.getElementById('fin_expenseListEmpty').classList.toggle('hidden', expenses.length > 0);
+  listEl.innerHTML = expenses
+    .map(
+      (e) => `<tr>
+        <td>${new Date(e.expense_date).toLocaleDateString()}</td>
+        <td>${e.category}</td>
+        <td>${e.description || '—'}</td>
+        <td>${Number(e.amount).toLocaleString()} CFA</td>
+        <td><button class="btn ghost small" onclick="deleteExpenseClick('${e.id}')">Delete</button></td>
+      </tr>`
+    )
+    .join('');
+}
+
+async function createExpenseClick() {
+  const category = document.getElementById('exp_category').value;
+  const description = document.getElementById('exp_description').value.trim();
+  const amount = Number(document.getElementById('exp_amount').value || 0);
+  const date = document.getElementById('exp_date').value || new Date().toISOString().slice(0, 10);
+  const errEl = document.getElementById('exp_error');
+  errEl.textContent = '';
+  if (!amount) {
+    errEl.textContent = 'Enter an amount.';
+    return;
+  }
+  try {
+    await db.createExpense({ category, description, amount, date });
+    document.getElementById('exp_description').value = '';
+    document.getElementById('exp_amount').value = '';
+    await renderFinancePage();
+  } catch (e) {
+    errEl.textContent = e.message || 'Could not add expense.';
+  }
+}
+
+async function deleteExpenseClick(id) {
+  await db.deleteExpense(id);
+  await renderFinancePage();
+}
+
+// =====================================================================
 // Attendance (dedicated bulk-by-class page; admin/teacher only)
 // =====================================================================
 async function renderAttendancePage() {
@@ -2706,6 +2850,11 @@ Object.assign(window, {
   closeDoc,
   openPayments,
   markPaid,
+  editInstallmentClick,
+  cancelInstallmentEdit,
+  saveInstallmentEdit,
+  createExpenseClick,
+  deleteExpenseClick,
   viewReceipt,
   openAttendance,
   recordAttendance,

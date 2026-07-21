@@ -42,7 +42,7 @@ const STUDENT_SELECT = `
   ),
   invoices (
     id, invoice_number, invoice_date, total,
-    payment_installments ( id, amount, due_date, paid, paid_date, method, receipt_number )
+    payment_installments ( id, amount, category, due_date, paid, paid_date, method, receipt_number )
   ),
   attempts (
     id, mode, score, total, taken_at,
@@ -74,6 +74,7 @@ function mapStudentRow(row) {
   const installments = ((invoice && invoice.payment_installments) || []).map((i) => ({
     id: i.id,
     amount: Number(i.amount),
+    category: i.category,
     dueDate: i.due_date,
     paid: i.paid,
     paidDate: i.paid_date,
@@ -221,6 +222,7 @@ export async function registerStudent({ student, programs, installments, photoFi
   const instRows = installments.map((i) => ({
     invoice_id: invoice.id,
     amount: i.amount,
+    category: i.category || 'training',
     due_date: i.dueDate || null,
   }));
   const { error: instErr } = await supabase.from('payment_installments').insert(instRows);
@@ -244,6 +246,11 @@ export async function markInstallmentPaid(installmentId, method) {
       receipt_number: receiptNumber,
     })
     .eq('id', installmentId);
+  if (error) throw error;
+}
+
+export async function updateInstallment(id, { amount, category }) {
+  const { error } = await supabase.from('payment_installments').update({ amount, category }).eq('id', id);
   if (error) throw error;
 }
 
@@ -819,4 +826,24 @@ export async function listAttendanceForDate(enrollmentIds, date) {
     map[a.enrollment_id] = a.present;
   });
   return map;
+}
+
+// ---------------------------------------------------------------------
+// Finance — expenses (admin only). Income comes from paid installments,
+// already available via loadAllStudents().
+// ---------------------------------------------------------------------
+export async function listExpenses() {
+  const { data, error } = await supabase.from('expenses').select('*').order('expense_date', { ascending: false });
+  if (error) throw error;
+  return data;
+}
+
+export async function createExpense({ category, description, amount, date }) {
+  const { error } = await supabase.from('expenses').insert({ category, description: description || null, amount, expense_date: date });
+  if (error) throw error;
+}
+
+export async function deleteExpense(id) {
+  const { error } = await supabase.from('expenses').delete().eq('id', id);
+  if (error) throw error;
 }

@@ -39,6 +39,8 @@ Requirements: [Node.js](https://nodejs.org/) (LTS) and a Supabase project.
    - `extra_schema_11.sql` — Gradebook (real grades a teacher enters, separate from auto-scored practice/mock attempts)
    - `extra_schema_12.sql` — GED Admission & Placement Assessment (GAPA): computer-graded English/academic readiness test for GED students, seeded with WAAPC's real 50-question assessment
    - `extra_schema_13.sql` — Timetable, seeded with WAAPC's real GED weekly schedule
+   - `extra_schema_14.sql` — Payment fee categories (Registration/Training/Test/Other) on installments
+   - `extra_schema_15.sql` — Finance: expenses tracking (admin only)
 4. In Supabase **Authentication → Providers → Email**, turn off "Confirm email" (so a student's, teacher's, or parent's first-login signup works immediately).
 5. Create your admin account: **Authentication → Users → Add user** (check "Auto Confirm User"), then in the SQL Editor:
    ```sql

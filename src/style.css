@@ -99,8 +99,8 @@
     display: grid; grid-template-columns: 1.4fr 1fr 0.9fr 0.9fr 0.7fr 0.9fr auto;
     gap: 8px; align-items: center; margin-bottom: 8px; background: var(--bg); padding: 8px; border-radius: 8px;
   }
-  .installment-row { grid-template-columns: 1fr 1fr 0.8fr auto; }
-  .program-row input, .program-row select, .installment-row input { margin-bottom: 0; }
+  .installment-row { grid-template-columns: 1fr 1fr 1fr 0.6fr auto; }
+  .program-row input, .program-row select, .installment-row input, .installment-row select { margin-bottom: 0; }
   table { width: 100%; border-collapse: collapse; font-size: 13px; }
   th { background: var(--gray-100); color: var(--gray-500); text-align: left; padding: 12px 14px; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; border-bottom: 2px solid var(--gray-200); }
   td { padding: 12px 14px; border-bottom: 1px solid var(--gray-100); }
