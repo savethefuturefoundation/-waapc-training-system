@@ -684,3 +684,43 @@ export async function deleteCalendarEvent(id) {
   const { error } = await supabase.from('calendar_events').delete().eq('id', id);
   if (error) throw error;
 }
+
+// ---------------------------------------------------------------------
+// Gradebook — real grades a teacher enters, separate from auto-scored
+// practice/mock attempts.
+// ---------------------------------------------------------------------
+export async function listGradesForStudent(studentId) {
+  const { data, error } = await supabase
+    .from('grades')
+    .select('id, label, score, max_score, notes, entered_at, subjects(name, tests(name))')
+    .eq('student_id', studentId)
+    .order('entered_at', { ascending: false });
+  if (error) throw error;
+  return data.map((g) => ({
+    id: g.id,
+    label: g.label,
+    score: Number(g.score),
+    maxScore: Number(g.max_score),
+    notes: g.notes,
+    enteredAt: g.entered_at,
+    subject: g.subjects?.name,
+    test: g.subjects?.tests?.name,
+  }));
+}
+
+export async function addGrade({ studentId, subjectId, label, score, maxScore, notes }) {
+  const { error } = await supabase.from('grades').insert({
+    student_id: studentId,
+    subject_id: subjectId,
+    label,
+    score,
+    max_score: maxScore,
+    notes: notes || null,
+  });
+  if (error) throw error;
+}
+
+export async function deleteGrade(id) {
+  const { error } = await supabase.from('grades').delete().eq('id', id);
+  if (error) throw error;
+}

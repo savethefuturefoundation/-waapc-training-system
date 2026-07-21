@@ -195,6 +195,7 @@ async function renderTeacherStudentsTable() {
       <td>
         <button class="btn ghost small" onclick="openAttendance('${s.id}')">Attendance</button>
         <button class="btn ghost small" onclick="openProgressReport('${s.id}')">Report</button>
+        <button class="btn ghost small" onclick="openGradebook('${s.id}')">Gradebook</button>
         <button class="btn ghost small" onclick="openSpeakingSubmissions('${s.id}')">Speaking</button>
       </td>
     `;
@@ -295,16 +296,23 @@ async function renderParentChildren() {
 
   const cards = await Promise.all(
     children.map(async (s) => {
-      const assignments = await db.listAssignmentsForStudent(s.id);
+      const [assignments, grades] = await Promise.all([db.listAssignmentsForStudent(s.id), db.listGradesForStudent(s.id)]);
       const assignmentsHtml = assignments.length
         ? assignments.map((a) => renderAssignmentCard(a, { editable: false })).join('')
         : '<p class="muted">No assignments yet.</p>';
+      const gradesHtml = grades.length
+        ? `<table><thead><tr><th>Subject</th><th>Label</th><th>Score</th></tr></thead><tbody>${grades
+            .map((g) => `<tr><td>${g.test || ''} — ${g.subject || ''}</td><td>${g.label}</td><td>${g.score} / ${g.maxScore}</td></tr>`)
+            .join('')}</tbody></table>`
+        : '<p class="muted">No grades yet.</p>';
       return `<div class="card">
         <h2>${s.fullName}</h2>
         <p class="muted">${s.programs.map((p) => p.test).join(', ') || 'No programs enrolled'}</p>
         <button class="btn ghost small" onclick="openAttendance('${s.id}')">View attendance</button>
         <button class="btn ghost small" onclick="openProgressReport('${s.id}')">View progress report</button>
-        <h3 style="margin-top:16px;color:#1a2b6b;">Assignments</h3>
+        <h3 style="margin-top:16px;color:var(--navy);">Grades</h3>
+        ${gradesHtml}
+        <h3 style="margin-top:16px;color:var(--navy);">Assignments</h3>
         ${assignmentsHtml}
       </div>`;
     })
@@ -746,12 +754,113 @@ async function openStudentDetail(id) {
       <button class="btn ghost small" onclick="openPayments('${s.id}')">Payments</button>
       <button class="btn ghost small" onclick="openAttendance('${s.id}')">Attendance</button>
       <button class="btn ghost small" onclick="openProgressReport('${s.id}')">Progress report</button>
+      <button class="btn ghost small" onclick="openGradebook('${s.id}')">Gradebook</button>
       <button class="btn ghost small" onclick="openCertificateForm('${s.id}')">Certificate</button>
       <button class="btn ghost small" onclick="openSpeakingSubmissions('${s.id}')">Speaking</button>
     </div>
   `;
   document.getElementById('docContent').innerHTML = html;
   document.getElementById('docOverlay').classList.add('show');
+}
+
+// =====================================================================
+// Gradebook (Admin/Teacher entry; shared with Student/Parent read views)
+// =====================================================================
+async function openGradebook(studentId) {
+  const students = await db.loadAllStudents();
+  const s = students.find((x) => x.id === studentId);
+  if (!s) return;
+  await ensureCatalog();
+  await renderGradebook(s);
+  document.getElementById('docOverlay').classList.add('show');
+}
+
+async function renderGradebook(s) {
+  const grades = await db.listGradesForStudent(s.id);
+  const subjectOptions = s.programs
+    .flatMap((p) => {
+      const subjects = (CATALOG[p.test] && CATALOG[p.test].subjects) || [];
+      return subjects.map((sub) => `<option value="${sub.id}">${p.test} — ${sub.name}</option>`);
+    })
+    .join('');
+
+  const rows = grades
+    .map(
+      (g) => `<tr>
+      <td>${g.test || ''} — ${g.subject || ''}</td>
+      <td>${g.label}</td>
+      <td>${g.score} / ${g.maxScore}</td>
+      <td>${new Date(g.enteredAt).toLocaleDateString()}</td>
+      <td class="no-print"><button class="btn ghost small" onclick="deleteGradeClick('${g.id}','${s.id}')">Delete</button></td>
+    </tr>`
+    )
+    .join('');
+
+  const html = `
+    <h3 style="color:var(--navy);">${s.fullName} — Gradebook</h3>
+    <table style="margin-top:12px;">
+      <thead><tr><th>Subject</th><th>Label</th><th>Score</th><th>Date</th><th></th></tr></thead>
+      <tbody>${rows || '<tr><td colspan="5" class="muted">No grades entered yet.</td></tr>'}</tbody>
+    </table>
+
+    <div class="no-print" style="margin-top:20px;border-top:1px solid var(--gray-200);padding-top:16px;">
+      <h3 style="color:var(--navy);">Add a grade</h3>
+      <label>Subject</label>
+      <select id="grade_subject">${subjectOptions || '<option value="">No enrolled programs</option>'}</select>
+      <div class="grid2">
+        <div><label>Label</label><input id="grade_label" placeholder="e.g. Midterm, Quiz 3"></div>
+        <div>
+          <label>Score / Max</label>
+          <div style="display:flex;gap:8px;">
+            <input id="grade_score" type="number" style="margin-bottom:0;">
+            <input id="grade_max" type="number" value="100" style="margin-bottom:0;">
+          </div>
+        </div>
+      </div>
+      <label>Notes (optional)</label>
+      <textarea id="grade_notes" rows="2"></textarea>
+      <button class="btn red" onclick="addGradeClick('${s.id}')">Add grade</button>
+      <p id="grade_error" class="muted error-text"></p>
+    </div>
+  `;
+  document.getElementById('docContent').innerHTML = html;
+}
+
+async function addGradeClick(studentId) {
+  const subjectId = document.getElementById('grade_subject').value;
+  const label = document.getElementById('grade_label').value.trim();
+  const score = parseFloat(document.getElementById('grade_score').value);
+  const maxScore = parseFloat(document.getElementById('grade_max').value) || 100;
+  const notes = document.getElementById('grade_notes').value.trim();
+  const errEl = document.getElementById('grade_error');
+  errEl.textContent = '';
+  if (!subjectId) {
+    errEl.textContent = 'Select a subject.';
+    return;
+  }
+  if (!label) {
+    errEl.textContent = 'Enter a label.';
+    return;
+  }
+  if (isNaN(score)) {
+    errEl.textContent = 'Enter a score.';
+    return;
+  }
+  try {
+    await db.addGrade({ studentId, subjectId, label, score, maxScore, notes });
+    const students = await db.loadAllStudents();
+    const s = students.find((x) => x.id === studentId);
+    await renderGradebook(s);
+  } catch (e) {
+    errEl.textContent = e.message || 'Could not add grade.';
+  }
+}
+
+async function deleteGradeClick(gradeId, studentId) {
+  await db.deleteGrade(gradeId);
+  const students = await db.loadAllStudents();
+  const s = students.find((x) => x.id === studentId);
+  await renderGradebook(s);
 }
 
 async function openInvoiceById(id) {
@@ -1133,6 +1242,25 @@ async function showStudentDashboardView() {
   await ensureCatalog();
   renderStudentDashboard(currentStudentRecord);
   renderMyAssignments();
+  renderMyGrades();
+}
+
+async function renderMyGrades() {
+  if (!currentStudentRecord) return;
+  const grades = await db.listGradesForStudent(currentStudentRecord.id);
+  const listEl = document.getElementById('myGradesList');
+  document.getElementById('myGradesEmpty').classList.toggle('hidden', grades.length > 0);
+  listEl.innerHTML = grades
+    .map(
+      (g) => `<div class="subject-card">
+        <div>
+          <div class="name">${g.test || ''} — ${g.subject || ''}: ${g.label}</div>
+          <div class="stats">${new Date(g.enteredAt).toLocaleDateString()}${g.notes ? ' — ' + g.notes : ''}</div>
+        </div>
+        <div style="font-weight:bold;color:var(--navy);">${g.score} / ${g.maxScore}</div>
+      </div>`
+    )
+    .join('');
 }
 
 // =====================================================================
@@ -2219,6 +2347,9 @@ Object.assign(window, {
   resetRegistrationForm,
   openInvoiceById,
   openStudentDetail,
+  openGradebook,
+  addGradeClick,
+  deleteGradeClick,
   closeDoc,
   openPayments,
   markPaid,
