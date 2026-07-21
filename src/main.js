@@ -66,8 +66,7 @@ async function showAdminDashboard() {
   document.querySelectorAll('#appShell .page').forEach((p) => p.classList.add('hidden'));
   await ensureCatalog();
   resetRegistrationForm();
-  renderStudentsTable();
-  showTab('register');
+  showTab('dashboard');
 }
 
 async function adminLogin() {
@@ -442,13 +441,30 @@ async function deleteAssignment(id, prefix) {
   await renderAssignmentsList(prefix);
 }
 
+async function renderAdminDashboardStats() {
+  document.getElementById('dash_date').textContent = new Date().toLocaleDateString(undefined, {
+    weekday: 'long',
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric',
+  });
+  await ensureCatalog();
+  const [students, teacherCount, assignments] = await Promise.all([db.loadAllStudents(), db.countTeachers(), db.listAssignments()]);
+  document.getElementById('dash_students').textContent = students.length;
+  document.getElementById('dash_teachers').textContent = teacherCount;
+  document.getElementById('dash_programs').textContent = Object.keys(CATALOG).length;
+  document.getElementById('dash_assignments').textContent = assignments.length;
+}
+
 function showTab(name) {
   document.querySelectorAll('.tab-btn').forEach((b) => b.classList.toggle('active', b.dataset.tab === name));
+  document.getElementById('tab-dashboard').classList.toggle('hidden', name !== 'dashboard');
   document.getElementById('tab-register').classList.toggle('hidden', name !== 'register');
   document.getElementById('tab-manage').classList.toggle('hidden', name !== 'manage');
   document.getElementById('tab-qb').classList.toggle('hidden', name !== 'qb');
   document.getElementById('tab-staff').classList.toggle('hidden', name !== 'staff');
   document.getElementById('tab-assignments').classList.toggle('hidden', name !== 'assignments');
+  if (name === 'dashboard') renderAdminDashboardStats();
   if (name === 'manage') renderStudentsTable();
   if (name === 'qb') qbInit();
   if (name === 'staff') renderTeacherInvites();
@@ -664,27 +680,78 @@ async function renderStudentsTable() {
   tbody.innerHTML = '';
   document.getElementById('studentsEmpty').classList.toggle('hidden', students.length > 0);
   students.forEach((s) => {
-    const bal = balanceOf(s);
     const status = statusOf(s);
     const tr = document.createElement('tr');
+    tr.className = 'row-clickable';
+    tr.onclick = () => openStudentDetail(s.id);
     tr.innerHTML = `
-      <td>${s.fullName}</td>
-      <td>${s.programs.map((p) => p.test).join(', ')}</td>
-      <td>${s.invoiceNumber}</td>
-      <td>${s.total.toLocaleString()} CFA</td>
-      <td>${bal.toLocaleString()} CFA</td>
+      <td><b>${s.fullName}</b></td>
+      <td>${s.programs.map((p) => p.test).join(', ') || '—'}</td>
       <td><span class="badge ${status}">${status}</span></td>
-      <td>
-        <button class="btn ghost small" onclick="openInvoiceById('${s.id}')">Invoice</button>
-        <button class="btn ghost small" onclick="openPayments('${s.id}')">Payments</button>
-        <button class="btn ghost small" onclick="openAttendance('${s.id}')">Attendance</button>
-        <button class="btn ghost small" onclick="openProgressReport('${s.id}')">Report</button>
-        <button class="btn ghost small" onclick="openCertificateForm('${s.id}')">Certificate</button>
-        <button class="btn ghost small" onclick="openSpeakingSubmissions('${s.id}')">Speaking</button>
-      </td>
+      <td><button class="btn ghost small" onclick="event.stopPropagation(); openStudentDetail('${s.id}')">View</button></td>
     `;
     tbody.appendChild(tr);
   });
+}
+
+async function openStudentDetail(id) {
+  const students = await db.loadAllStudents();
+  const s = students.find((x) => x.id === id);
+  if (!s) return;
+  const bal = balanceOf(s);
+  const status = statusOf(s);
+
+  const programRows = s.programs
+    .map(
+      (p) => `<tr>
+      <td>${p.test} <span class="muted">(${p.level || '—'})</span></td>
+      <td>${p.start || '—'} → ${p.end || '—'}</td>
+      <td>${p.price.toLocaleString()} CFA</td>
+    </tr>`
+    )
+    .join('');
+
+  const html = `
+    <h3 style="color:var(--navy);margin-bottom:4px;">${s.fullName} <span class="badge ${status}">${status}</span></h3>
+    <div class="grid2" style="margin-top:16px;">
+      <div>
+        <p class="muted" style="margin-bottom:2px;">Date of birth</p><p style="margin-top:0;">${s.dob || '—'}</p>
+        <p class="muted" style="margin-bottom:2px;">Gender</p><p style="margin-top:0;">${s.gender || '—'}</p>
+        <p class="muted" style="margin-bottom:2px;">Nationality</p><p style="margin-top:0;">${s.nationality || '—'}</p>
+      </div>
+      <div>
+        <p class="muted" style="margin-bottom:2px;">Email</p><p style="margin-top:0;">${s.email}</p>
+        <p class="muted" style="margin-bottom:2px;">Phone</p><p style="margin-top:0;">${s.phone || '—'}</p>
+      </div>
+    </div>
+
+    <h3 style="color:var(--navy);margin-top:20px;">Parent / guardian</h3>
+    <div class="grid2">
+      <div>
+        <p class="muted" style="margin-bottom:2px;">Name</p><p style="margin-top:0;">${s.guardian.name || '—'} ${s.guardian.relationship ? '(' + s.guardian.relationship + ')' : ''}</p>
+        <p class="muted" style="margin-bottom:2px;">Phone</p><p style="margin-top:0;">${s.guardian.phone || '—'}</p>
+      </div>
+      <div>
+        <p class="muted" style="margin-bottom:2px;">Email</p><p style="margin-top:0;">${s.guardian.email || '—'}</p>
+        <p class="muted" style="margin-bottom:2px;">Address</p><p style="margin-top:0;">${s.guardian.address || '—'}</p>
+      </div>
+    </div>
+
+    <h3 style="color:var(--navy);margin-top:20px;">Programs</h3>
+    <table><thead><tr><th>Program</th><th>Schedule</th><th>Price</th></tr></thead><tbody>${programRows}</tbody></table>
+    <p class="muted" style="margin-top:10px;">Invoice ${s.invoiceNumber || '—'} — Total ${s.total.toLocaleString()} CFA, Balance ${bal.toLocaleString()} CFA</p>
+
+    <div style="margin-top:20px;display:flex;gap:8px;flex-wrap:wrap;" class="no-print">
+      <button class="btn small" onclick="openInvoiceById('${s.id}')">Invoice</button>
+      <button class="btn ghost small" onclick="openPayments('${s.id}')">Payments</button>
+      <button class="btn ghost small" onclick="openAttendance('${s.id}')">Attendance</button>
+      <button class="btn ghost small" onclick="openProgressReport('${s.id}')">Progress report</button>
+      <button class="btn ghost small" onclick="openCertificateForm('${s.id}')">Certificate</button>
+      <button class="btn ghost small" onclick="openSpeakingSubmissions('${s.id}')">Speaking</button>
+    </div>
+  `;
+  document.getElementById('docContent').innerHTML = html;
+  document.getElementById('docOverlay').classList.add('show');
 }
 
 async function openInvoiceById(id) {
@@ -1971,6 +2038,7 @@ Object.assign(window, {
   submitRegistration,
   resetRegistrationForm,
   openInvoiceById,
+  openStudentDetail,
   closeDoc,
   openPayments,
   markPaid,

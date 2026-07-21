@@ -136,6 +136,12 @@ export async function loadAllStudents() {
   return data.map(mapStudentRow);
 }
 
+export async function countTeachers() {
+  const { count, error } = await supabase.from('profiles').select('*', { count: 'exact', head: true }).eq('role', 'teacher');
+  if (error) throw error;
+  return count || 0;
+}
+
 // ---------------------------------------------------------------------
 // Sequence numbers (invoice/receipt/certificate). Admin-only (enforced
 // inside the next_seq() Postgres function).
