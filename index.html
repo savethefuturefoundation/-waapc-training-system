@@ -7,43 +7,116 @@
 </head>
 <body>
 
-<div class="topbar">
-  <h1>WAAPC Training Centre — Console</h1>
-  <div class="role-switch">
-    <button id="btnAdminRole" class="active" onclick="setRole('admin')">Admin</button>
-    <button id="btnTeacherRole" onclick="setRole('teacher')">Teacher</button>
-    <button id="btnParentRole" onclick="setRole('parent')">Parent</button>
-    <button id="btnStudentRole" onclick="setRole('student')">Student Portal</button>
-  </div>
-</div>
+<div id="authScreen" class="auth-screen">
+  <div class="auth-card">
+    <div class="auth-logo">W</div>
+    <h1>WAAPC Training Centre</h1>
+    <p class="auth-subtitle">Training Management System</p>
 
-<div class="container">
+    <div class="role-pills">
+      <button id="btnAdminRole" class="active" onclick="setRole('admin')">Admin</button>
+      <button id="btnTeacherRole" onclick="setRole('teacher')">Teacher</button>
+      <button id="btnParentRole" onclick="setRole('parent')">Parent</button>
+      <button id="btnStudentRole" onclick="setRole('student')">Student</button>
+    </div>
 
-  <div id="adminView">
-    <div id="adminLoginCard" class="card">
-      <h2>Admin login</h2>
+    <div id="adminLoginCard">
       <label>Email</label>
       <input id="adminEmail" type="email">
       <label>Password</label>
       <input id="adminPassword" type="password">
-      <button class="btn" onclick="adminLogin()">Log in</button>
-      <p id="adminLoginError" class="muted" style="color:#b81f2c;"></p>
+      <button class="btn" style="width:100%;justify-content:center;" onclick="adminLogin()">Log in</button>
+      <p id="adminLoginError" class="muted error-text"></p>
     </div>
 
-    <div id="adminDashboard" class="hidden">
-    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
-      <span class="muted" id="adminEmailDisplay"></span>
-      <button class="btn ghost small" onclick="adminLogout()">Log out</button>
-    </div>
-    <div class="tabs">
-      <button class="tab-btn active" data-tab="register" onclick="showTab('register')">New Registration</button>
-      <button class="tab-btn" data-tab="manage" onclick="showTab('manage')">Students & Payments</button>
-      <button class="tab-btn" data-tab="qb" onclick="showTab('qb')">Question Bank</button>
-      <button class="tab-btn" data-tab="staff" onclick="showTab('staff')">Teachers</button>
-      <button class="tab-btn" data-tab="assignments" onclick="showTab('assignments')">Assignments</button>
+    <div id="teacherLoginCard" class="hidden">
+      <div id="teacherLoginStep1">
+        <label>Email</label>
+        <input id="teacherEmail" type="email" placeholder="Enter the email the school invited you with">
+        <button class="btn" style="width:100%;justify-content:center;" onclick="teacherCheckEmail()">Continue</button>
+      </div>
+      <div id="teacherLoginStep2" class="hidden">
+        <label id="teacherPasswordLabel">Password</label>
+        <input id="teacherPassword" type="password">
+        <button class="btn" id="teacherSubmitBtn" style="width:100%;justify-content:center;" onclick="teacherSubmitPassword()">Log in</button>
+        <button class="btn ghost small" onclick="teacherBackToEmail()">Use a different email</button>
+      </div>
+      <p id="teacherLoginError" class="muted error-text"></p>
     </div>
 
-    <div id="tab-register" class="tab-panel">
+    <div id="parentLoginCard" class="hidden">
+      <div id="parentLoginStep1">
+        <label>Email</label>
+        <input id="parentEmail" type="email" placeholder="Enter the email on file as parent/guardian">
+        <button class="btn" style="width:100%;justify-content:center;" onclick="parentCheckEmail()">Continue</button>
+      </div>
+      <div id="parentLoginStep2" class="hidden">
+        <label id="parentPasswordLabel">Password</label>
+        <input id="parentPassword" type="password">
+        <button class="btn" id="parentSubmitBtn" style="width:100%;justify-content:center;" onclick="parentSubmitPassword()">Log in</button>
+        <button class="btn ghost small" onclick="parentBackToEmail()">Use a different email</button>
+      </div>
+      <p id="parentLoginError" class="muted error-text"></p>
+    </div>
+
+    <div id="loginCard" class="hidden">
+      <div id="loginStep1">
+        <label>Email</label>
+        <input id="loginEmail" placeholder="Enter the email your school registered you with">
+        <button class="btn" style="width:100%;justify-content:center;" onclick="studentCheckEmail()">Continue</button>
+      </div>
+      <div id="loginStep2" class="hidden">
+        <label id="loginPasswordLabel">Password</label>
+        <input id="loginPassword" type="password">
+        <button class="btn" id="loginSubmitBtn" style="width:100%;justify-content:center;" onclick="studentSubmitPassword()">Log in</button>
+        <button class="btn ghost small" onclick="studentBackToEmail()">Use a different email</button>
+      </div>
+      <p id="loginError" class="muted error-text"></p>
+    </div>
+  </div>
+</div>
+
+<div id="appShell" class="app-shell hidden">
+  <nav class="sidebar">
+    <div class="sidebar-logo">
+      <div class="sidebar-logo-mark">W</div>
+      <div>
+        <div class="sidebar-logo-title">WAAPC</div>
+        <div class="sidebar-logo-sub">Training Centre</div>
+      </div>
+    </div>
+    <div class="sidebar-role-badge" id="sidebarRoleBadge"></div>
+
+    <div class="sidebar-nav">
+      <div id="sidebarNavAdmin" class="hidden">
+        <button class="tab-btn sidebar-nav-item active" data-tab="register" onclick="showTab('register')"><span class="sidebar-nav-icon">⊞</span>New Registration</button>
+        <button class="tab-btn sidebar-nav-item" data-tab="manage" onclick="showTab('manage')"><span class="sidebar-nav-icon">👥</span>Students & Payments</button>
+        <button class="tab-btn sidebar-nav-item" data-tab="qb" onclick="showTab('qb')"><span class="sidebar-nav-icon">📝</span>Question Bank</button>
+        <button class="tab-btn sidebar-nav-item" data-tab="staff" onclick="showTab('staff')"><span class="sidebar-nav-icon">🧑‍🏫</span>Teachers</button>
+        <button class="tab-btn sidebar-nav-item" data-tab="assignments" onclick="showTab('assignments')"><span class="sidebar-nav-icon">📚</span>Assignments</button>
+      </div>
+      <div id="sidebarNavTeacher" class="hidden">
+        <button class="sidebar-nav-item active" onclick="sidebarNavTo('page-teacher-students', this)"><span class="sidebar-nav-icon">👥</span>Students</button>
+        <button class="sidebar-nav-item" onclick="sidebarNavTo('page-teacher-assignments', this)"><span class="sidebar-nav-icon">📚</span>Assignments</button>
+      </div>
+      <div id="sidebarNavParent" class="hidden">
+        <button class="sidebar-nav-item active" onclick="sidebarNavTo('page-parent-children', this)"><span class="sidebar-nav-icon">👨‍👩‍👧</span>My Children</button>
+      </div>
+      <div id="sidebarNavStudent" class="hidden">
+        <button class="sidebar-nav-item active" onclick="sidebarNavTo('page-student-dashboard', this)"><span class="sidebar-nav-icon">⊞</span>Dashboard</button>
+      </div>
+    </div>
+
+    <div class="sidebar-user">
+      <div class="sidebar-user-email" id="sidebarEmail"></div>
+      <button class="btn ghost small" id="sidebarLogoutBtn" style="width:100%;justify-content:center;">Log out</button>
+    </div>
+  </nav>
+
+  <main class="main-content">
+
+    <!-- ================= ADMIN PAGES ================= -->
+    <div id="tab-register" class="page tab-panel hidden">
       <div class="card">
         <h2>Student information</h2>
         <div class="grid3">
@@ -84,7 +157,7 @@
         <p class="muted">Program total: <b id="programTotal">0</b> CFA. Split into any number of installments — amounts must add up to the total.</p>
         <div id="installmentRows"></div>
         <button class="btn ghost small" onclick="addInstallmentRow()">+ Add installment</button>
-        <p class="muted" style="margin-top:10px;">Installments total: <b id="installTotal">0</b> CFA <span id="installWarning" style="color:#b81f2c; font-weight:bold;"></span></p>
+        <p class="muted" style="margin-top:10px;">Installments total: <b id="installTotal">0</b> CFA <span id="installWarning" style="color:#C62828; font-weight:bold;"></span></p>
       </div>
 
       <div class="card">
@@ -94,7 +167,7 @@
       </div>
     </div>
 
-    <div id="tab-manage" class="tab-panel hidden">
+    <div id="tab-manage" class="page tab-panel hidden">
       <div class="card">
         <h2>Registered students</h2>
         <table id="studentsTable">
@@ -105,7 +178,7 @@
       </div>
     </div>
 
-    <div id="tab-qb" class="tab-panel hidden">
+    <div id="tab-qb" class="page tab-panel hidden">
       <div class="card">
         <h2>Choose test & subject</h2>
         <div class="grid2">
@@ -211,7 +284,7 @@ GED,Mathematical Reasoning,What is 7 x 8?,54,56,58,60,B"></textarea>
       </div>
     </div>
 
-    <div id="tab-staff" class="tab-panel hidden">
+    <div id="tab-staff" class="page tab-panel hidden">
       <div class="card">
         <h2>Invite a teacher</h2>
         <p class="muted">Add their email below, then have them open the Teacher portal — the login screen will let them set a password on first login.</p>
@@ -220,7 +293,7 @@ GED,Mathematical Reasoning,What is 7 x 8?,54,56,58,60,B"></textarea>
           <div><label>Email</label><input id="t_email" type="email"></div>
         </div>
         <button class="btn red" onclick="addTeacherInvite()">Send invite</button>
-        <p id="t_inviteError" class="muted" style="color:#b81f2c;"></p>
+        <p id="t_inviteError" class="muted error-text"></p>
       </div>
 
       <div class="card">
@@ -233,7 +306,7 @@ GED,Mathematical Reasoning,What is 7 x 8?,54,56,58,60,B"></textarea>
       </div>
     </div>
 
-    <div id="tab-assignments" class="tab-panel hidden">
+    <div id="tab-assignments" class="page tab-panel hidden">
       <div class="card">
         <h2>New assignment</h2>
         <div class="grid2">
@@ -249,9 +322,9 @@ GED,Mathematical Reasoning,What is 7 x 8?,54,56,58,60,B"></textarea>
           <button class="btn ghost small" onclick="toggleAllAssignTargets('as_targets', true)">Select all</button>
           <button class="btn ghost small" onclick="toggleAllAssignTargets('as_targets', false)">Select none</button>
         </div>
-        <div id="as_targets" style="max-height:200px;overflow-y:auto;border:1px solid #ddd;border-radius:6px;padding:8px;"></div>
+        <div id="as_targets" class="checkbox-list"></div>
         <button class="btn red" style="margin-top:10px;" onclick="createAssignment('as')">Create assignment</button>
-        <p id="as_error" class="muted" style="color:#b81f2c;"></p>
+        <p id="as_error" class="muted error-text"></p>
       </div>
 
       <div class="card">
@@ -260,31 +333,9 @@ GED,Mathematical Reasoning,What is 7 x 8?,54,56,58,60,B"></textarea>
         <div id="as_listEmpty" class="empty hidden">No assignments created yet.</div>
       </div>
     </div>
-    </div>
-  </div>
 
-  <div id="teacherView" class="hidden">
-    <div id="teacherLoginCard" class="card">
-      <h2>Teacher login</h2>
-      <div id="teacherLoginStep1">
-        <label>Email</label>
-        <input id="teacherEmail" type="email" placeholder="Enter the email the school invited you with">
-        <button class="btn" onclick="teacherCheckEmail()">Continue</button>
-      </div>
-      <div id="teacherLoginStep2" class="hidden">
-        <label id="teacherPasswordLabel">Password</label>
-        <input id="teacherPassword" type="password">
-        <button class="btn" id="teacherSubmitBtn" onclick="teacherSubmitPassword()">Log in</button>
-        <button class="btn ghost small" onclick="teacherBackToEmail()">Use a different email</button>
-      </div>
-      <p id="teacherLoginError" class="muted" style="color:#b81f2c;"></p>
-    </div>
-
-    <div id="teacherDashboard" class="hidden">
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
-        <span class="muted" id="teacherEmailDisplay"></span>
-        <button class="btn ghost small" onclick="teacherLogout()">Log out</button>
-      </div>
+    <!-- ================= TEACHER PAGES ================= -->
+    <div id="page-teacher-students" class="page hidden">
       <div class="card">
         <h2>Students</h2>
         <table id="teacherStudentsTable">
@@ -293,7 +344,9 @@ GED,Mathematical Reasoning,What is 7 x 8?,54,56,58,60,B"></textarea>
         </table>
         <div id="teacherStudentsEmpty" class="empty hidden">No students registered yet.</div>
       </div>
+    </div>
 
+    <div id="page-teacher-assignments" class="page hidden">
       <div class="card">
         <h2>New assignment</h2>
         <div class="grid2">
@@ -309,9 +362,9 @@ GED,Mathematical Reasoning,What is 7 x 8?,54,56,58,60,B"></textarea>
           <button class="btn ghost small" onclick="toggleAllAssignTargets('tas_targets', true)">Select all</button>
           <button class="btn ghost small" onclick="toggleAllAssignTargets('tas_targets', false)">Select none</button>
         </div>
-        <div id="tas_targets" style="max-height:200px;overflow-y:auto;border:1px solid #ddd;border-radius:6px;padding:8px;"></div>
+        <div id="tas_targets" class="checkbox-list"></div>
         <button class="btn red" style="margin-top:10px;" onclick="createAssignment('tas')">Create assignment</button>
-        <p id="tas_error" class="muted" style="color:#b81f2c;"></p>
+        <p id="tas_error" class="muted error-text"></p>
       </div>
 
       <div class="card">
@@ -320,53 +373,15 @@ GED,Mathematical Reasoning,What is 7 x 8?,54,56,58,60,B"></textarea>
         <div id="tas_listEmpty" class="empty hidden">No assignments created yet.</div>
       </div>
     </div>
-  </div>
 
-  <div id="parentView" class="hidden">
-    <div id="parentLoginCard" class="card">
-      <h2>Parent login</h2>
-      <div id="parentLoginStep1">
-        <label>Email</label>
-        <input id="parentEmail" type="email" placeholder="Enter the email on file as parent/guardian">
-        <button class="btn" onclick="parentCheckEmail()">Continue</button>
-      </div>
-      <div id="parentLoginStep2" class="hidden">
-        <label id="parentPasswordLabel">Password</label>
-        <input id="parentPassword" type="password">
-        <button class="btn" id="parentSubmitBtn" onclick="parentSubmitPassword()">Log in</button>
-        <button class="btn ghost small" onclick="parentBackToEmail()">Use a different email</button>
-      </div>
-      <p id="parentLoginError" class="muted" style="color:#b81f2c;"></p>
-    </div>
-
-    <div id="parentDashboard" class="hidden">
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
-        <span class="muted" id="parentEmailDisplay"></span>
-        <button class="btn ghost small" onclick="parentLogout()">Log out</button>
-      </div>
+    <!-- ================= PARENT PAGE ================= -->
+    <div id="page-parent-children" class="page hidden">
       <div id="parentChildren"></div>
       <div id="parentChildrenEmpty" class="empty hidden">No student record lists this email as parent/guardian yet. Contact the school.</div>
     </div>
-  </div>
 
-  <div id="studentView" class="hidden">
-    <div id="loginCard" class="card">
-      <h2>Student login</h2>
-      <div id="loginStep1">
-        <label>Email</label>
-        <input id="loginEmail" placeholder="Enter the email your school registered you with">
-        <button class="btn" onclick="studentCheckEmail()">Continue</button>
-      </div>
-      <div id="loginStep2" class="hidden">
-        <label id="loginPasswordLabel">Password</label>
-        <input id="loginPassword" type="password">
-        <button class="btn" id="loginSubmitBtn" onclick="studentSubmitPassword()">Log in</button>
-        <button class="btn ghost small" onclick="studentBackToEmail()">Use a different email</button>
-      </div>
-      <p id="loginError" class="muted" style="color:#b81f2c;"></p>
-    </div>
-
-    <div id="dashboardCard" class="hidden">
+    <!-- ================= STUDENT PAGE ================= -->
+    <div id="page-student-dashboard" class="page hidden">
       <div class="card">
         <h2 id="welcomeMsg"></h2>
         <div id="enrollmentsList"></div>
@@ -377,10 +392,9 @@ GED,Mathematical Reasoning,What is 7 x 8?,54,56,58,60,B"></textarea>
         <div id="myAssignmentsEmpty" class="empty hidden">No assignments yet.</div>
       </div>
       <div id="subjectArea"></div>
-      <button class="btn ghost small" onclick="studentLogout()">Log out</button>
     </div>
-  </div>
 
+  </main>
 </div>
 
 <div id="docOverlay" class="doc-overlay">

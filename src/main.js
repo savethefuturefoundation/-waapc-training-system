@@ -9,32 +9,48 @@ let loginMode = null; // 'signup' | 'signin'
 let pendingLoginEmail = null;
 
 // =====================================================================
-// Portal switching (Admin console vs Student portal), gated by real auth
+// Portal switching. Before login: the auth screen shows a role-pill
+// switcher (setRole) so the right login form is visible. After login:
+// the app shell (sidebar + pages) takes over via showAppShell/showAuthScreen.
 // =====================================================================
-async function setRole(portal) {
+const ROLE_LABELS = { admin: 'Admin', teacher: 'Teacher', parent: 'Parent', student: 'Student' };
+
+function setRole(portal) {
   currentPortal = portal;
   document.getElementById('btnAdminRole').classList.toggle('active', portal === 'admin');
   document.getElementById('btnTeacherRole').classList.toggle('active', portal === 'teacher');
   document.getElementById('btnParentRole').classList.toggle('active', portal === 'parent');
   document.getElementById('btnStudentRole').classList.toggle('active', portal === 'student');
-  document.getElementById('adminView').classList.toggle('hidden', portal !== 'admin');
-  document.getElementById('teacherView').classList.toggle('hidden', portal !== 'teacher');
-  document.getElementById('parentView').classList.toggle('hidden', portal !== 'parent');
-  document.getElementById('studentView').classList.toggle('hidden', portal !== 'student');
+  document.getElementById('adminLoginCard').classList.toggle('hidden', portal !== 'admin');
+  document.getElementById('teacherLoginCard').classList.toggle('hidden', portal !== 'teacher');
+  document.getElementById('parentLoginCard').classList.toggle('hidden', portal !== 'parent');
+  document.getElementById('loginCard').classList.toggle('hidden', portal !== 'student');
+}
 
-  if (portal === 'admin') {
-    if (currentSession && currentSession.role === 'admin') await showAdminDashboard();
-    else showAdminLogin();
-  } else if (portal === 'teacher') {
-    if (currentSession && currentSession.role === 'teacher') await showTeacherDashboard();
-    else showTeacherLoginStep1();
-  } else if (portal === 'parent') {
-    if (currentSession && currentSession.role === 'parent') await showParentDashboard();
-    else showParentLoginStep1();
-  } else {
-    if (currentStudentRecord) await showStudentDashboardView();
-    else showStudentLoginStep1();
-  }
+function showAuthScreen(portal) {
+  document.getElementById('appShell').classList.add('hidden');
+  document.getElementById('authScreen').classList.remove('hidden');
+  setRole(portal);
+}
+
+function showAppShell(role) {
+  document.getElementById('authScreen').classList.add('hidden');
+  document.getElementById('appShell').classList.remove('hidden');
+  document.getElementById('sidebarRoleBadge').textContent = ROLE_LABELS[role];
+  document.getElementById('sidebarEmail').textContent = currentSession ? currentSession.email : '';
+  document.getElementById('sidebarNavAdmin').classList.toggle('hidden', role !== 'admin');
+  document.getElementById('sidebarNavTeacher').classList.toggle('hidden', role !== 'teacher');
+  document.getElementById('sidebarNavParent').classList.toggle('hidden', role !== 'parent');
+  document.getElementById('sidebarNavStudent').classList.toggle('hidden', role !== 'student');
+  const logoutFns = { admin: adminLogout, teacher: teacherLogout, parent: parentLogout, student: studentLogout };
+  document.getElementById('sidebarLogoutBtn').onclick = logoutFns[role];
+}
+
+function sidebarNavTo(pageId, btn) {
+  btn.parentElement.querySelectorAll('.sidebar-nav-item').forEach((b) => b.classList.remove('active'));
+  btn.classList.add('active');
+  document.querySelectorAll('#appShell .page').forEach((p) => p.classList.add('hidden'));
+  document.getElementById(pageId).classList.remove('hidden');
 }
 
 async function ensureCatalog() {
@@ -42,17 +58,16 @@ async function ensureCatalog() {
 }
 
 function showAdminLogin() {
-  document.getElementById('adminDashboard').classList.add('hidden');
-  document.getElementById('adminLoginCard').classList.remove('hidden');
+  showAuthScreen('admin');
 }
 
 async function showAdminDashboard() {
-  document.getElementById('adminLoginCard').classList.add('hidden');
-  document.getElementById('adminDashboard').classList.remove('hidden');
-  document.getElementById('adminEmailDisplay').textContent = currentSession.email;
+  showAppShell('admin');
+  document.querySelectorAll('#appShell .page').forEach((p) => p.classList.add('hidden'));
   await ensureCatalog();
   resetRegistrationForm();
   renderStudentsTable();
+  showTab('register');
 }
 
 async function adminLogin() {
@@ -87,17 +102,16 @@ let teacherLoginMode = null; // 'signup' | 'signin'
 let pendingTeacherEmail = null;
 
 function showTeacherLoginStep1() {
-  document.getElementById('teacherDashboard').classList.add('hidden');
-  document.getElementById('teacherLoginCard').classList.remove('hidden');
+  showAuthScreen('teacher');
   document.getElementById('teacherLoginStep1').classList.remove('hidden');
   document.getElementById('teacherLoginStep2').classList.add('hidden');
   document.getElementById('teacherLoginError').textContent = '';
 }
 
 async function showTeacherDashboard() {
-  document.getElementById('teacherLoginCard').classList.add('hidden');
-  document.getElementById('teacherDashboard').classList.remove('hidden');
-  document.getElementById('teacherEmailDisplay').textContent = currentSession.email;
+  showAppShell('teacher');
+  document.querySelectorAll('#appShell .page').forEach((p) => p.classList.add('hidden'));
+  document.getElementById('page-teacher-students').classList.remove('hidden');
   await ensureCatalog();
   renderTeacherStudentsTable();
   renderAssignTargets('tas');
@@ -196,17 +210,16 @@ let parentLoginMode = null; // 'signup' | 'signin'
 let pendingParentEmail = null;
 
 function showParentLoginStep1() {
-  document.getElementById('parentDashboard').classList.add('hidden');
-  document.getElementById('parentLoginCard').classList.remove('hidden');
+  showAuthScreen('parent');
   document.getElementById('parentLoginStep1').classList.remove('hidden');
   document.getElementById('parentLoginStep2').classList.add('hidden');
   document.getElementById('parentLoginError').textContent = '';
 }
 
 async function showParentDashboard() {
-  document.getElementById('parentLoginCard').classList.add('hidden');
-  document.getElementById('parentDashboard').classList.remove('hidden');
-  document.getElementById('parentEmailDisplay').textContent = currentSession.email;
+  showAppShell('parent');
+  document.querySelectorAll('#appShell .page').forEach((p) => p.classList.add('hidden'));
+  document.getElementById('page-parent-children').classList.remove('hidden');
   await ensureCatalog();
   await renderParentChildren();
 }
@@ -1040,16 +1053,16 @@ async function markSpeakingReviewed(studentId, submissionId) {
 // Student portal — login (first-login sets password, or normal sign-in)
 // =====================================================================
 function showStudentLoginStep1() {
-  document.getElementById('dashboardCard').classList.add('hidden');
-  document.getElementById('loginCard').classList.remove('hidden');
+  showAuthScreen('student');
   document.getElementById('loginStep1').classList.remove('hidden');
   document.getElementById('loginStep2').classList.add('hidden');
   document.getElementById('loginError').textContent = '';
 }
 
 async function showStudentDashboardView() {
-  document.getElementById('loginCard').classList.add('hidden');
-  document.getElementById('dashboardCard').classList.remove('hidden');
+  showAppShell('student');
+  document.querySelectorAll('#appShell .page').forEach((p) => p.classList.add('hidden'));
+  document.getElementById('page-student-dashboard').classList.remove('hidden');
   await ensureCatalog();
   renderStudentDashboard(currentStudentRecord);
   renderMyAssignments();
@@ -1918,8 +1931,11 @@ async function initApp() {
     currentStudentRecord = students[0] || null;
   }
 
-  const portal = currentSession && (currentSession.role === 'student' || currentSession.role === 'teacher') ? currentSession.role : 'admin';
-  await setRole(portal);
+  if (currentSession && currentSession.role === 'admin') await showAdminDashboard();
+  else if (currentSession && currentSession.role === 'teacher') await showTeacherDashboard();
+  else if (currentSession && currentSession.role === 'parent') await showParentDashboard();
+  else if (currentSession && currentSession.role === 'student' && currentStudentRecord) await showStudentDashboardView();
+  else showAuthScreen('admin');
 }
 
 initApp();
@@ -1930,6 +1946,7 @@ initApp();
 Object.assign(window, {
   setRole,
   showTab,
+  sidebarNavTo,
   adminLogin,
   adminLogout,
   teacherCheckEmail,
