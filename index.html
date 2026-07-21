@@ -110,19 +110,27 @@
         <button class="tab-btn sidebar-nav-item" data-tab="qb" onclick="showTab('qb')"><span class="sidebar-nav-icon">📝</span>Question Bank</button>
         <button class="tab-btn sidebar-nav-item" data-tab="staff" onclick="showTab('staff')"><span class="sidebar-nav-icon">🧑‍🏫</span>Teachers</button>
         <button class="tab-btn sidebar-nav-item" data-tab="assignments" onclick="showTab('assignments')"><span class="sidebar-nav-icon">📚</span>Assignments</button>
+        <button class="tab-btn sidebar-nav-item" data-tab="announcements" onclick="showTab('announcements')"><span class="sidebar-nav-icon">📢</span>Announcements</button>
+        <button class="tab-btn sidebar-nav-item" data-tab="calendar" onclick="showTab('calendar')"><span class="sidebar-nav-icon">📅</span>Calendar</button>
         <button class="tab-btn sidebar-nav-item" data-tab="messages" onclick="showTab('messages')"><span class="sidebar-nav-icon">✉️</span>Messages</button>
       </div>
       <div id="sidebarNavTeacher" class="hidden">
         <button class="sidebar-nav-item active" onclick="sidebarNavTo('page-teacher-students', this)"><span class="sidebar-nav-icon">👥</span>Students</button>
         <button class="sidebar-nav-item" onclick="sidebarNavTo('page-teacher-assignments', this)"><span class="sidebar-nav-icon">📚</span>Assignments</button>
+        <button class="sidebar-nav-item" onclick="sidebarNavTo('tab-announcements', this); renderAnnouncementsPage();"><span class="sidebar-nav-icon">📢</span>Announcements</button>
+        <button class="sidebar-nav-item" onclick="sidebarNavTo('tab-calendar', this); renderCalendarPage();"><span class="sidebar-nav-icon">📅</span>Calendar</button>
         <button class="sidebar-nav-item" onclick="sidebarNavTo('tab-messages', this); renderMessagesPage();"><span class="sidebar-nav-icon">✉️</span>Messages</button>
       </div>
       <div id="sidebarNavParent" class="hidden">
         <button class="sidebar-nav-item active" onclick="sidebarNavTo('page-parent-children', this)"><span class="sidebar-nav-icon">👨‍👩‍👧</span>My Children</button>
+        <button class="sidebar-nav-item" onclick="sidebarNavTo('tab-announcements', this); renderAnnouncementsPage();"><span class="sidebar-nav-icon">📢</span>Announcements</button>
+        <button class="sidebar-nav-item" onclick="sidebarNavTo('tab-calendar', this); renderCalendarPage();"><span class="sidebar-nav-icon">📅</span>Calendar</button>
         <button class="sidebar-nav-item" onclick="sidebarNavTo('tab-messages', this); renderMessagesPage();"><span class="sidebar-nav-icon">✉️</span>Messages</button>
       </div>
       <div id="sidebarNavStudent" class="hidden">
         <button class="sidebar-nav-item active" onclick="sidebarNavTo('page-student-dashboard', this)"><span class="sidebar-nav-icon">⊞</span>Dashboard</button>
+        <button class="sidebar-nav-item" onclick="sidebarNavTo('tab-announcements', this); renderAnnouncementsPage();"><span class="sidebar-nav-icon">📢</span>Announcements</button>
+        <button class="sidebar-nav-item" onclick="sidebarNavTo('tab-calendar', this); renderCalendarPage();"><span class="sidebar-nav-icon">📅</span>Calendar</button>
         <button class="sidebar-nav-item" onclick="sidebarNavTo('tab-messages', this); renderMessagesPage();"><span class="sidebar-nav-icon">✉️</span>Messages</button>
       </div>
     </div>
@@ -379,6 +387,41 @@ GED,Mathematical Reasoning,What is 7 x 8?,54,56,58,60,B"></textarea>
         <h2>All assignments</h2>
         <div id="as_list"></div>
         <div id="as_listEmpty" class="empty hidden">No assignments created yet.</div>
+      </div>
+    </div>
+
+    <!-- ================= ANNOUNCEMENTS (shared by all portals) ================= -->
+    <div id="tab-announcements" class="page hidden">
+      <div id="ann_composer" class="card hidden">
+        <h2>Post an announcement</h2>
+        <label>Title</label>
+        <input id="ann_title">
+        <label>Message (optional)</label>
+        <textarea id="ann_body" rows="3"></textarea>
+        <button class="btn red" onclick="createAnnouncementClick()">Post</button>
+        <p id="ann_error" class="muted error-text"></p>
+      </div>
+      <div id="ann_list"></div>
+      <div id="ann_listEmpty" class="empty hidden">No announcements yet.</div>
+    </div>
+
+    <!-- ================= CALENDAR (shared by all portals) ================= -->
+    <div id="tab-calendar" class="page hidden">
+      <div id="cal_composer" class="card hidden">
+        <h2>Add an event</h2>
+        <div class="grid2">
+          <div><label>Title</label><input id="cal_title"></div>
+          <div><label>Date</label><input id="cal_date" type="date"></div>
+        </div>
+        <label>Notes (optional)</label>
+        <textarea id="cal_desc" rows="2"></textarea>
+        <button class="btn red" onclick="createCalendarEventClick()">Add event</button>
+        <p id="cal_error" class="muted error-text"></p>
+      </div>
+      <div class="card">
+        <h2>Upcoming</h2>
+        <div id="cal_list"></div>
+        <div id="cal_listEmpty" class="empty hidden">No events scheduled.</div>
       </div>
     </div>
 

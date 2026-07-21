@@ -649,3 +649,38 @@ export async function markThreadRead(myUserId, otherUserId) {
   const { error } = await supabase.from('messages').update({ read: true }).eq('recipient_id', myUserId).eq('sender_id', otherUserId).eq('read', false);
   if (error) throw error;
 }
+
+// ---------------------------------------------------------------------
+// Announcements + Calendar — read by everyone, posted by admin/teacher.
+// ---------------------------------------------------------------------
+export async function listAnnouncements() {
+  const { data, error } = await supabase.from('announcements').select('*').order('created_at', { ascending: false });
+  if (error) throw error;
+  return data;
+}
+
+export async function createAnnouncement(title, body) {
+  const { error } = await supabase.from('announcements').insert({ title, body: body || null });
+  if (error) throw error;
+}
+
+export async function deleteAnnouncement(id) {
+  const { error } = await supabase.from('announcements').delete().eq('id', id);
+  if (error) throw error;
+}
+
+export async function listCalendarEvents() {
+  const { data, error } = await supabase.from('calendar_events').select('*').order('event_date', { ascending: true });
+  if (error) throw error;
+  return data;
+}
+
+export async function createCalendarEvent(title, description, eventDate) {
+  const { error } = await supabase.from('calendar_events').insert({ title, description: description || null, event_date: eventDate });
+  if (error) throw error;
+}
+
+export async function deleteCalendarEvent(id) {
+  const { error } = await supabase.from('calendar_events').delete().eq('id', id);
+  if (error) throw error;
+}

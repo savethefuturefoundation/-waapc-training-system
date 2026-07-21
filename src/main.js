@@ -470,6 +470,8 @@ function showTab(name) {
     renderAssignmentsList('as');
   }
   if (name === 'messages') renderMessagesPage();
+  if (name === 'announcements') renderAnnouncementsPage();
+  if (name === 'calendar') renderCalendarPage();
 }
 
 // =====================================================================
@@ -1986,6 +1988,110 @@ async function qbBulkImport() {
 }
 
 // =====================================================================
+// Announcements (shared page; admin/teacher post, everyone reads)
+// =====================================================================
+function canPostAsStaff() {
+  return !!(currentSession && (currentSession.role === 'admin' || currentSession.role === 'teacher'));
+}
+
+async function renderAnnouncementsPage() {
+  document.getElementById('ann_composer').classList.toggle('hidden', !canPostAsStaff());
+  const items = await db.listAnnouncements();
+  const listEl = document.getElementById('ann_list');
+  document.getElementById('ann_listEmpty').classList.toggle('hidden', items.length > 0);
+  listEl.innerHTML = items
+    .map(
+      (a) => `<div class="card" style="margin-bottom:12px;">
+        <div style="display:flex;justify-content:space-between;align-items:start;">
+          <div>
+            <h2 style="margin-bottom:4px;">${a.title}</h2>
+            <p class="muted" style="margin:0 0 8px;">${new Date(a.created_at).toLocaleString()}</p>
+            ${a.body ? `<p style="margin:0;">${a.body}</p>` : ''}
+          </div>
+          ${canPostAsStaff() ? `<button class="btn ghost small no-print" onclick="deleteAnnouncementClick('${a.id}')">Delete</button>` : ''}
+        </div>
+      </div>`
+    )
+    .join('');
+}
+
+async function createAnnouncementClick() {
+  const title = document.getElementById('ann_title').value.trim();
+  const body = document.getElementById('ann_body').value.trim();
+  const errEl = document.getElementById('ann_error');
+  errEl.textContent = '';
+  if (!title) {
+    errEl.textContent = 'Enter a title.';
+    return;
+  }
+  try {
+    await db.createAnnouncement(title, body);
+    document.getElementById('ann_title').value = '';
+    document.getElementById('ann_body').value = '';
+    await renderAnnouncementsPage();
+  } catch (e) {
+    errEl.textContent = e.message || 'Could not post announcement.';
+  }
+}
+
+async function deleteAnnouncementClick(id) {
+  await db.deleteAnnouncement(id);
+  await renderAnnouncementsPage();
+}
+
+// =====================================================================
+// Calendar (shared page; admin/teacher post, everyone reads)
+// =====================================================================
+async function renderCalendarPage() {
+  document.getElementById('cal_composer').classList.toggle('hidden', !canPostAsStaff());
+  const events = await db.listCalendarEvents();
+  const listEl = document.getElementById('cal_list');
+  document.getElementById('cal_listEmpty').classList.toggle('hidden', events.length > 0);
+  listEl.innerHTML = events
+    .map(
+      (e) => `<div class="subject-card">
+        <div>
+          <div class="name">${e.title}</div>
+          <div class="stats">${new Date(e.event_date + 'T00:00:00').toLocaleDateString(undefined, {
+            weekday: 'long',
+            year: 'numeric',
+            month: 'long',
+            day: 'numeric',
+          })}${e.description ? ' — ' + e.description : ''}</div>
+        </div>
+        ${canPostAsStaff() ? `<button class="btn ghost small no-print" onclick="deleteCalendarEventClick('${e.id}')">Delete</button>` : ''}
+      </div>`
+    )
+    .join('');
+}
+
+async function createCalendarEventClick() {
+  const title = document.getElementById('cal_title').value.trim();
+  const date = document.getElementById('cal_date').value;
+  const desc = document.getElementById('cal_desc').value.trim();
+  const errEl = document.getElementById('cal_error');
+  errEl.textContent = '';
+  if (!title || !date) {
+    errEl.textContent = 'Enter a title and date.';
+    return;
+  }
+  try {
+    await db.createCalendarEvent(title, desc, date);
+    document.getElementById('cal_title').value = '';
+    document.getElementById('cal_date').value = '';
+    document.getElementById('cal_desc').value = '';
+    await renderCalendarPage();
+  } catch (e) {
+    errEl.textContent = e.message || 'Could not add event.';
+  }
+}
+
+async function deleteCalendarEventClick(id) {
+  await db.deleteCalendarEvent(id);
+  await renderCalendarPage();
+}
+
+// =====================================================================
 // Messaging (shared page + logic across all four portals)
 // =====================================================================
 let messageContacts = [];
@@ -2097,6 +2203,10 @@ Object.assign(window, {
   toggleAllAssignTargets,
   createAssignment,
   deleteAssignment,
+  createAnnouncementClick,
+  deleteAnnouncementClick,
+  createCalendarEventClick,
+  deleteCalendarEventClick,
   openConversation,
   sendMessageClick,
   handlePhoto,
