@@ -303,7 +303,7 @@ async function renderParentChildren() {
         : '<p class="muted">No assignments yet.</p>';
       const gradesHtml = grades.length
         ? `<table><thead><tr><th>Subject</th><th>Label</th><th>Score</th></tr></thead><tbody>${grades
-            .map((g) => `<tr><td>${g.test || ''} — ${g.subject || ''}</td><td>${g.label}</td><td>${g.score} / ${g.maxScore}</td></tr>`)
+            .map((g) => `<tr><td>${g.test || ''} — ${g.subject || ''}</td><td>${g.label}</td><td>${gradeScoreDisplay(g)}</td></tr>`)
             .join('')}</tbody></table>`
         : '<p class="muted">No grades yet.</p>';
       return `<div class="card">
@@ -779,6 +779,46 @@ async function openStudentDetail(id) {
 // =====================================================================
 // Gradebook (Admin/Teacher entry; shared with Student/Parent read views)
 // =====================================================================
+// The real GED exam scores each subject 100-200, not as a percentage.
+// Passing is 145+; 165+ is "College Ready"; 175+ adds college credit.
+function gedTier(score) {
+  if (score < 145) return 'Below Passing';
+  if (score < 165) return 'Passing';
+  if (score < 175) return 'College Ready';
+  return 'College Ready + Credit';
+}
+
+function gradeScoreDisplay(g) {
+  return g.test === 'GED' ? `${g.score} / 200 — ${gedTier(g.score)}` : `${g.score} / ${g.maxScore}`;
+}
+
+function isGedSubject(subjectId) {
+  return !!(CATALOG['GED'] && CATALOG['GED'].subjects.some((sub) => sub.id === subjectId));
+}
+
+function updateGradeScoreUI() {
+  const subjectSelect = document.getElementById('grade_subject');
+  const maxInput = document.getElementById('grade_max');
+  if (!subjectSelect || !maxInput) return;
+  const ged = isGedSubject(subjectSelect.value);
+  maxInput.classList.toggle('hidden', ged);
+  document.getElementById('grade_score_label').textContent = ged ? 'GED Scale Score (100–200)' : 'Score / Max';
+  if (ged) maxInput.value = 200;
+  updateGradeTierPreview();
+}
+
+function updateGradeTierPreview() {
+  const preview = document.getElementById('grade_tier_preview');
+  if (!preview) return;
+  const ged = isGedSubject(document.getElementById('grade_subject').value);
+  if (!ged) {
+    preview.textContent = '';
+    return;
+  }
+  const score = Number(document.getElementById('grade_score').value || 0);
+  preview.textContent = score >= 100 && score <= 200 ? gedTier(score) : 'Enter a score between 100 and 200.';
+}
+
 async function openGradebook(studentId) {
   const students = await db.loadAllStudents();
   const s = students.find((x) => x.id === studentId);
@@ -802,7 +842,7 @@ async function renderGradebook(s) {
       (g) => `<tr>
       <td>${g.test || ''} — ${g.subject || ''}</td>
       <td>${g.label}</td>
-      <td>${g.score} / ${g.maxScore}</td>
+      <td>${gradeScoreDisplay(g)}</td>
       <td>${new Date(g.enteredAt).toLocaleDateString()}</td>
       <td class="no-print"><button class="btn ghost small" onclick="deleteGradeClick('${g.id}','${s.id}')">Delete</button></td>
     </tr>`
@@ -819,15 +859,16 @@ async function renderGradebook(s) {
     <div class="no-print" style="margin-top:20px;border-top:1px solid var(--gray-200);padding-top:16px;">
       <h3 style="color:var(--navy);">Add a grade</h3>
       <label>Subject</label>
-      <select id="grade_subject">${subjectOptions || '<option value="">No enrolled programs</option>'}</select>
+      <select id="grade_subject" onchange="updateGradeScoreUI()">${subjectOptions || '<option value="">No enrolled programs</option>'}</select>
       <div class="grid2">
         <div><label>Label</label><input id="grade_label" placeholder="e.g. Midterm, Quiz 3"></div>
         <div>
-          <label>Score / Max</label>
+          <label id="grade_score_label">Score / Max</label>
           <div style="display:flex;gap:8px;">
-            <input id="grade_score" type="number" style="margin-bottom:0;">
+            <input id="grade_score" type="number" style="margin-bottom:0;" oninput="updateGradeTierPreview()">
             <input id="grade_max" type="number" value="100" style="margin-bottom:0;">
           </div>
+          <p class="muted" id="grade_tier_preview" style="margin-top:4px;"></p>
         </div>
       </div>
       <label>Notes (optional)</label>
@@ -837,6 +878,7 @@ async function renderGradebook(s) {
     </div>
   `;
   document.getElementById('docContent').innerHTML = html;
+  updateGradeScoreUI();
 }
 
 async function addGradeClick(studentId) {
@@ -857,6 +899,10 @@ async function addGradeClick(studentId) {
   }
   if (isNaN(score)) {
     errEl.textContent = 'Enter a score.';
+    return;
+  }
+  if (isGedSubject(subjectId) && (score < 100 || score > 200)) {
+    errEl.textContent = 'GED scale scores must be between 100 and 200.';
     return;
   }
   try {
@@ -1335,7 +1381,7 @@ async function renderMyGrades() {
           <div class="name">${g.test || ''} — ${g.subject || ''}: ${g.label}</div>
           <div class="stats">${new Date(g.enteredAt).toLocaleDateString()}${g.notes ? ' — ' + g.notes : ''}</div>
         </div>
-        <div style="font-weight:bold;color:var(--navy);">${g.score} / ${g.maxScore}</div>
+        <div style="font-weight:bold;color:var(--navy);">${gradeScoreDisplay(g)}</div>
       </div>`
     )
     .join('');
@@ -2841,6 +2887,8 @@ Object.assign(window, {
   openStudentDetail,
   openGradebook,
   addGradeClick,
+  updateGradeScoreUI,
+  updateGradeTierPreview,
   deleteGradeClick,
   startPlacementTest,
   selectPlacementAnswer,
