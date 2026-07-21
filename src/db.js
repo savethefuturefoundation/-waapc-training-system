@@ -732,6 +732,12 @@ export async function deleteGrade(id) {
   if (error) throw error;
 }
 
+export async function listAllGedScores() {
+  const { data, error } = await supabase.from('grades').select('score, subjects(tests(name))');
+  if (error) throw error;
+  return data.filter((g) => g.subjects?.tests?.name === 'GED').map((g) => Number(g.score));
+}
+
 // ---------------------------------------------------------------------
 // GED Placement Assessment (GAPA) — computer-graded English/academic
 // readiness test for students enrolled in GED.

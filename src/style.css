@@ -80,6 +80,8 @@
   .stat-label { font-size: 12px; color: var(--gray-500); font-weight: 600; margin-bottom: 6px; }
   .stat-value { font-size: 30px; font-weight: 800; color: var(--navy); }
   @media (max-width: 860px) { .stat-grid { grid-template-columns: 1fr 1fr; } }
+  .dash-charts { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; margin-bottom: 18px; }
+  @media (max-width: 860px) { .dash-charts { grid-template-columns: 1fr; } }
 
   /* ---------------- Cards, forms, tables ---------------- */
   .card { background: var(--white); border-radius: 12px; padding: 20px 24px; margin-bottom: 18px; box-shadow: 0 2px 8px rgba(27,58,107,0.08); }

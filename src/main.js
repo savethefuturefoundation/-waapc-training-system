@@ -450,6 +450,29 @@ async function deleteAssignment(id, prefix) {
   await renderAssignmentsList(prefix);
 }
 
+// Hand-rolled horizontal bar chart: thin bars on a track, rounded ends,
+// label to the left, value directly labeled to the right (never color-alone).
+function hBarChart(items, opts = {}) {
+  const valueFmt = opts.valueFmt || ((v) => v.toLocaleString());
+  const barH = 22, rowGap = 18, leftW = 176, plotW = 232, chartW = 520;
+  const max = Math.max(1, ...items.map((i) => i.value));
+  const rowH = barH + rowGap;
+  const height = items.length * rowH + rowGap;
+  const rows = items
+    .map((item, i) => {
+      const y = rowGap + i * rowH;
+      const w = item.value > 0 ? Math.max(6, (item.value / max) * plotW) : 0;
+      return `
+        <text x="${leftW - 10}" y="${y + barH / 2 + 4}" text-anchor="end" font-size="12" font-weight="600" fill="var(--gray-600)">${item.label}</text>
+        <rect x="${leftW}" y="${y}" width="${plotW}" height="${barH}" rx="4" fill="var(--gray-100)"></rect>
+        <rect x="${leftW}" y="${y}" width="${w}" height="${barH}" rx="4" fill="${item.color}"></rect>
+        <text x="${leftW + plotW + 10}" y="${y + barH / 2 + 4}" font-size="12" font-weight="700" fill="var(--navy)">${valueFmt(item.value)}</text>
+      `;
+    })
+    .join('');
+  return `<svg viewBox="0 0 ${chartW} ${height}" width="100%" style="max-width:480px;display:block;" role="img" aria-label="${items.map((i) => `${i.label}: ${valueFmt(i.value)}`).join(', ')}">${rows}</svg>`;
+}
+
 async function renderAdminDashboardStats() {
   document.getElementById('dash_date').textContent = new Date().toLocaleDateString(undefined, {
     weekday: 'long',
@@ -458,11 +481,46 @@ async function renderAdminDashboardStats() {
     day: 'numeric',
   });
   await ensureCatalog();
-  const [students, teacherCount, assignments] = await Promise.all([db.loadAllStudents(), db.countTeachers(), db.listAssignments()]);
+  const [students, teacherCount, assignments, gedScores, expenses] = await Promise.all([
+    db.loadAllStudents(),
+    db.countTeachers(),
+    db.listAssignments(),
+    db.listAllGedScores(),
+    db.listExpenses(),
+  ]);
   document.getElementById('dash_students').textContent = students.length;
   document.getElementById('dash_teachers').textContent = teacherCount;
   document.getElementById('dash_programs').textContent = Object.keys(CATALOG).length;
   document.getElementById('dash_assignments').textContent = assignments.length;
+
+  const tierCounts = { 'Below Passing': 0, Passing: 0, 'College Ready': 0, 'College Ready + Credit': 0 };
+  gedScores.forEach((score) => { tierCounts[gedTier(score)]++; });
+  document.getElementById('dash_perfEmpty').classList.toggle('hidden', gedScores.length > 0);
+  document.getElementById('dash_perfChart').innerHTML = gedScores.length
+    ? hBarChart(
+        [
+          { label: 'Below Passing', value: tierCounts['Below Passing'], color: 'var(--red)' },
+          { label: 'Passing', value: tierCounts['Passing'], color: 'var(--amber)' },
+          { label: 'College Ready', value: tierCounts['College Ready'], color: 'var(--blue)' },
+          { label: 'College Ready + Credit', value: tierCounts['College Ready + Credit'], color: 'var(--green)' },
+        ],
+        { valueFmt: (v) => String(v) }
+      )
+    : '';
+
+  let totalIncome = 0;
+  students.forEach((s) => s.installments.forEach((inst) => { if (inst.paid) totalIncome += inst.amount; }));
+  const totalExpenses = expenses.reduce((sum, e) => sum + Number(e.amount), 0);
+  document.getElementById('dash_finChart').innerHTML = hBarChart(
+    [
+      { label: 'Income', value: totalIncome, color: 'var(--navy)' },
+      { label: 'Expenses', value: totalExpenses, color: 'var(--gold)' },
+    ],
+    { valueFmt: (v) => v.toLocaleString() + ' CFA' }
+  );
+  const net = totalIncome - totalExpenses;
+  document.getElementById('dash_finNet').textContent = `Net: ${net.toLocaleString()} CFA`;
+  document.getElementById('dash_finNet').style.color = net >= 0 ? 'var(--green)' : 'var(--red)';
 }
 
 function showTab(name) {
