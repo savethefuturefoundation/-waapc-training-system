@@ -110,16 +110,20 @@
         <button class="tab-btn sidebar-nav-item" data-tab="qb" onclick="showTab('qb')"><span class="sidebar-nav-icon">📝</span>Question Bank</button>
         <button class="tab-btn sidebar-nav-item" data-tab="staff" onclick="showTab('staff')"><span class="sidebar-nav-icon">🧑‍🏫</span>Teachers</button>
         <button class="tab-btn sidebar-nav-item" data-tab="assignments" onclick="showTab('assignments')"><span class="sidebar-nav-icon">📚</span>Assignments</button>
+        <button class="tab-btn sidebar-nav-item" data-tab="messages" onclick="showTab('messages')"><span class="sidebar-nav-icon">✉️</span>Messages</button>
       </div>
       <div id="sidebarNavTeacher" class="hidden">
         <button class="sidebar-nav-item active" onclick="sidebarNavTo('page-teacher-students', this)"><span class="sidebar-nav-icon">👥</span>Students</button>
         <button class="sidebar-nav-item" onclick="sidebarNavTo('page-teacher-assignments', this)"><span class="sidebar-nav-icon">📚</span>Assignments</button>
+        <button class="sidebar-nav-item" onclick="sidebarNavTo('tab-messages', this); renderMessagesPage();"><span class="sidebar-nav-icon">✉️</span>Messages</button>
       </div>
       <div id="sidebarNavParent" class="hidden">
         <button class="sidebar-nav-item active" onclick="sidebarNavTo('page-parent-children', this)"><span class="sidebar-nav-icon">👨‍👩‍👧</span>My Children</button>
+        <button class="sidebar-nav-item" onclick="sidebarNavTo('tab-messages', this); renderMessagesPage();"><span class="sidebar-nav-icon">✉️</span>Messages</button>
       </div>
       <div id="sidebarNavStudent" class="hidden">
         <button class="sidebar-nav-item active" onclick="sidebarNavTo('page-student-dashboard', this)"><span class="sidebar-nav-icon">⊞</span>Dashboard</button>
+        <button class="sidebar-nav-item" onclick="sidebarNavTo('tab-messages', this); renderMessagesPage();"><span class="sidebar-nav-icon">✉️</span>Messages</button>
       </div>
     </div>
 
@@ -375,6 +379,15 @@ GED,Mathematical Reasoning,What is 7 x 8?,54,56,58,60,B"></textarea>
         <h2>All assignments</h2>
         <div id="as_list"></div>
         <div id="as_listEmpty" class="empty hidden">No assignments created yet.</div>
+      </div>
+    </div>
+
+    <!-- ================= MESSAGES (shared by all portals) ================= -->
+    <div id="tab-messages" class="page hidden">
+      <div class="card">
+        <h2>Messages</h2>
+        <div id="msg_contacts"></div>
+        <div id="msg_contactsEmpty" class="empty hidden">No one to message yet.</div>
       </div>
     </div>
 

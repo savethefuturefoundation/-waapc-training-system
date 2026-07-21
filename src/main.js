@@ -457,13 +457,10 @@ async function renderAdminDashboardStats() {
 }
 
 function showTab(name) {
+  document.querySelectorAll('#appShell .page').forEach((p) => p.classList.add('hidden'));
   document.querySelectorAll('.tab-btn').forEach((b) => b.classList.toggle('active', b.dataset.tab === name));
-  document.getElementById('tab-dashboard').classList.toggle('hidden', name !== 'dashboard');
-  document.getElementById('tab-register').classList.toggle('hidden', name !== 'register');
-  document.getElementById('tab-manage').classList.toggle('hidden', name !== 'manage');
-  document.getElementById('tab-qb').classList.toggle('hidden', name !== 'qb');
-  document.getElementById('tab-staff').classList.toggle('hidden', name !== 'staff');
-  document.getElementById('tab-assignments').classList.toggle('hidden', name !== 'assignments');
+  const target = document.getElementById('tab-' + name);
+  if (target) target.classList.remove('hidden');
   if (name === 'dashboard') renderAdminDashboardStats();
   if (name === 'manage') renderStudentsTable();
   if (name === 'qb') qbInit();
@@ -472,6 +469,7 @@ function showTab(name) {
     renderAssignTargets('as');
     renderAssignmentsList('as');
   }
+  if (name === 'messages') renderMessagesPage();
 }
 
 // =====================================================================
@@ -1988,6 +1986,76 @@ async function qbBulkImport() {
 }
 
 // =====================================================================
+// Messaging (shared page + logic across all four portals)
+// =====================================================================
+let messageContacts = [];
+let activeContactId = null;
+
+async function renderMessagesPage() {
+  const listEl = document.getElementById('msg_contacts');
+  const [contacts, unread] = await Promise.all([db.listMessageContacts(), db.listUnreadCounts(currentSession.userId)]);
+  messageContacts = contacts;
+  document.getElementById('msg_contactsEmpty').classList.toggle('hidden', contacts.length > 0);
+  listEl.innerHTML = contacts
+    .map(
+      (c) => `<div class="subject-card row-clickable" onclick="openConversation('${c.userId}')">
+        <div>
+          <div class="name">${c.name} <span class="badge neutral">${c.role}</span></div>
+          <div class="stats">${c.email}</div>
+        </div>
+        ${unread[c.userId] ? `<span class="badge unpaid">${unread[c.userId]} new</span>` : ''}
+      </div>`
+    )
+    .join('');
+}
+
+async function openConversation(otherUserId) {
+  activeContactId = otherUserId;
+  await db.markThreadRead(currentSession.userId, otherUserId);
+  await renderConversation();
+  document.getElementById('docOverlay').classList.add('show');
+  renderMessagesPage();
+}
+
+async function renderConversation() {
+  const contact = messageContacts.find((c) => c.userId === activeContactId);
+  const msgs = await db.listConversation(currentSession.userId, activeContactId);
+  const body = msgs
+    .map((m) => {
+      const mine = m.sender_id === currentSession.userId;
+      return `<div style="margin-bottom:10px;text-align:${mine ? 'right' : 'left'};">
+        <div style="display:inline-block;max-width:70%;padding:8px 12px;border-radius:10px;background:${
+          mine ? 'var(--navy)' : 'var(--bg)'
+        };color:${mine ? '#fff' : 'inherit'};text-align:left;">${m.body}</div>
+        <div class="muted" style="font-size:11px;margin-top:2px;">${new Date(m.created_at).toLocaleString()}</div>
+      </div>`;
+    })
+    .join('');
+  const html = `
+    <h3 style="color:var(--navy);">${contact ? contact.name : 'Conversation'}</h3>
+    <div id="msg_thread" style="max-height:400px;overflow-y:auto;margin-bottom:14px;">${
+      body || '<p class="muted">No messages yet. Say hello.</p>'
+    }</div>
+    <div class="no-print" style="display:flex;gap:8px;">
+      <textarea id="msg_composeText" rows="2" style="margin-bottom:0;" placeholder="Type a message..."></textarea>
+      <button class="btn small" onclick="sendMessageClick()">Send</button>
+    </div>
+  `;
+  document.getElementById('docContent').innerHTML = html;
+  const thread = document.getElementById('msg_thread');
+  thread.scrollTop = thread.scrollHeight;
+}
+
+async function sendMessageClick() {
+  const textEl = document.getElementById('msg_composeText');
+  const text = textEl.value.trim();
+  if (!text) return;
+  await db.sendMessage(activeContactId, text);
+  textEl.value = '';
+  await renderConversation();
+}
+
+// =====================================================================
 // Startup — restore session (if any) and show the right screen
 // =====================================================================
 async function initApp() {
@@ -2029,6 +2097,8 @@ Object.assign(window, {
   toggleAllAssignTargets,
   createAssignment,
   deleteAssignment,
+  openConversation,
+  sendMessageClick,
   handlePhoto,
   addProgramRow,
   onProgramChange,

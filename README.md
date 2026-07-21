@@ -34,6 +34,7 @@ Requirements: [Node.js](https://nodejs.org/) (LTS) and a Supabase project.
    - `extra_schema_6.sql` — Removes any stray Speaking subject from GED/SAT/ACT
    - `extra_schema_7.sql` — Parent role + self-signup (matched by the guardian email already on file)
    - `extra_schema_8.sql` — Assignments (teacher/admin → student, with optional link/file, storage bucket)
+   - `extra_schema_9.sql` — Direct messaging between Admin/Teacher/Parent/Student
 4. In Supabase **Authentication → Providers → Email**, turn off "Confirm email" (so a student's, teacher's, or parent's first-login signup works immediately).
 5. Create your admin account: **Authentication → Users → Add user** (check "Auto Confirm User"), then in the SQL Editor:
    ```sql

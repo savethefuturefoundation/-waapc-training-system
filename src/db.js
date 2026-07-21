@@ -609,3 +609,43 @@ export async function getAssignmentFileUrl(path) {
   const { data } = await supabase.storage.from('assignment-files').createSignedUrl(path, 3600);
   return data?.signedUrl;
 }
+
+// ---------------------------------------------------------------------
+// Messaging — shared by all four portals. Who can message whom is
+// enforced server-side by list_message_contacts() and the messages RLS.
+// ---------------------------------------------------------------------
+export async function listMessageContacts() {
+  const { data, error } = await supabase.rpc('list_message_contacts');
+  if (error) throw error;
+  return (data || []).map((c) => ({ userId: c.user_id, email: c.email, name: c.display_name, role: c.role }));
+}
+
+export async function listUnreadCounts(myUserId) {
+  const { data, error } = await supabase.from('messages').select('sender_id').eq('recipient_id', myUserId).eq('read', false);
+  if (error) throw error;
+  const counts = {};
+  data.forEach((m) => {
+    counts[m.sender_id] = (counts[m.sender_id] || 0) + 1;
+  });
+  return counts;
+}
+
+export async function listConversation(myUserId, otherUserId) {
+  const { data, error } = await supabase
+    .from('messages')
+    .select('*')
+    .or(`and(sender_id.eq.${myUserId},recipient_id.eq.${otherUserId}),and(sender_id.eq.${otherUserId},recipient_id.eq.${myUserId})`)
+    .order('created_at', { ascending: true });
+  if (error) throw error;
+  return data;
+}
+
+export async function sendMessage(recipientId, body) {
+  const { error } = await supabase.from('messages').insert({ recipient_id: recipientId, body });
+  if (error) throw error;
+}
+
+export async function markThreadRead(myUserId, otherUserId) {
+  const { error } = await supabase.from('messages').update({ read: true }).eq('recipient_id', myUserId).eq('sender_id', otherUserId).eq('read', false);
+  if (error) throw error;
+}

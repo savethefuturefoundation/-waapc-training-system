@@ -110,6 +110,7 @@
   .badge.unpaid { background: var(--red-light); color: var(--red); }
   .badge.partial { background: #FDF1D8; color: var(--amber); }
   .badge.paid { background: var(--green-light); color: var(--green); }
+  .badge.neutral { background: var(--gray-200); color: var(--gray-600); }
   .muted { color: var(--gray-500); font-size: 12px; }
   .photo-preview { width: 90px; height: 110px; object-fit: cover; border: 1.5px solid var(--gray-300); border-radius: 8px; }
   .doc-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.55); z-index: 1000; overflow: auto; padding: 20px; display: none; }
