@@ -3,6 +3,9 @@
 <head>
 <meta charset="UTF-8">
 <title>WAAPC Training Centre — System</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Alex+Brush&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="/src/style.css">
 </head>
 <body>
@@ -10,17 +13,15 @@
 <div id="authScreen" class="auth-screen">
   <div class="auth-card">
     <div class="auth-logo">
-      <svg viewBox="0 0 100 110" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-        <path d="M50 4 L90 18 V54 C90 84 72 100 50 108 C28 100 10 84 10 54 V18 Z" fill="#FBF8F1" stroke="#1B4D46" stroke-width="5"/>
-        <path d="M50 12 L82 24 V54 C82 78 68 91 50 98 C32 91 18 78 18 54 V24 Z" fill="none" stroke="#1B4D46" stroke-width="1.5"/>
-        <path d="M50 32 L72 42 L50 52 L28 42 Z" fill="#1B4D46"/>
-        <path d="M40 44 v7 a10 5 0 0 0 20 0 v-7" fill="none" stroke="#1B4D46" stroke-width="3" stroke-linecap="round"/>
-        <line x1="72" y1="42" x2="72" y2="52" stroke="#1B4D46" stroke-width="2"/>
-        <circle cx="72" cy="54" r="2.2" fill="#1B4D46"/>
-      </svg>
+      <img src="/logo-waapc.jpg" alt="WAAPC Training Centre">
     </div>
     <h1>WAAPC Training Centre</h1>
     <p class="auth-subtitle">Training Management System</p>
+
+    <div class="ged-credential">
+      <img src="/badge-ged-authorized.jpg" alt="GED Authorized Provider">
+      <p>The only officially GED-authorized test preparation center in Abidjan and West Africa.</p>
+    </div>
 
     <div class="role-pills">
       <button id="btnAdminRole" class="active" onclick="setRole('admin')">Admin</button>
@@ -89,11 +90,7 @@
   <nav class="sidebar">
     <div class="sidebar-logo">
       <div class="sidebar-logo-mark">
-        <svg viewBox="0 0 100 110" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-          <path d="M50 4 L90 18 V54 C90 84 72 100 50 108 C28 100 10 84 10 54 V18 Z" fill="#FBF8F1" stroke="#1B4D46" stroke-width="6"/>
-          <path d="M50 32 L72 42 L50 52 L28 42 Z" fill="#1B4D46"/>
-          <path d="M40 44 v7 a10 5 0 0 0 20 0 v-7" fill="none" stroke="#1B4D46" stroke-width="4" stroke-linecap="round"/>
-        </svg>
+        <img src="/logo-waapc.jpg" alt="WAAPC">
       </div>
       <div>
         <div class="sidebar-logo-title">WAAPC</div>
@@ -144,6 +141,10 @@
       </div>
     </div>
 
+    <div class="sidebar-ged-badge">
+      <img src="/logo-ged.png" alt="GED">
+      <span>Authorized GED Provider</span>
+    </div>
     <div class="sidebar-user">
       <div class="sidebar-user-email" id="sidebarEmail"></div>
       <button class="btn ghost small" id="sidebarLogoutBtn" style="width:100%;justify-content:center;">Log out</button>

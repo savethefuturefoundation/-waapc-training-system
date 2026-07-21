@@ -928,6 +928,27 @@ async function openInvoiceById(id) {
   if (s) openInvoice(s);
 }
 
+function documentHeaderLogos() {
+  return `<div style="display:flex;align-items:center;gap:10px;">
+    <img src="/logo-waapc.jpg" alt="WAAPC" style="width:44px;height:44px;object-fit:contain;">
+    <div>
+      <div style="font-size:20px;font-weight:bold;color:#1a2b6b;line-height:1.1;">WAAPC Training Centre</div>
+      <div style="font-size:10px;color:#666;">Authorized GED Testing Service Provider</div>
+    </div>
+  </div>`;
+}
+
+function signatureBlock() {
+  return `
+    <div style="margin-top:32px;display:flex;justify-content:flex-end;">
+      <div style="text-align:center;">
+        <div class="signature-script">Samuel Palmer</div>
+        <div style="border-top:1px solid #999;margin-top:2px;padding-top:4px;font-size:11px;color:#666;">Samuel Palmer &middot; Academic Lead</div>
+      </div>
+    </div>
+  `;
+}
+
 function openInvoice(student) {
   const rows = student.programs
     .map((p, i) => {
@@ -948,8 +969,8 @@ function openInvoice(student) {
     .join('');
 
   const html = `
-    <div style="display:flex;justify-content:space-between;border-bottom:3px solid #1a2b6b;padding-bottom:16px;margin-bottom:20px;">
-      <div style="font-size:22px;font-weight:bold;color:#1a2b6b;">WAAPC Training Centre</div>
+    <div style="display:flex;justify-content:space-between;align-items:center;border-bottom:3px solid #1a2b6b;padding-bottom:16px;margin-bottom:20px;">
+      ${documentHeaderLogos()}
       <div style="text-align:right;">
         <div style="font-size:32px;font-weight:bold;color:#1a2b6b;">INVOICE</div>
         <div style="font-size:12px;color:#666;">Testing & Examination Services</div>
@@ -977,6 +998,7 @@ function openInvoice(student) {
       <div style="background:#1a2b6b;color:#fff;display:flex;justify-content:space-between;padding:10px 14px;font-weight:bold;margin-top:6px;">
         <span>TOTAL DUE</span><span style="background:#b81f2c;padding:4px 10px;">${student.total.toLocaleString()} CFA</span></div>
     </div>
+    ${signatureBlock()}
     <div style="margin-top:20px;font-size:11px;color:#666;text-align:center;border-top:1px solid #e0e4ec;padding-top:10px;">
       Send proof of payment to admissions@waapcamericanschools.com — include student name and invoice number.
     </div>
@@ -1091,8 +1113,8 @@ async function viewReceipt(studentId, installmentId) {
   const s = students.find((x) => x.id === studentId);
   const inst = s.installments.find((i) => i.id === installmentId);
   const html = `
-    <div style="display:flex;justify-content:space-between;border-bottom:3px solid #1a2b6b;padding-bottom:16px;margin-bottom:20px;">
-      <div style="font-size:22px;font-weight:bold;color:#1a2b6b;">WAAPC Training Centre</div>
+    <div style="display:flex;justify-content:space-between;align-items:center;border-bottom:3px solid #1a2b6b;padding-bottom:16px;margin-bottom:20px;">
+      ${documentHeaderLogos()}
       <div style="text-align:right;"><div style="font-size:32px;font-weight:bold;color:#1a2b6b;">RECEIPT</div></div>
     </div>
     <div style="display:flex;justify-content:space-between;margin-bottom:20px;">
@@ -1109,6 +1131,7 @@ async function viewReceipt(studentId, installmentId) {
     </div>
     <p><b>For:</b> ${FEE_CATEGORY_LABELS[inst.category] || 'Other'}</p>
     <p><b>Payment method:</b> ${inst.method || '—'}</p>
+    ${signatureBlock()}
     <p style="margin-top:24px;font-size:11px;color:#666;text-align:center;border-top:1px solid #e0e4ec;padding-top:10px;">
       Thank you for choosing WAAPC Training Centre.
     </p>

@@ -25,8 +25,11 @@
     width: 100%; max-width: 420px; background: var(--white); border-radius: 16px;
     padding: 36px; box-shadow: 0 20px 60px rgba(0,0,0,0.3); text-align: center;
   }
-  .auth-logo { width: 74px; height: 82px; margin: 0 auto 16px; }
-  .auth-logo svg, .sidebar-logo-mark svg { width: 100%; height: 100%; display: block; }
+  .auth-logo { width: 84px; height: 84px; margin: 0 auto 16px; }
+  .auth-logo img, .sidebar-logo-mark img { width: 100%; height: 100%; object-fit: contain; display: block; }
+  .ged-credential { display: flex; align-items: center; gap: 10px; background: var(--gold-pale); border-radius: 10px; padding: 10px 14px; margin-bottom: 20px; text-align: left; }
+  .ged-credential img { width: 40px; height: 40px; object-fit: contain; flex-shrink: 0; }
+  .ged-credential p { margin: 0; font-size: 11px; font-weight: 700; color: var(--gold); line-height: 1.4; }
   .auth-card h1 { margin: 0 0 4px; font-size: 20px; color: var(--navy); font-weight: 800; }
   .auth-subtitle { margin: 0 0 22px; color: var(--gray-500); font-size: 13px; }
   .role-pills { display: flex; gap: 6px; margin-bottom: 24px; background: var(--gray-100); border-radius: 10px; padding: 4px; }
@@ -60,6 +63,9 @@
   }
   .sidebar-nav-item.active { background: rgba(143,63,82,0.22); border-left-color: var(--gold); color: var(--gold-light); font-weight: 700; }
   .sidebar-nav-icon { font-size: 15px; width: 18px; text-align: center; flex-shrink: 0; }
+  .sidebar-ged-badge { display: flex; align-items: center; gap: 8px; padding: 10px 18px; border-top: 1px solid rgba(255,255,255,0.1); }
+  .sidebar-ged-badge img { width: 24px; height: 24px; object-fit: contain; flex-shrink: 0; background: var(--white); border-radius: 4px; padding: 2px; }
+  .sidebar-ged-badge span { font-size: 10px; font-weight: 700; color: var(--gold-light); text-transform: uppercase; letter-spacing: 0.4px; }
   .sidebar-user { padding: 14px; border-top: 1px solid rgba(255,255,255,0.1); }
   .sidebar-user-email { color: var(--white); font-size: 11px; margin-bottom: 8px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; opacity: 0.85; }
 
@@ -117,6 +123,7 @@
   .doc-overlay.show { display: block; }
   .doc-overlay-bar { max-width: 800px; margin: 0 auto 10px; display: flex; justify-content: flex-end; gap: 8px; }
   .doc-page { background: var(--white); max-width: 800px; margin: 0 auto; padding: 36px 44px; border-radius: 8px; }
+  .signature-script { font-family: 'Alex Brush', cursive; font-size: 34px; color: var(--navy); line-height: 1.2; }
   .subject-card { border: 1px solid var(--gray-200); border-radius: 10px; padding: 14px 16px; margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center; }
   .subject-card .name { font-weight: bold; color: var(--navy); }
   .subject-card .stats { font-size: 12px; color: var(--gray-500); margin-top: 3px; }
