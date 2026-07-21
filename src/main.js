@@ -196,6 +196,7 @@ async function renderTeacherStudentsTable() {
         <button class="btn ghost small" onclick="openAttendance('${s.id}')">Attendance</button>
         <button class="btn ghost small" onclick="openProgressReport('${s.id}')">Report</button>
         <button class="btn ghost small" onclick="openGradebook('${s.id}')">Gradebook</button>
+        <button class="btn ghost small" onclick="openPlacementResults('${s.id}')">Placement</button>
         <button class="btn ghost small" onclick="openSpeakingSubmissions('${s.id}')">Speaking</button>
       </td>
     `;
@@ -755,6 +756,7 @@ async function openStudentDetail(id) {
       <button class="btn ghost small" onclick="openAttendance('${s.id}')">Attendance</button>
       <button class="btn ghost small" onclick="openProgressReport('${s.id}')">Progress report</button>
       <button class="btn ghost small" onclick="openGradebook('${s.id}')">Gradebook</button>
+      <button class="btn ghost small" onclick="openPlacementResults('${s.id}')">Placement</button>
       <button class="btn ghost small" onclick="openCertificateForm('${s.id}')">Certificate</button>
       <button class="btn ghost small" onclick="openSpeakingSubmissions('${s.id}')">Speaking</button>
     </div>
@@ -1243,6 +1245,7 @@ async function showStudentDashboardView() {
   renderStudentDashboard(currentStudentRecord);
   renderMyAssignments();
   renderMyGrades();
+  renderPlacementCard();
 }
 
 async function renderMyGrades() {
@@ -1261,6 +1264,183 @@ async function renderMyGrades() {
       </div>`
     )
     .join('');
+}
+
+// =====================================================================
+// GED Placement Assessment (GAPA) — student takes it, admin/teacher and
+// parent view results. Only shown for students enrolled in GED.
+// =====================================================================
+let placementState = null;
+
+async function renderPlacementCard() {
+  const cardEl = document.getElementById('placementCard');
+  if (!currentStudentRecord) {
+    cardEl.classList.add('hidden');
+    return;
+  }
+  const isGed = currentStudentRecord.programs.some((p) => p.test === 'GED');
+  cardEl.classList.toggle('hidden', !isGed);
+  if (!isGed) return;
+  const attempts = await db.listPlacementAttempts(currentStudentRecord.id);
+  const latest = attempts[0];
+  document.getElementById('placementSummary').innerHTML = latest
+    ? `<p>Latest score: <b>${latest.total_score}/100</b> — ${latest.level}. ${latest.recommendation}</p><p class="muted">Taken ${new Date(latest.taken_at).toLocaleDateString()}</p>`
+    : '<p class="muted">You haven\'t taken the placement assessment yet.</p>';
+}
+
+async function startPlacementTest() {
+  if (!currentStudentRecord) return;
+  const isGed = currentStudentRecord.programs.some((p) => p.test === 'GED');
+  if (!isGed) {
+    alert('The placement assessment is only for students enrolled in GED.');
+    return;
+  }
+  const questions = await db.listPlacementQuestions();
+  placementState = { questions, answers: new Array(questions.length).fill(null), submitted: false };
+  renderPlacementSession();
+}
+
+function computePlacementScores() {
+  const { questions, answers } = placementState;
+  const sections = { vocabulary: 0, grammar: 0, reading: 0, critical_thinking: 0 };
+  questions.forEach((q, i) => {
+    if (answers[i] === q.answer) sections[q.section] += 2;
+  });
+  const total = sections.vocabulary + sections.grammar + sections.reading + sections.critical_thinking;
+  let level, recommendation;
+  if (total >= 90) {
+    level = 'Advanced';
+    recommendation = 'Direct entry into GED 150+ Accelerator';
+  } else if (total >= 75) {
+    level = 'Proficient';
+    recommendation = 'GED Accelerator with vocabulary/grammar support';
+  } else if (total >= 60) {
+    level = 'Developing';
+    recommendation = 'GED Bridge Program + Accelerator';
+  } else if (total >= 40) {
+    level = 'Beginning';
+    recommendation = 'Academic English support required before intensive GED study';
+  } else {
+    level = 'Foundation';
+    recommendation = 'Not yet ready for GED-level reading; recommend Intensive English Training first';
+  }
+  return {
+    vocabulary: sections.vocabulary,
+    grammar: sections.grammar,
+    reading: sections.reading,
+    criticalThinking: sections.critical_thinking,
+    total,
+    level,
+    recommendation,
+  };
+}
+
+function renderPlacementSession() {
+  const { questions, answers, submitted } = placementState;
+  let lastPassageId = null;
+  const body = questions
+    .map((q, i) => {
+      let passageHtml = '';
+      if (q.passage && q.passage.id !== lastPassageId) {
+        lastPassageId = q.passage.id;
+        passageHtml = `<div class="card" style="background:var(--bg);"><h2>${q.passage.title}</h2><p style="white-space:pre-line;">${q.passage.body}</p></div>`;
+      }
+      const optsHtml = q.options
+        .map((opt, oi) => {
+          let cls = 'q-opt';
+          if (submitted) {
+            if (oi === q.answer) cls += ' correct';
+            else if (oi === answers[i]) cls += ' wrong';
+          } else if (answers[i] === oi) cls += ' selected';
+          return `<div class="${cls}" onclick="selectPlacementAnswer(${i}, ${oi})">${String.fromCharCode(65 + oi)}. ${opt}</div>`;
+        })
+        .join('');
+      return `${passageHtml}<div class="q-block"><div class="qtext">${i + 1}. ${q.text}</div>${optsHtml}</div>`;
+    })
+    .join('');
+
+  let scoreHtml = '';
+  if (submitted) {
+    const scores = computePlacementScores();
+    scoreHtml = `<div class="score-banner">
+      <div class="big">${scores.total} / 100</div>
+      <div>${scores.level} — ${scores.recommendation}</div>
+      <p class="muted" style="color:#fff;">Vocabulary ${scores.vocabulary}/20 &middot; Grammar ${scores.grammar}/20 &middot; Reading ${scores.reading}/40 &middot; Critical Thinking ${scores.criticalThinking}/20</p>
+    </div>`;
+  }
+
+  document.getElementById('subjectArea').innerHTML = `
+    <div class="card">
+      <h2>GED Placement Assessment</h2>
+      ${scoreHtml}
+      ${
+        submitted
+          ? '<button class="btn ghost small" onclick="closePlacementTest()">Close</button>'
+          : '<button class="btn red" onclick="submitPlacementTest()">Submit assessment</button>'
+      }
+    </div>
+    ${body}
+    ${!submitted ? '<button class="btn red" onclick="submitPlacementTest()">Submit assessment</button>' : ''}
+  `;
+}
+
+function selectPlacementAnswer(qIndex, optIndex) {
+  if (placementState.submitted) return;
+  placementState.answers[qIndex] = optIndex;
+  renderPlacementSession();
+}
+
+async function submitPlacementTest() {
+  const scores = computePlacementScores();
+  placementState.submitted = true;
+  try {
+    await db.submitPlacementAttempt({
+      studentId: currentStudentRecord.id,
+      sectionScores: { vocabulary: scores.vocabulary, grammar: scores.grammar, reading: scores.reading, critical_thinking: scores.criticalThinking },
+      totalScore: scores.total,
+      level: scores.level,
+      recommendation: scores.recommendation,
+      answers: placementState.answers,
+    });
+    renderPlacementCard();
+  } catch (e) {
+    alert('Could not save your result: ' + (e.message || e));
+  }
+  renderPlacementSession();
+}
+
+function closePlacementTest() {
+  placementState = null;
+  document.getElementById('subjectArea').innerHTML = '';
+}
+
+async function openPlacementResults(studentId) {
+  const students = await db.loadAllStudents();
+  const s = students.find((x) => x.id === studentId);
+  if (!s) return;
+  const attempts = await db.listPlacementAttempts(studentId);
+  const rows = attempts
+    .map(
+      (a) => `<tr>
+        <td>${new Date(a.taken_at).toLocaleDateString()}</td>
+        <td>${a.vocabulary_score}/20</td>
+        <td>${a.grammar_score}/20</td>
+        <td>${a.reading_score}/40</td>
+        <td>${a.critical_thinking_score}/20</td>
+        <td><b>${a.total_score}/100</b></td>
+        <td>${a.level}</td>
+      </tr>`
+    )
+    .join('');
+  const html = `
+    <h3 style="color:var(--navy);">${s.fullName} — GED Placement Assessment</h3>
+    <table style="margin-top:12px;">
+      <thead><tr><th>Date</th><th>Vocab</th><th>Grammar</th><th>Reading</th><th>Critical Thinking</th><th>Total</th><th>Level</th></tr></thead>
+      <tbody>${rows || '<tr><td colspan="7" class="muted">No placement attempts yet.</td></tr>'}</tbody>
+    </table>
+  `;
+  document.getElementById('docContent').innerHTML = html;
+  document.getElementById('docOverlay').classList.add('show');
 }
 
 // =====================================================================
@@ -2350,6 +2530,11 @@ Object.assign(window, {
   openGradebook,
   addGradeClick,
   deleteGradeClick,
+  startPlacementTest,
+  selectPlacementAnswer,
+  submitPlacementTest,
+  closePlacementTest,
+  openPlacementResults,
   closeDoc,
   openPayments,
   markPaid,

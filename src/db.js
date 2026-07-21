@@ -724,3 +724,49 @@ export async function deleteGrade(id) {
   const { error } = await supabase.from('grades').delete().eq('id', id);
   if (error) throw error;
 }
+
+// ---------------------------------------------------------------------
+// GED Placement Assessment (GAPA) — computer-graded English/academic
+// readiness test for students enrolled in GED.
+// ---------------------------------------------------------------------
+export async function listPlacementQuestions() {
+  const { data, error } = await supabase
+    .from('placement_questions')
+    .select('id, section, sort_order, question_text, options, correct_index, placement_passages(id, title, body)')
+    .order('sort_order');
+  if (error) throw error;
+  return data.map((q) => ({
+    id: q.id,
+    section: q.section,
+    sortOrder: q.sort_order,
+    text: q.question_text,
+    options: q.options,
+    answer: q.correct_index,
+    passage: q.placement_passages ? { id: q.placement_passages.id, title: q.placement_passages.title, body: q.placement_passages.body } : null,
+  }));
+}
+
+export async function submitPlacementAttempt({ studentId, sectionScores, totalScore, level, recommendation, answers }) {
+  const { error } = await supabase.from('placement_attempts').insert({
+    student_id: studentId,
+    vocabulary_score: sectionScores.vocabulary,
+    grammar_score: sectionScores.grammar,
+    reading_score: sectionScores.reading,
+    critical_thinking_score: sectionScores.critical_thinking,
+    total_score: totalScore,
+    level,
+    recommendation,
+    answers,
+  });
+  if (error) throw error;
+}
+
+export async function listPlacementAttempts(studentId) {
+  const { data, error } = await supabase
+    .from('placement_attempts')
+    .select('*')
+    .eq('student_id', studentId)
+    .order('taken_at', { ascending: false });
+  if (error) throw error;
+  return data;
+}
