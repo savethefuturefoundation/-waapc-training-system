@@ -109,27 +109,35 @@
         <button class="tab-btn sidebar-nav-item" data-tab="manage" onclick="showTab('manage')"><span class="sidebar-nav-icon">👥</span>Students & Payments</button>
         <button class="tab-btn sidebar-nav-item" data-tab="qb" onclick="showTab('qb')"><span class="sidebar-nav-icon">📝</span>Question Bank</button>
         <button class="tab-btn sidebar-nav-item" data-tab="staff" onclick="showTab('staff')"><span class="sidebar-nav-icon">🧑‍🏫</span>Teachers</button>
+        <button class="tab-btn sidebar-nav-item" data-tab="parents" onclick="showTab('parents')"><span class="sidebar-nav-icon">👨‍👩‍👧</span>Parents</button>
         <button class="tab-btn sidebar-nav-item" data-tab="assignments" onclick="showTab('assignments')"><span class="sidebar-nav-icon">📚</span>Assignments</button>
+        <button class="tab-btn sidebar-nav-item" data-tab="attendance" onclick="showTab('attendance')"><span class="sidebar-nav-icon">✅</span>Attendance</button>
         <button class="tab-btn sidebar-nav-item" data-tab="announcements" onclick="showTab('announcements')"><span class="sidebar-nav-icon">📢</span>Announcements</button>
         <button class="tab-btn sidebar-nav-item" data-tab="calendar" onclick="showTab('calendar')"><span class="sidebar-nav-icon">📅</span>Calendar</button>
+        <button class="tab-btn sidebar-nav-item" data-tab="timetable" onclick="showTab('timetable')"><span class="sidebar-nav-icon">🗓</span>Timetable</button>
         <button class="tab-btn sidebar-nav-item" data-tab="messages" onclick="showTab('messages')"><span class="sidebar-nav-icon">✉️</span>Messages</button>
       </div>
       <div id="sidebarNavTeacher" class="hidden">
         <button class="sidebar-nav-item active" onclick="sidebarNavTo('page-teacher-students', this)"><span class="sidebar-nav-icon">👥</span>Students</button>
         <button class="sidebar-nav-item" onclick="sidebarNavTo('page-teacher-assignments', this)"><span class="sidebar-nav-icon">📚</span>Assignments</button>
+        <button class="sidebar-nav-item" onclick="sidebarNavTo('tab-attendance', this); renderAttendancePage();"><span class="sidebar-nav-icon">✅</span>Attendance</button>
+        <button class="sidebar-nav-item" onclick="sidebarNavTo('tab-parents', this); renderParentsPage();"><span class="sidebar-nav-icon">👨‍👩‍👧</span>Parents</button>
         <button class="sidebar-nav-item" onclick="sidebarNavTo('tab-announcements', this); renderAnnouncementsPage();"><span class="sidebar-nav-icon">📢</span>Announcements</button>
         <button class="sidebar-nav-item" onclick="sidebarNavTo('tab-calendar', this); renderCalendarPage();"><span class="sidebar-nav-icon">📅</span>Calendar</button>
+        <button class="sidebar-nav-item" onclick="sidebarNavTo('tab-timetable', this); renderTimetablePage();"><span class="sidebar-nav-icon">🗓</span>Timetable</button>
         <button class="sidebar-nav-item" onclick="sidebarNavTo('tab-messages', this); renderMessagesPage();"><span class="sidebar-nav-icon">✉️</span>Messages</button>
       </div>
       <div id="sidebarNavParent" class="hidden">
         <button class="sidebar-nav-item active" onclick="sidebarNavTo('page-parent-children', this)"><span class="sidebar-nav-icon">👨‍👩‍👧</span>My Children</button>
         <button class="sidebar-nav-item" onclick="sidebarNavTo('tab-announcements', this); renderAnnouncementsPage();"><span class="sidebar-nav-icon">📢</span>Announcements</button>
         <button class="sidebar-nav-item" onclick="sidebarNavTo('tab-calendar', this); renderCalendarPage();"><span class="sidebar-nav-icon">📅</span>Calendar</button>
+        <button class="sidebar-nav-item" onclick="sidebarNavTo('tab-timetable', this); renderTimetablePage();"><span class="sidebar-nav-icon">🗓</span>Timetable</button>
         <button class="sidebar-nav-item" onclick="sidebarNavTo('tab-messages', this); renderMessagesPage();"><span class="sidebar-nav-icon">✉️</span>Messages</button>
       </div>
       <div id="sidebarNavStudent" class="hidden">
         <button class="sidebar-nav-item active" onclick="sidebarNavTo('page-student-dashboard', this)"><span class="sidebar-nav-icon">⊞</span>Dashboard</button>
         <button class="sidebar-nav-item" onclick="sidebarNavTo('tab-announcements', this); renderAnnouncementsPage();"><span class="sidebar-nav-icon">📢</span>Announcements</button>
+        <button class="sidebar-nav-item" onclick="sidebarNavTo('tab-timetable', this); renderTimetablePage();"><span class="sidebar-nav-icon">🗓</span>Timetable</button>
         <button class="sidebar-nav-item" onclick="sidebarNavTo('tab-calendar', this); renderCalendarPage();"><span class="sidebar-nav-icon">📅</span>Calendar</button>
         <button class="sidebar-nav-item" onclick="sidebarNavTo('tab-messages', this); renderMessagesPage();"><span class="sidebar-nav-icon">✉️</span>Messages</button>
       </div>
@@ -423,6 +431,72 @@ GED,Mathematical Reasoning,What is 7 x 8?,54,56,58,60,B"></textarea>
         <div id="cal_list"></div>
         <div id="cal_listEmpty" class="empty hidden">No events scheduled.</div>
       </div>
+    </div>
+
+    <!-- ================= PARENTS DIRECTORY (Admin/Teacher only) ================= -->
+    <div id="tab-parents" class="page hidden">
+      <div class="card">
+        <h2>Parents / Guardians</h2>
+        <table id="parentsTable">
+          <thead><tr><th>Name</th><th>Relationship</th><th>Phone</th><th>Email</th><th>Children</th></tr></thead>
+          <tbody></tbody>
+        </table>
+        <div id="parentsEmpty" class="empty hidden">No guardian contact info on file yet.</div>
+      </div>
+    </div>
+
+    <!-- ================= ATTENDANCE (Admin/Teacher only) ================= -->
+    <div id="tab-attendance" class="page hidden">
+      <div class="card">
+        <h2>Take attendance</h2>
+        <div class="grid2">
+          <div><label>Program</label><select id="att_test" onchange="loadAttendanceRoster()"></select></div>
+          <div><label>Date</label><input id="att_date" type="date" onchange="loadAttendanceRoster()"></div>
+        </div>
+      </div>
+      <div class="card">
+        <h2>Roster</h2>
+        <div id="att_roster"></div>
+        <div id="att_rosterEmpty" class="empty hidden">No students enrolled in this program.</div>
+      </div>
+    </div>
+
+    <!-- ================= TIMETABLE (shared by all portals) ================= -->
+    <div id="tab-timetable" class="page hidden">
+      <div id="tt_composer" class="card hidden">
+        <h2>Add timetable entry</h2>
+        <div class="grid3">
+          <div><label>Program</label><select id="tt_test"></select></div>
+          <div><label>Day</label>
+            <select id="tt_day">
+              <option value="Mon">Monday</option>
+              <option value="Tue">Tuesday</option>
+              <option value="Wed">Wednesday</option>
+              <option value="Thu">Thursday</option>
+              <option value="Fri">Friday</option>
+              <option value="Sat">Saturday</option>
+              <option value="Sun">Sunday</option>
+            </select>
+          </div>
+          <div><label>Type</label>
+            <select id="tt_kind">
+              <option value="class">Class</option>
+              <option value="test">Test</option>
+              <option value="plan">Plan</option>
+              <option value="rest">Rest</option>
+            </select>
+          </div>
+        </div>
+        <div class="grid3">
+          <div><label>Start time</label><input id="tt_start" type="time"></div>
+          <div><label>End time</label><input id="tt_end" type="time"></div>
+          <div><label>Activity</label><input id="tt_activity"></div>
+        </div>
+        <button class="btn red" onclick="createTimetableEntryClick()">Add entry</button>
+        <p id="tt_error" class="muted error-text"></p>
+      </div>
+      <div id="tt_list"></div>
+      <div id="tt_listEmpty" class="empty hidden">No timetable entries yet.</div>
     </div>
 
     <!-- ================= MESSAGES (shared by all portals) ================= -->

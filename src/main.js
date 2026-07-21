@@ -481,6 +481,9 @@ function showTab(name) {
   if (name === 'messages') renderMessagesPage();
   if (name === 'announcements') renderAnnouncementsPage();
   if (name === 'calendar') renderCalendarPage();
+  if (name === 'timetable') renderTimetablePage();
+  if (name === 'attendance') renderAttendancePage();
+  if (name === 'parents') renderParentsPage();
 }
 
 // =====================================================================
@@ -2400,6 +2403,166 @@ async function deleteCalendarEventClick(id) {
 }
 
 // =====================================================================
+// Timetable (shared page; admin/teacher post, everyone reads)
+// =====================================================================
+const TIMETABLE_DAY_ORDER = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+const TIMETABLE_DAY_LABELS = { Mon: 'Monday', Tue: 'Tuesday', Wed: 'Wednesday', Thu: 'Thursday', Fri: 'Friday', Sat: 'Saturday', Sun: 'Sunday' };
+const TIMETABLE_KIND_BADGE = { class: 'paid', test: 'partial', plan: 'neutral', rest: 'unpaid' };
+
+async function renderTimetablePage() {
+  document.getElementById('tt_composer').classList.toggle('hidden', !canPostAsStaff());
+  if (canPostAsStaff()) {
+    await ensureCatalog();
+    const select = document.getElementById('tt_test');
+    if (!select.dataset.loaded) {
+      select.innerHTML = '<option value="">General (no specific program)</option>' + Object.keys(CATALOG).map((t) => `<option value="${CATALOG[t].id}">${t}</option>`).join('');
+      select.dataset.loaded = '1';
+    }
+  }
+
+  const entries = await db.listTimetable();
+  const listEl = document.getElementById('tt_list');
+  document.getElementById('tt_listEmpty').classList.toggle('hidden', entries.length > 0);
+
+  const byDay = {};
+  entries.forEach((e) => {
+    byDay[e.day] = byDay[e.day] || [];
+    byDay[e.day].push(e);
+  });
+
+  listEl.innerHTML = TIMETABLE_DAY_ORDER.filter((d) => byDay[d])
+    .map((d) => {
+      const rows = byDay[d]
+        .map(
+          (e) => `<tr>
+        <td>${e.start.slice(0, 5)}–${e.end.slice(0, 5)}</td>
+        <td>${e.activity}${e.testName ? ' <span class="muted">(' + e.testName + ')</span>' : ''}</td>
+        <td><span class="badge ${TIMETABLE_KIND_BADGE[e.kind] || 'neutral'}">${e.kind}</span></td>
+        ${canPostAsStaff() ? `<td class="no-print"><button class="btn ghost small" onclick="deleteTimetableEntryClick('${e.id}')">Delete</button></td>` : ''}
+      </tr>`
+        )
+        .join('');
+      return `<div class="card">
+        <h2>${TIMETABLE_DAY_LABELS[d]}</h2>
+        <table><thead><tr><th>Time</th><th>Activity</th><th>Type</th>${canPostAsStaff() ? '<th></th>' : ''}</tr></thead><tbody>${rows}</tbody></table>
+      </div>`;
+    })
+    .join('');
+}
+
+async function createTimetableEntryClick() {
+  const testId = document.getElementById('tt_test').value || null;
+  const day = document.getElementById('tt_day').value;
+  const start = document.getElementById('tt_start').value;
+  const end = document.getElementById('tt_end').value;
+  const activity = document.getElementById('tt_activity').value.trim();
+  const kind = document.getElementById('tt_kind').value;
+  const errEl = document.getElementById('tt_error');
+  errEl.textContent = '';
+  if (!start || !end || !activity) {
+    errEl.textContent = 'Fill in start time, end time, and activity.';
+    return;
+  }
+  try {
+    await db.createTimetableEntry({ testId, day, start, end, activity, kind });
+    document.getElementById('tt_activity').value = '';
+    await renderTimetablePage();
+  } catch (e) {
+    errEl.textContent = e.message || 'Could not add timetable entry.';
+  }
+}
+
+async function deleteTimetableEntryClick(id) {
+  await db.deleteTimetableEntry(id);
+  await renderTimetablePage();
+}
+
+// =====================================================================
+// Attendance (dedicated bulk-by-class page; admin/teacher only)
+// =====================================================================
+async function renderAttendancePage() {
+  await ensureCatalog();
+  const select = document.getElementById('att_test');
+  if (!select.dataset.loaded) {
+    select.innerHTML = Object.keys(CATALOG)
+      .map((t) => `<option value="${CATALOG[t].id}">${t}</option>`)
+      .join('');
+    select.dataset.loaded = '1';
+  }
+  if (!document.getElementById('att_date').value) {
+    document.getElementById('att_date').value = new Date().toISOString().slice(0, 10);
+  }
+  await loadAttendanceRoster();
+}
+
+async function loadAttendanceRoster() {
+  const testId = document.getElementById('att_test').value;
+  const date = document.getElementById('att_date').value;
+  const listEl = document.getElementById('att_roster');
+  if (!testId || !date) return;
+  const roster = await db.listEnrollmentsForTest(testId);
+  const existing = await db.listAttendanceForDate(
+    roster.map((r) => r.enrollmentId),
+    date
+  );
+  document.getElementById('att_rosterEmpty').classList.toggle('hidden', roster.length > 0);
+  listEl.innerHTML = roster
+    .map((r) => {
+      const present = existing[r.enrollmentId];
+      return `<div class="subject-card">
+        <div class="name">${r.studentName}</div>
+        <div>
+          <button class="btn ${present === true ? '' : 'ghost'} small" onclick="markRosterAttendance('${r.enrollmentId}', true)">Present</button>
+          <button class="btn ${present === false ? 'red' : 'ghost'} small" onclick="markRosterAttendance('${r.enrollmentId}', false)">Absent</button>
+        </div>
+      </div>`;
+    })
+    .join('');
+}
+
+async function markRosterAttendance(enrollmentId, present) {
+  const date = document.getElementById('att_date').value;
+  try {
+    await db.recordAttendance(enrollmentId, date, present);
+  } catch (e) {
+    alert('Could not record attendance: ' + (e.message || e));
+    return;
+  }
+  await loadAttendanceRoster();
+}
+
+// =====================================================================
+// Parents directory (Admin/Teacher only) — derived from guardian info
+// already captured at student registration; no separate table needed.
+// =====================================================================
+async function renderParentsPage() {
+  const students = await db.loadAllStudents();
+  const map = new Map();
+  students.forEach((s) => {
+    if (!s.guardian.email) return;
+    const key = s.guardian.email.toLowerCase();
+    if (!map.has(key)) {
+      map.set(key, { name: s.guardian.name, relationship: s.guardian.relationship, phone: s.guardian.phone, email: s.guardian.email, children: [] });
+    }
+    map.get(key).children.push(s.fullName);
+  });
+  const guardians = Array.from(map.values());
+  const tbody = document.querySelector('#parentsTable tbody');
+  document.getElementById('parentsEmpty').classList.toggle('hidden', guardians.length > 0);
+  tbody.innerHTML = guardians
+    .map(
+      (g) => `<tr>
+        <td>${g.name || '—'}</td>
+        <td>${g.relationship || '—'}</td>
+        <td>${g.phone || '—'}</td>
+        <td><a href="mailto:${g.email}">${g.email}</a></td>
+        <td>${g.children.join(', ')}</td>
+      </tr>`
+    )
+    .join('');
+}
+
+// =====================================================================
 // Messaging (shared page + logic across all four portals)
 // =====================================================================
 let messageContacts = [];
@@ -2515,6 +2678,11 @@ Object.assign(window, {
   deleteAnnouncementClick,
   createCalendarEventClick,
   deleteCalendarEventClick,
+  createTimetableEntryClick,
+  deleteTimetableEntryClick,
+  loadAttendanceRoster,
+  markRosterAttendance,
+  renderParentsPage,
   openConversation,
   sendMessageClick,
   handlePhoto,

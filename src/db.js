@@ -770,3 +770,53 @@ export async function listPlacementAttempts(studentId) {
   if (error) throw error;
   return data;
 }
+
+// ---------------------------------------------------------------------
+// Timetable — read by everyone, edited by admin/teacher.
+// ---------------------------------------------------------------------
+export async function listTimetable() {
+  const { data, error } = await supabase.from('timetable_entries').select('*, tests(name)').order('start_time');
+  if (error) throw error;
+  return data.map((t) => ({
+    id: t.id,
+    testId: t.test_id,
+    testName: t.tests?.name,
+    day: t.day_of_week,
+    start: t.start_time,
+    end: t.end_time,
+    activity: t.activity,
+    kind: t.kind,
+  }));
+}
+
+export async function createTimetableEntry({ testId, day, start, end, activity, kind }) {
+  const { error } = await supabase
+    .from('timetable_entries')
+    .insert({ test_id: testId || null, day_of_week: day, start_time: start, end_time: end, activity, kind });
+  if (error) throw error;
+}
+
+export async function deleteTimetableEntry(id) {
+  const { error } = await supabase.from('timetable_entries').delete().eq('id', id);
+  if (error) throw error;
+}
+
+// ---------------------------------------------------------------------
+// Attendance roster — bulk mark-by-class, admin/teacher only.
+// ---------------------------------------------------------------------
+export async function listEnrollmentsForTest(testId) {
+  const { data, error } = await supabase.from('enrollments').select('id, students(id, full_name)').eq('test_id', testId);
+  if (error) throw error;
+  return data.map((e) => ({ enrollmentId: e.id, studentId: e.students?.id, studentName: e.students?.full_name })).filter((e) => e.studentName);
+}
+
+export async function listAttendanceForDate(enrollmentIds, date) {
+  if (enrollmentIds.length === 0) return {};
+  const { data, error } = await supabase.from('attendance').select('enrollment_id, present').in('enrollment_id', enrollmentIds).eq('session_date', date);
+  if (error) throw error;
+  const map = {};
+  data.forEach((a) => {
+    map[a.enrollment_id] = a.present;
+  });
+  return map;
+}
