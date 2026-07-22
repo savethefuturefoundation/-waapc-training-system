@@ -443,6 +443,8 @@ GED,Mathematical Reasoning,What is 7 x 8?,54,56,58,60,B"></textarea>
         <h2>Post an announcement</h2>
         <label>Title</label>
         <input id="ann_title">
+        <label>Audience</label>
+        <select id="ann_audience"><option value="">Everyone</option></select>
         <label>Message (optional)</label>
         <textarea id="ann_body" rows="3"></textarea>
         <button class="btn red" onclick="createAnnouncementClick()">Post</button>
@@ -640,10 +642,20 @@ GED,Mathematical Reasoning,What is 7 x 8?,54,56,58,60,B"></textarea>
 
     <!-- ================= MESSAGES (shared by all portals) ================= -->
     <div id="tab-messages" class="page hidden">
-      <div class="card">
-        <h2>Messages</h2>
-        <div id="msg_contacts"></div>
-        <div id="msg_contactsEmpty" class="empty hidden">No one to message yet.</div>
+      <div class="messages-layout">
+        <div class="card messages-contacts">
+          <h2>Contacts</h2>
+          <div id="msg_contacts"></div>
+          <div id="msg_contactsEmpty" class="empty hidden">No one to message yet — contacts appear here once a teacher, parent, or student has logged in at least once.</div>
+        </div>
+        <div class="card messages-thread">
+          <h2 id="msg_activeContactName">Select a contact to start messaging</h2>
+          <div id="msg_thread"></div>
+          <div class="no-print" id="msg_composeBar" style="display:none;">
+            <textarea id="msg_composeText" rows="2" placeholder="Type a message..."></textarea>
+            <button class="btn small" onclick="sendMessageClick()">Send</button>
+          </div>
+        </div>
       </div>
     </div>
 

@@ -2866,7 +2866,22 @@ function canPostAsStaff() {
 
 async function renderAnnouncementsPage() {
   document.getElementById('ann_composer').classList.toggle('hidden', !canPostAsStaff());
-  const items = await db.listAnnouncements();
+  if (canPostAsStaff()) {
+    await ensureCatalog();
+    const audienceSelect = document.getElementById('ann_audience');
+    if (!audienceSelect.dataset.loaded) {
+      audienceSelect.innerHTML =
+        '<option value="">Everyone</option>' + Object.keys(CATALOG).map((t) => `<option value="${CATALOG[t].id}">${t} students only</option>`).join('');
+      audienceSelect.dataset.loaded = '1';
+    }
+  }
+
+  let items = await db.listAnnouncements();
+  if (currentSession?.role === 'student' && currentStudentRecord) {
+    const myPrograms = new Set(currentStudentRecord.programs.map((p) => p.test));
+    items = items.filter((a) => !a.targetTestName || myPrograms.has(a.targetTestName));
+  }
+
   const listEl = document.getElementById('ann_list');
   document.getElementById('ann_listEmpty').classList.toggle('hidden', items.length > 0);
   listEl.innerHTML = items
@@ -2874,7 +2889,7 @@ async function renderAnnouncementsPage() {
       (a) => `<div class="card" style="margin-bottom:12px;">
         <div style="display:flex;justify-content:space-between;align-items:start;">
           <div>
-            <h2 style="margin-bottom:4px;">${a.title}</h2>
+            <h2 style="margin-bottom:4px;">${a.title} ${a.targetTestName ? `<span class="badge neutral">${a.targetTestName} only</span>` : ''}</h2>
             <p class="muted" style="margin:0 0 8px;">${new Date(a.created_at).toLocaleString()}</p>
             ${a.body ? `<p style="margin:0;">${a.body}</p>` : ''}
           </div>
@@ -2888,6 +2903,7 @@ async function renderAnnouncementsPage() {
 async function createAnnouncementClick() {
   const title = document.getElementById('ann_title').value.trim();
   const body = document.getElementById('ann_body').value.trim();
+  const targetTestId = document.getElementById('ann_audience').value || null;
   const errEl = document.getElementById('ann_error');
   errEl.textContent = '';
   if (!title) {
@@ -2895,7 +2911,7 @@ async function createAnnouncementClick() {
     return;
   }
   try {
-    await db.createAnnouncement(title, body);
+    await db.createAnnouncement(title, body, targetTestId);
     document.getElementById('ann_title').value = '';
     document.getElementById('ann_body').value = '';
     await renderAnnouncementsPage();
@@ -3370,7 +3386,7 @@ async function renderMessagesPage() {
   document.getElementById('msg_contactsEmpty').classList.toggle('hidden', contacts.length > 0);
   listEl.innerHTML = contacts
     .map(
-      (c) => `<div class="subject-card row-clickable" onclick="openConversation('${c.userId}')">
+      (c) => `<div class="subject-card row-clickable ${c.userId === activeContactId ? 'contact-active' : ''}" onclick="openConversation('${c.userId}')">
         <div>
           <div class="name">${c.name} <span class="badge neutral">${c.role}</span></div>
           <div class="stats">${c.email}</div>
@@ -3385,12 +3401,17 @@ async function openConversation(otherUserId) {
   activeContactId = otherUserId;
   await db.markThreadRead(currentSession.userId, otherUserId);
   await renderConversation();
-  document.getElementById('docOverlay').classList.add('show');
-  renderMessagesPage();
+  await renderMessagesPage();
 }
 
 async function renderConversation() {
   const contact = messageContacts.find((c) => c.userId === activeContactId);
+  document.getElementById('msg_activeContactName').textContent = contact ? contact.name : 'Select a contact to start messaging';
+  document.getElementById('msg_composeBar').style.display = activeContactId ? 'flex' : 'none';
+  if (!activeContactId) {
+    document.getElementById('msg_thread').innerHTML = '';
+    return;
+  }
   const msgs = await db.listConversation(currentSession.userId, activeContactId);
   const body = msgs
     .map((m) => {
@@ -3403,17 +3424,7 @@ async function renderConversation() {
       </div>`;
     })
     .join('');
-  const html = `
-    <h3 style="color:var(--navy);">${contact ? contact.name : 'Conversation'}</h3>
-    <div id="msg_thread" style="max-height:400px;overflow-y:auto;margin-bottom:14px;">${
-      body || '<p class="muted">No messages yet. Say hello.</p>'
-    }</div>
-    <div class="no-print" style="display:flex;gap:8px;">
-      <textarea id="msg_composeText" rows="2" style="margin-bottom:0;" placeholder="Type a message..."></textarea>
-      <button class="btn small" onclick="sendMessageClick()">Send</button>
-    </div>
-  `;
-  document.getElementById('docContent').innerHTML = html;
+  document.getElementById('msg_thread').innerHTML = body || '<p class="muted">No messages yet. Say hello.</p>';
   const thread = document.getElementById('msg_thread');
   thread.scrollTop = thread.scrollHeight;
 }
@@ -3421,7 +3432,7 @@ async function renderConversation() {
 async function sendMessageClick() {
   const textEl = document.getElementById('msg_composeText');
   const text = textEl.value.trim();
-  if (!text) return;
+  if (!text || !activeContactId) return;
   await db.sendMessage(activeContactId, text);
   textEl.value = '';
   await renderConversation();
@@ -3482,6 +3493,7 @@ Object.assign(window, {
   editTeacherClick,
   cancelTeacherEdit,
   saveTeacherEdit,
+  renderMessagesPage,
   openConversation,
   sendMessageClick,
   handlePhoto,

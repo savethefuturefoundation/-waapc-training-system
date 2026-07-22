@@ -731,13 +731,16 @@ export async function markThreadRead(myUserId, otherUserId) {
 // Announcements + Calendar — read by everyone, posted by admin/teacher.
 // ---------------------------------------------------------------------
 export async function listAnnouncements() {
-  const { data, error } = await supabase.from('announcements').select('*').order('created_at', { ascending: false });
+  const { data, error } = await supabase
+    .from('announcements')
+    .select('*, tests(name)')
+    .order('created_at', { ascending: false });
   if (error) throw error;
-  return data;
+  return data.map((a) => ({ ...a, targetTestName: a.tests?.name || null }));
 }
 
-export async function createAnnouncement(title, body) {
-  const { error } = await supabase.from('announcements').insert({ title, body: body || null });
+export async function createAnnouncement(title, body, targetTestId) {
+  const { error } = await supabase.from('announcements').insert({ title, body: body || null, target_test_id: targetTestId || null });
   if (error) throw error;
 }
 

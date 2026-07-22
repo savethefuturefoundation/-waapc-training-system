@@ -141,6 +141,19 @@
   .hidden { display: none !important; }
   .field-remove { background: var(--red-light); color: var(--red); border: none; border-radius: 6px; width: 26px; height: 26px; cursor: pointer; }
 
+  /* ---------------- Messages ---------------- */
+  .messages-layout { display: flex; align-items: flex-start; gap: 18px; }
+  .messages-contacts { width: 280px; flex-shrink: 0; }
+  .messages-thread { flex: 1; min-width: 0; }
+  .messages-thread #msg_thread { max-height: 420px; overflow-y: auto; margin-bottom: 14px; }
+  #msg_composeBar { display: flex; gap: 8px; }
+  #msg_composeBar textarea { margin-bottom: 0; }
+  .subject-card.contact-active { border: 1.5px solid var(--navy); background: var(--bg); }
+  @media (max-width: 860px) {
+    .messages-layout { flex-direction: column; }
+    .messages-contacts { width: 100%; }
+  }
+
   /* ---------------- Student profile (admin) ---------------- */
   .student-profile-layout { display: flex; align-items: flex-start; gap: 24px; }
   .student-subnav { width: 190px; flex-shrink: 0; position: sticky; top: 24px; display: flex; flex-direction: column; gap: 3px; }
