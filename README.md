@@ -47,6 +47,7 @@ Requirements: [Node.js](https://nodejs.org/) (LTS) and a Supabase project.
    - `extra_schema_19.sql` — Self-service display name, Teachers directory restricted to admin only, and teacher-to-program assignments (scopes a teacher's student list once admin assigns them)
    - `extra_schema_20.sql` — Tags a grade entry as an official GED Ready practice test score, for the "Most Recent GED Ready Practice Test Scores" dashboard
    - `extra_schema_21.sql` — Fixes a type-mismatch bug ("structure of query does not match function result type") in `list_teachers()` and `list_message_contacts()`
+   - `extra_schema_22.sql` — Fixes a "column reference email is ambiguous" bug in `list_message_contacts()`
 4. In Supabase **Authentication → Providers → Email**, turn off "Confirm email" (so a student's, teacher's, or parent's first-login signup works immediately).
 5. Create your admin account: **Authentication → Users → Add user** (check "Auto Confirm User"), then in the SQL Editor:
    ```sql
