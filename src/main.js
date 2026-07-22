@@ -458,7 +458,8 @@ async function renderTeachersPage() {
     console.error('renderTeachersPage failed:', e);
     document.querySelector('#teachersTable tbody').innerHTML = '';
     const empty = document.getElementById('teachersEmpty');
-    empty.textContent = 'Something went wrong loading this page. Try refreshing — if it keeps happening, let the admin know.';
+    const detail = e?.message || String(e || '');
+    empty.textContent = detail ? `Something went wrong loading teachers: ${detail}` : 'Something went wrong loading this page. Try refreshing — if it keeps happening, let the admin know.';
     empty.classList.remove('hidden');
   }
 }
@@ -3147,12 +3148,15 @@ function canPostAsStaff() {
 // A failed fetch (e.g. a migration not yet run) used to leave these
 // shared pages completely blank, which reads as broken. Always land on
 // a visible message instead — either the data, an empty state, or this.
-function showPageError(containerId, emptyId) {
+function showPageError(containerId, emptyId, error) {
   const el = document.getElementById(containerId);
   if (el) el.innerHTML = '';
   const empty = emptyId && document.getElementById(emptyId);
   if (empty) {
-    empty.textContent = 'Something went wrong loading this page. Try refreshing — if it keeps happening, let the admin know.';
+    const detail = error?.message || String(error || '');
+    empty.textContent = detail
+      ? `Something went wrong loading this page: ${detail}`
+      : 'Something went wrong loading this page. Try refreshing — if it keeps happening, let the admin know.';
     empty.classList.remove('hidden');
   }
 }
@@ -3195,7 +3199,7 @@ async function renderAnnouncementsPage() {
     .join('');
   } catch (e) {
     console.error('renderAnnouncementsPage failed:', e);
-    showPageError('ann_list', 'ann_listEmpty');
+    showPageError('ann_list', 'ann_listEmpty', e);
   }
 }
 
@@ -3335,7 +3339,7 @@ async function renderTimetablePage() {
       .join('');
   } catch (e) {
     console.error('renderTimetablePage failed:', e);
-    showPageError('tt_list', 'tt_listEmpty');
+    showPageError('tt_list', 'tt_listEmpty', e);
   }
 }
 
@@ -3704,15 +3708,22 @@ async function renderMessagesPage() {
       .join('');
   } catch (e) {
     console.error('renderMessagesPage failed:', e);
-    showPageError('msg_contacts', 'msg_contactsEmpty');
+    showPageError('msg_contacts', 'msg_contactsEmpty', e);
   }
 }
 
 async function openConversation(otherUserId) {
   activeContactId = otherUserId;
-  await db.markThreadRead(currentSession.userId, otherUserId);
-  await renderConversation();
-  await renderMessagesPage();
+  const errEl = document.getElementById('msg_error');
+  if (errEl) errEl.textContent = '';
+  try {
+    await db.markThreadRead(currentSession.userId, otherUserId);
+    await renderConversation();
+    await renderMessagesPage();
+  } catch (e) {
+    console.error('openConversation failed:', e);
+    if (errEl) errEl.textContent = 'Could not open this conversation: ' + (e.message || e);
+  }
 }
 
 async function renderConversation() {
@@ -3743,10 +3754,17 @@ async function renderConversation() {
 async function sendMessageClick() {
   const textEl = document.getElementById('msg_composeText');
   const text = textEl.value.trim();
+  const errEl = document.getElementById('msg_error');
+  if (errEl) errEl.textContent = '';
   if (!text || !activeContactId) return;
-  await db.sendMessage(activeContactId, text);
-  textEl.value = '';
-  await renderConversation();
+  try {
+    await db.sendMessage(activeContactId, text);
+    textEl.value = '';
+    await renderConversation();
+  } catch (e) {
+    console.error('sendMessageClick failed:', e);
+    if (errEl) errEl.textContent = 'Could not send: ' + (e.message || e);
+  }
 }
 
 // =====================================================================
