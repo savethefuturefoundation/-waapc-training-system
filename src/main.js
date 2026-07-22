@@ -33,11 +33,15 @@ function showAuthScreen(portal) {
   setRole(portal);
 }
 
+const SIDEBAR_NAME_FALLBACK = { admin: 'Administrator', teacher: 'Teacher', parent: 'Parent', student: 'Student' };
+
 function showAppShell(role) {
   document.getElementById('authScreen').classList.add('hidden');
   document.getElementById('appShell').classList.remove('hidden');
   document.getElementById('sidebarRoleBadge').textContent = ROLE_LABELS[role];
   document.getElementById('sidebarEmail').textContent = currentSession ? currentSession.email : '';
+  const displayName = role === 'student' && currentStudentRecord ? currentStudentRecord.fullName : currentSession?.fullName;
+  document.getElementById('sidebarName').textContent = displayName || SIDEBAR_NAME_FALLBACK[role] || '';
   document.getElementById('sidebarNavAdmin').classList.toggle('hidden', role !== 'admin');
   document.getElementById('sidebarNavTeacher').classList.toggle('hidden', role !== 'teacher');
   document.getElementById('sidebarNavParent').classList.toggle('hidden', role !== 'parent');
@@ -198,10 +202,12 @@ async function teacherLogout() {
 }
 
 async function renderTeacherStudentsTable() {
-  const students = await db.loadAllStudents();
+  const [allStudents, myTestIds] = await Promise.all([db.loadAllStudents(), db.listMyTeacherAssignments()]);
+  const students = myTestIds.length ? allStudents.filter((s) => s.programs.some((p) => myTestIds.includes(p.testId))) : allStudents;
   const tbody = document.querySelector('#teacherStudentsTable tbody');
   tbody.innerHTML = '';
   document.getElementById('teacherStudentsEmpty').classList.toggle('hidden', students.length > 0);
+  document.getElementById('teacherStudentsScopeNote').classList.toggle('hidden', myTestIds.length === 0);
   students.forEach((s) => {
     const tr = document.createElement('tr');
     tr.innerHTML = `
@@ -310,6 +316,9 @@ async function renderParentChildren() {
   const container = document.getElementById('parentChildren');
   document.getElementById('parentChildrenEmpty').classList.toggle('hidden', children.length > 0);
 
+  const namedChild = children.find((s) => s.guardian?.name);
+  if (namedChild) document.getElementById('sidebarName').textContent = namedChild.guardian.name;
+
   const cards = await Promise.all(
     children.map(async (s) => {
       const [assignments, grades, progressHtml] = await Promise.all([
@@ -393,31 +402,45 @@ async function revokeTeacherInvite(id) {
 let editingTeacherId = null;
 
 async function renderTeachersPage() {
+  await ensureCatalog();
   const teachers = await db.listTeachers();
   const tbody = document.querySelector('#teachersTable tbody');
   document.getElementById('teachersEmpty').classList.toggle('hidden', teachers.length > 0);
   const isAdmin = currentSession?.role === 'admin';
-  tbody.innerHTML = teachers
-    .map((t) => {
+
+  const rows = await Promise.all(
+    teachers.map(async (t) => {
+      const assignedIds = new Set(await db.listTeacherAssignments(t.id));
       if (editingTeacherId === t.id) {
+        const checkboxes = Object.keys(CATALOG)
+          .map(
+            (name) => `<label style="display:inline-flex;align-items:center;gap:4px;font-weight:normal;font-size:12px;margin-right:10px;white-space:nowrap;">
+              <input type="checkbox" class="teach-edit-program" value="${CATALOG[name].id}" style="width:auto;margin:0;" ${assignedIds.has(CATALOG[name].id) ? 'checked' : ''}> ${name}
+            </label>`
+          )
+          .join('');
         return `<tr>
           <td><input id="teach_edit_name" value="${t.fullName || ''}" style="margin-bottom:0;"></td>
           <td>${t.email}</td>
           <td><input id="teach_edit_subjects" value="${t.subjectsTaught || ''}" style="margin-bottom:0;" placeholder="e.g. Mathematics, Science"></td>
+          <td style="min-width:220px;">${checkboxes}</td>
           <td>
             <button class="btn small" onclick="saveTeacherEdit('${t.id}')">Save</button>
             <button class="btn ghost small" onclick="cancelTeacherEdit()">Cancel</button>
           </td>
         </tr>`;
       }
+      const assignedNames = Object.keys(CATALOG).filter((name) => assignedIds.has(CATALOG[name].id));
       return `<tr>
         <td>${t.fullName || '—'}</td>
         <td>${t.email}</td>
         <td>${t.subjectsTaught || '—'}</td>
+        <td>${assignedNames.length ? assignedNames.join(', ') : '<span class="muted">All (unrestricted)</span>'}</td>
         <td>${isAdmin ? `<button class="btn ghost small" onclick="editTeacherClick('${t.id}')">Edit</button>` : ''}</td>
       </tr>`;
     })
-    .join('');
+  );
+  tbody.innerHTML = rows.join('');
 }
 
 function editTeacherClick(id) {
@@ -433,8 +456,10 @@ function cancelTeacherEdit() {
 async function saveTeacherEdit(id) {
   const fullName = document.getElementById('teach_edit_name').value.trim();
   const subjectsTaught = document.getElementById('teach_edit_subjects').value.trim();
+  const testIds = Array.from(document.querySelectorAll('.teach-edit-program:checked')).map((el) => el.value);
   try {
     await db.updateTeacherProfile(id, { fullName, subjectsTaught });
+    await db.setTeacherAssignments(id, testIds);
   } catch (e) {
     alert('Could not save changes: ' + (e.message || e));
     return;
@@ -1614,9 +1639,22 @@ function closeDoc() {
 // Change password — available to every role from the sidebar.
 // =====================================================================
 function openChangePassword() {
+  const showNameField = currentSession && (currentSession.role === 'admin' || currentSession.role === 'teacher');
   const html = `
-    <h3 style="color:var(--navy);">Change password</h3>
-    <label>New password</label>
+    <h3 style="color:var(--navy);">Account settings</h3>
+    ${
+      showNameField
+        ? `
+    <label>Your name</label>
+    <div style="display:flex;gap:8px;">
+      <input id="cp_name" value="${currentSession.fullName || ''}" style="margin-bottom:0;">
+      <button class="btn small" onclick="updateMyNameClick()">Save</button>
+    </div>
+    <p id="cp_name_msg" class="muted" style="margin-top:4px;"></p>
+    `
+        : ''
+    }
+    <label style="margin-top:${showNameField ? '16px' : '0'};">New password</label>
     <input type="password" id="cp_new" placeholder="At least 6 characters">
     <label>Confirm new password</label>
     <input type="password" id="cp_confirm">
@@ -1626,6 +1664,26 @@ function openChangePassword() {
   `;
   document.getElementById('docContent').innerHTML = html;
   document.getElementById('docOverlay').classList.add('show');
+}
+
+async function updateMyNameClick() {
+  const name = document.getElementById('cp_name').value.trim();
+  const msgEl = document.getElementById('cp_name_msg');
+  if (!name) {
+    msgEl.textContent = 'Enter a name.';
+    msgEl.style.color = 'var(--red)';
+    return;
+  }
+  try {
+    await db.updateMyName(name);
+    currentSession.fullName = name;
+    document.getElementById('sidebarName').textContent = name;
+    msgEl.textContent = 'Saved.';
+    msgEl.style.color = 'var(--green)';
+  } catch (e) {
+    msgEl.textContent = e.message || 'Could not save name.';
+    msgEl.style.color = 'var(--red)';
+  }
 }
 
 async function changePasswordClick() {
@@ -3629,6 +3687,7 @@ Object.assign(window, {
   goHome,
   openChangePassword,
   changePasswordClick,
+  updateMyNameClick,
   adminLogin,
   adminLogout,
   teacherCheckEmail,

@@ -121,7 +121,6 @@
         <button class="sidebar-nav-item" onclick="sidebarNavTo('page-teacher-assignments', this)"><span class="sidebar-nav-icon">📚</span>Assignments</button>
         <button class="sidebar-nav-item" onclick="sidebarNavTo('tab-attendance', this); renderAttendancePage();"><span class="sidebar-nav-icon">✅</span>Attendance</button>
         <button class="sidebar-nav-item" onclick="sidebarNavTo('tab-parents', this); renderParentsPage();"><span class="sidebar-nav-icon">👨‍👩‍👧</span>Parents</button>
-        <button class="sidebar-nav-item" onclick="sidebarNavTo('tab-teachers', this); renderTeachersPage();"><span class="sidebar-nav-icon">👩‍🏫</span>Teachers</button>
         <button class="sidebar-nav-item" onclick="sidebarNavTo('tab-announcements', this); renderAnnouncementsPage();"><span class="sidebar-nav-icon">📢</span>Announcements</button>
         <button class="sidebar-nav-item" onclick="sidebarNavTo('tab-calendar', this); renderCalendarPage();"><span class="sidebar-nav-icon">📅</span>Calendar</button>
         <button class="sidebar-nav-item" onclick="sidebarNavTo('tab-timetable', this); renderTimetablePage();"><span class="sidebar-nav-icon">🗓</span>Timetable</button>
@@ -152,6 +151,7 @@
       <span>Authorized GED Provider</span>
     </div>
     <div class="sidebar-user">
+      <div class="sidebar-user-name" id="sidebarName"></div>
       <div class="sidebar-user-email" id="sidebarEmail"></div>
       <button class="btn ghost small" style="width:100%;justify-content:center;margin-bottom:6px;" onclick="openChangePassword()">Change password</button>
       <button class="btn ghost small" id="sidebarLogoutBtn" style="width:100%;justify-content:center;">Log out</button>
@@ -584,7 +584,7 @@ GED,Mathematical Reasoning,What is 7 x 8?,54,56,58,60,B"></textarea>
       <div class="card">
         <h2>Teachers</h2>
         <table id="teachersTable">
-          <thead><tr><th>Name</th><th>Email</th><th>Subjects taught</th><th></th></tr></thead>
+          <thead><tr><th>Name</th><th>Email</th><th>Subjects taught</th><th>Programs</th><th></th></tr></thead>
           <tbody></tbody>
         </table>
         <div id="teachersEmpty" class="empty hidden">No active teachers yet — invited teachers appear here once they log in for the first time.</div>
@@ -670,6 +670,7 @@ GED,Mathematical Reasoning,What is 7 x 8?,54,56,58,60,B"></textarea>
     <div id="page-teacher-students" class="page hidden">
       <div class="card">
         <h2>Students</h2>
+        <p class="muted hidden" id="teacherStudentsScopeNote">Showing only students enrolled in the program(s) assigned to you.</p>
         <table id="teacherStudentsTable">
           <thead><tr><th>Name</th><th>Program(s)</th><th>Actions</th></tr></thead>
           <tbody></tbody>

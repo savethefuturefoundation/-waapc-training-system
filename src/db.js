@@ -4,6 +4,12 @@ import { supabase } from './supabaseClient.js';
 // Catalog (tests + subjects), loaded once per session and cached in memory.
 // Replaces the prototype's hardcoded TEST_CATALOG.
 // ---------------------------------------------------------------------
+// GED, SAT, and ACT have no Speaking section in the real exam
+// (extra_schema_6.sql deletes any stray Speaking subject from them at the
+// database level). Filtered here too so the UI is correct even before
+// that migration has been run, or if a stray row reappears.
+const NO_SPEAKING_TESTS = new Set(['GED', 'SAT', 'ACT']);
+
 export async function loadCatalog() {
   const { data, error } = await supabase
     .from('tests')
@@ -13,12 +19,16 @@ export async function loadCatalog() {
 
   const catalog = {};
   for (const t of data) {
+    let subjects = (t.subjects || []).slice().sort((a, b) => a.sort_order - b.sort_order);
+    if (NO_SPEAKING_TESTS.has(t.name)) {
+      subjects = subjects.filter((s) => s.kind !== 'speaking' && !/speaking/i.test(s.name));
+    }
     catalog[t.name] = {
       id: t.id,
       price: Number(t.default_price),
       duration: t.default_duration_label,
       regOnlyPrice: Number(t.registration_only_price),
-      subjects: (t.subjects || []).slice().sort((a, b) => a.sort_order - b.sort_order),
+      subjects,
     };
   }
   return catalog;
@@ -36,7 +46,7 @@ const STUDENT_SELECT = `
   guardian_name, guardian_relationship, guardian_phone, guardian_email, address,
   photo_url, notes, created_at,
   enrollments (
-    id, level, sessions_per_week, start_date, end_date, registration_only, price,
+    id, test_id, level, sessions_per_week, start_date, end_date, registration_only, price,
     tests ( name ),
     attendance ( id, session_date, present )
   ),
@@ -58,6 +68,7 @@ function mapStudentRow(row) {
 
   const programs = (row.enrollments || []).map((e) => ({
     id: e.id,
+    testId: e.test_id,
     test: e.tests?.name,
     level: e.level,
     start: e.start_date,
@@ -445,6 +456,30 @@ export async function updateTeacherProfile(id, { fullName, subjectsTaught }) {
   if (error) throw error;
 }
 
+// Which program(s) a teacher is scoped to. Empty = unrestricted (sees
+// every student), matching pre-existing behavior until admin configures it.
+export async function listTeacherAssignments(teacherId) {
+  const { data, error } = await supabase.from('teacher_test_assignments').select('test_id').eq('teacher_id', teacherId);
+  if (error) throw error;
+  return data.map((r) => r.test_id);
+}
+
+export async function listMyTeacherAssignments() {
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return [];
+  return listTeacherAssignments(user.id);
+}
+
+export async function setTeacherAssignments(teacherId, testIds) {
+  const { error: delErr } = await supabase.from('teacher_test_assignments').delete().eq('teacher_id', teacherId);
+  if (delErr) throw delErr;
+  if (testIds.length === 0) return;
+  const { error: insErr } = await supabase.from('teacher_test_assignments').insert(testIds.map((testId) => ({ teacher_id: teacherId, test_id: testId })));
+  if (insErr) throw insErr;
+}
+
 export async function revokeTeacherInvite(id) {
   const { error } = await supabase.from('teacher_invites').delete().eq('id', id);
   if (error) throw error;
@@ -487,8 +522,13 @@ export async function getCurrentSessionInfo() {
     data: { session },
   } = await supabase.auth.getSession();
   if (!session) return null;
-  const { data: profile } = await supabase.from('profiles').select('role').eq('id', session.user.id).single();
-  return { userId: session.user.id, email: session.user.email, role: profile?.role || 'student' };
+  const { data: profile } = await supabase.from('profiles').select('role, full_name').eq('id', session.user.id).single();
+  return { userId: session.user.id, email: session.user.email, role: profile?.role || 'student', fullName: profile?.full_name || null };
+}
+
+export async function updateMyName(fullName) {
+  const { error } = await supabase.rpc('update_my_name', { new_name: fullName });
+  if (error) throw error;
 }
 
 // ---------------------------------------------------------------------
