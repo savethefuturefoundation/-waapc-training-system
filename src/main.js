@@ -196,8 +196,8 @@ async function renderTeacherStudentsTable() {
         <button class="btn ghost small" onclick="openAttendance('${s.id}')">Attendance</button>
         <button class="btn ghost small" onclick="openProgressReport('${s.id}')">Report</button>
         <button class="btn ghost small" onclick="openGradebook('${s.id}')">Gradebook</button>
-        <button class="btn ghost small" onclick="openPlacementResults('${s.id}')">Placement</button>
-        <button class="btn ghost small" onclick="openSpeakingSubmissions('${s.id}')">Speaking</button>
+        ${studentHasGed(s) ? `<button class="btn ghost small" onclick="openPlacementResults('${s.id}')">Placement</button>` : ''}
+        ${studentHasSpeaking(s) ? `<button class="btn ghost small" onclick="openSpeakingSubmissions('${s.id}')">Speaking</button>` : ''}
       </td>
     `;
     tbody.appendChild(tr);
@@ -819,6 +819,17 @@ function statusOf(student) {
   return 'unpaid';
 }
 
+// GED/SAT/ACT have no Placement assessment or Speaking section in real
+// life (extra_schema_6.sql strips any stray Speaking subject from them),
+// so those tabs only make sense for a student's actual enrolled program(s).
+function studentHasGed(student) {
+  return student.programs.some((p) => p.test === 'GED');
+}
+
+function studentHasSpeaking(student) {
+  return student.programs.some((p) => (CATALOG[p.test]?.subjects || []).some((sub) => /speaking/i.test(sub.name)));
+}
+
 // Interactive management screens (attendance, payments, gradebook,
 // placement, speaking) render in-place inside the student profile page
 // when it's open; everywhere else (teacher/parent views, or before the
@@ -858,11 +869,16 @@ async function studentProfileNav(section) {
   if (!currentProfileStudentId) return;
   document.querySelectorAll('.student-subnav-item').forEach((b) => b.classList.toggle('active', b.dataset.section === section));
   const id = currentProfileStudentId;
+  await ensureCatalog();
   const students = await db.loadAllStudents();
   const s = students.find((x) => x.id === id);
   if (!s) return;
   document.getElementById('sp_name').textContent = s.fullName;
   document.getElementById('sp_status').innerHTML = `<span class="badge ${statusOf(s)}">${statusOf(s)}</span>`;
+  const placementBtn = document.querySelector('.student-subnav-item[data-section="placement"]');
+  const speakingBtn = document.querySelector('.student-subnav-item[data-section="speaking"]');
+  if (placementBtn) placementBtn.classList.toggle('hidden', !studentHasGed(s));
+  if (speakingBtn) speakingBtn.classList.toggle('hidden', !studentHasSpeaking(s));
   if (section === 'attendance') return openAttendance(id);
   if (section === 'payments') return openPayments(id);
   if (section === 'gradebook') return openGradebook(id);
