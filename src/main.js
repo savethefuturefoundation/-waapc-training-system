@@ -202,7 +202,13 @@ async function teacherLogout() {
 }
 
 async function renderTeacherStudentsTable() {
-  const [allStudents, myTestIds] = await Promise.all([db.loadAllStudents(), db.listMyTeacherAssignments()]);
+  const allStudents = await db.loadAllStudents();
+  let myTestIds = [];
+  try {
+    myTestIds = await db.listMyTeacherAssignments();
+  } catch (e) {
+    console.error('listMyTeacherAssignments failed (has extra_schema_19.sql been run?):', e);
+  }
   const students = myTestIds.length ? allStudents.filter((s) => s.programs.some((p) => myTestIds.includes(p.testId))) : allStudents;
   const tbody = document.querySelector('#teacherStudentsTable tbody');
   tbody.innerHTML = '';
@@ -402,45 +408,59 @@ async function revokeTeacherInvite(id) {
 let editingTeacherId = null;
 
 async function renderTeachersPage() {
-  await ensureCatalog();
-  const teachers = await db.listTeachers();
-  const tbody = document.querySelector('#teachersTable tbody');
-  document.getElementById('teachersEmpty').classList.toggle('hidden', teachers.length > 0);
-  const isAdmin = currentSession?.role === 'admin';
+  try {
+    await ensureCatalog();
+    const teachers = await db.listTeachers();
+    const tbody = document.querySelector('#teachersTable tbody');
+    document.getElementById('teachersEmpty').textContent = 'No active teachers yet — invited teachers appear here once they log in for the first time.';
+    document.getElementById('teachersEmpty').classList.toggle('hidden', teachers.length > 0);
+    const isAdmin = currentSession?.role === 'admin';
 
-  const rows = await Promise.all(
-    teachers.map(async (t) => {
-      const assignedIds = new Set(await db.listTeacherAssignments(t.id));
-      if (editingTeacherId === t.id) {
-        const checkboxes = Object.keys(CATALOG)
-          .map(
-            (name) => `<label style="display:inline-flex;align-items:center;gap:4px;font-weight:normal;font-size:12px;margin-right:10px;white-space:nowrap;">
-              <input type="checkbox" class="teach-edit-program" value="${CATALOG[name].id}" style="width:auto;margin:0;" ${assignedIds.has(CATALOG[name].id) ? 'checked' : ''}> ${name}
-            </label>`
-          )
-          .join('');
+    const rows = await Promise.all(
+      teachers.map(async (t) => {
+        let assignedIds = new Set();
+        try {
+          assignedIds = new Set(await db.listTeacherAssignments(t.id));
+        } catch (e) {
+          console.error('listTeacherAssignments failed (has extra_schema_19.sql been run?):', e);
+        }
+        if (editingTeacherId === t.id) {
+          const checkboxes = Object.keys(CATALOG)
+            .map(
+              (name) => `<label style="display:inline-flex;align-items:center;gap:4px;font-weight:normal;font-size:12px;margin-right:10px;white-space:nowrap;">
+                <input type="checkbox" class="teach-edit-program" value="${CATALOG[name].id}" style="width:auto;margin:0;" ${assignedIds.has(CATALOG[name].id) ? 'checked' : ''}> ${name}
+              </label>`
+            )
+            .join('');
+          return `<tr>
+            <td><input id="teach_edit_name" value="${t.fullName || ''}" style="margin-bottom:0;"></td>
+            <td>${t.email}</td>
+            <td><input id="teach_edit_subjects" value="${t.subjectsTaught || ''}" style="margin-bottom:0;" placeholder="e.g. Mathematics, Science"></td>
+            <td style="min-width:220px;">${checkboxes}</td>
+            <td>
+              <button class="btn small" onclick="saveTeacherEdit('${t.id}')">Save</button>
+              <button class="btn ghost small" onclick="cancelTeacherEdit()">Cancel</button>
+            </td>
+          </tr>`;
+        }
+        const assignedNames = Object.keys(CATALOG).filter((name) => assignedIds.has(CATALOG[name].id));
         return `<tr>
-          <td><input id="teach_edit_name" value="${t.fullName || ''}" style="margin-bottom:0;"></td>
+          <td>${t.fullName || '—'}</td>
           <td>${t.email}</td>
-          <td><input id="teach_edit_subjects" value="${t.subjectsTaught || ''}" style="margin-bottom:0;" placeholder="e.g. Mathematics, Science"></td>
-          <td style="min-width:220px;">${checkboxes}</td>
-          <td>
-            <button class="btn small" onclick="saveTeacherEdit('${t.id}')">Save</button>
-            <button class="btn ghost small" onclick="cancelTeacherEdit()">Cancel</button>
-          </td>
+          <td>${t.subjectsTaught || '—'}</td>
+          <td>${assignedNames.length ? assignedNames.join(', ') : '<span class="muted">All (unrestricted)</span>'}</td>
+          <td>${isAdmin ? `<button class="btn ghost small" onclick="editTeacherClick('${t.id}')">Edit</button>` : ''}</td>
         </tr>`;
-      }
-      const assignedNames = Object.keys(CATALOG).filter((name) => assignedIds.has(CATALOG[name].id));
-      return `<tr>
-        <td>${t.fullName || '—'}</td>
-        <td>${t.email}</td>
-        <td>${t.subjectsTaught || '—'}</td>
-        <td>${assignedNames.length ? assignedNames.join(', ') : '<span class="muted">All (unrestricted)</span>'}</td>
-        <td>${isAdmin ? `<button class="btn ghost small" onclick="editTeacherClick('${t.id}')">Edit</button>` : ''}</td>
-      </tr>`;
-    })
-  );
-  tbody.innerHTML = rows.join('');
+      })
+    );
+    tbody.innerHTML = rows.join('');
+  } catch (e) {
+    console.error('renderTeachersPage failed:', e);
+    document.querySelector('#teachersTable tbody').innerHTML = '';
+    const empty = document.getElementById('teachersEmpty');
+    empty.textContent = 'Something went wrong loading this page. Try refreshing — if it keeps happening, let the admin know.';
+    empty.classList.remove('hidden');
+  }
 }
 
 function editTeacherClick(id) {
