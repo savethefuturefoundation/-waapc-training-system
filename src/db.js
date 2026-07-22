@@ -42,7 +42,7 @@ const STUDENT_SELECT = `
   ),
   invoices (
     id, invoice_number, invoice_date, total,
-    payment_installments ( id, amount, category, due_date, paid, paid_date, method, receipt_number )
+    payment_installments ( id, amount, category, due_date, payments ( id, amount, method, payment_date, receipt_number, notes ) )
   ),
   attempts (
     id, mode, score, total, taken_at,
@@ -71,16 +71,31 @@ function mapStudentRow(row) {
     (e.attendance || []).map((a) => ({ programId: e.id, date: a.session_date, present: a.present }))
   );
 
-  const installments = ((invoice && invoice.payment_installments) || []).map((i) => ({
-    id: i.id,
-    amount: Number(i.amount),
-    category: i.category,
-    dueDate: i.due_date,
-    paid: i.paid,
-    paidDate: i.paid_date,
-    receiptNumber: i.receipt_number,
-    method: i.method,
-  }));
+  const installments = ((invoice && invoice.payment_installments) || []).map((i) => {
+    const payments = (i.payments || [])
+      .map((p) => ({
+        id: p.id,
+        amount: Number(p.amount),
+        method: p.method,
+        date: p.payment_date,
+        receiptNumber: p.receipt_number,
+        notes: p.notes,
+      }))
+      .sort((a, b) => (a.date < b.date ? 1 : -1));
+    const amount = Number(i.amount);
+    const amountPaid = payments.reduce((s, p) => s + p.amount, 0);
+    const balance = amount - amountPaid;
+    return {
+      id: i.id,
+      amount,
+      category: i.category,
+      dueDate: i.due_date,
+      payments,
+      amountPaid,
+      balance,
+      status: balance <= 0 ? 'paid' : amountPaid > 0 ? 'partial' : 'unpaid',
+    };
+  });
 
   const attempts = (row.attempts || []).map((a) => ({
     id: a.id,
@@ -234,24 +249,66 @@ export async function registerStudent({ student, programs, installments, photoFi
 // ---------------------------------------------------------------------
 // Payments / attendance / certificates
 // ---------------------------------------------------------------------
-export async function markInstallmentPaid(installmentId, method) {
-  const seq = await nextSeq('receipt_seq');
-  const receiptNumber = 'RCT-' + String(seq).padStart(3, '0');
-  const { error } = await supabase
-    .from('payment_installments')
-    .update({
-      paid: true,
-      paid_date: new Date().toISOString().slice(0, 10),
-      method,
-      receipt_number: receiptNumber,
-    })
-    .eq('id', installmentId);
-  if (error) throw error;
-}
-
 export async function updateInstallment(id, { amount, category }) {
   const { error } = await supabase.from('payment_installments').update({ amount, category }).eq('id', id);
   if (error) throw error;
+}
+
+export async function addInstallmentLine(studentId, { amount, category, dueDate }) {
+  const { data: invoice, error: e1 } = await supabase.from('invoices').select('id').eq('student_id', studentId).single();
+  if (e1) throw e1;
+  const { error: e2 } = await supabase
+    .from('payment_installments')
+    .insert({ invoice_id: invoice.id, amount, category: category || 'other', due_date: dueDate || null });
+  if (e2) throw e2;
+}
+
+// ---------------------------------------------------------------------
+// Payments ledger — every cash/transfer receipt is its own dated,
+// receipted transaction against a fee line, so partial payments and
+// arrears are tracked accurately instead of a single paid flag.
+// ---------------------------------------------------------------------
+export async function recordPayment({ studentId, installmentId, amount, method, date, notes }) {
+  const seq = await nextSeq('receipt_seq');
+  const receiptNumber = 'RCT-' + String(seq).padStart(3, '0');
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  const { error } = await supabase.from('payments').insert({
+    student_id: studentId,
+    installment_id: installmentId,
+    amount,
+    method: method || 'Cash',
+    payment_date: date || new Date().toISOString().slice(0, 10),
+    receipt_number: receiptNumber,
+    notes: notes || null,
+    recorded_by: user?.id || null,
+  });
+  if (error) throw error;
+}
+
+export async function deletePayment(id) {
+  const { error } = await supabase.from('payments').delete().eq('id', id);
+  if (error) throw error;
+}
+
+export async function listAllPayments() {
+  const { data, error } = await supabase
+    .from('payments')
+    .select('id, amount, method, payment_date, receipt_number, notes, students(full_name), payment_installments(category)')
+    .order('payment_date', { ascending: false })
+    .order('created_at', { ascending: false });
+  if (error) throw error;
+  return data.map((p) => ({
+    id: p.id,
+    amount: Number(p.amount),
+    method: p.method,
+    date: p.payment_date,
+    receiptNumber: p.receipt_number,
+    notes: p.notes,
+    studentName: p.students?.full_name,
+    category: p.payment_installments?.category,
+  }));
 }
 
 export async function recordAttendance(enrollmentId, date, present) {

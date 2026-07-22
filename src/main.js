@@ -509,7 +509,7 @@ async function renderAdminDashboardStats() {
     : '';
 
   let totalIncome = 0;
-  students.forEach((s) => s.installments.forEach((inst) => { if (inst.paid) totalIncome += inst.amount; }));
+  students.forEach((s) => s.installments.forEach((inst) => { totalIncome += inst.amountPaid; }));
   const totalExpenses = expenses.reduce((sum, e) => sum + Number(e.amount), 0);
   document.getElementById('dash_finChart').innerHTML = hBarChart(
     [
@@ -741,7 +741,7 @@ function resetRegistrationForm() {
 // Students & Payments
 // =====================================================================
 function balanceOf(student) {
-  const paid = student.installments.filter((i) => i.paid).reduce((s, i) => s + i.amount, 0);
+  const paid = student.installments.reduce((s, i) => s + i.amountPaid, 0);
   return student.total - paid;
 }
 
@@ -1067,9 +1067,13 @@ function openInvoice(student) {
 
 const FEE_CATEGORY_LABELS = { registration: 'Registration', training: 'Training', test: 'Test', other: 'Other' };
 let editingInstallmentId = null;
+let payingInstallmentId = null;
+let expandedInstallmentId = null;
 
 async function openPayments(id) {
   editingInstallmentId = null;
+  payingInstallmentId = null;
+  expandedInstallmentId = null;
   await renderPaymentsView(id);
   document.getElementById('docOverlay').classList.add('show');
 }
@@ -1081,9 +1085,9 @@ async function renderPaymentsView(studentId) {
 
   const paidByCategory = {};
   s.installments.forEach((inst) => {
-    if (!inst.paid) return;
+    if (!inst.amountPaid) return;
     const cat = inst.category || 'other';
-    paidByCategory[cat] = (paidByCategory[cat] || 0) + inst.amount;
+    paidByCategory[cat] = (paidByCategory[cat] || 0) + inst.amountPaid;
   });
   const breakdown = Object.keys(FEE_CATEGORY_LABELS)
     .filter((c) => paidByCategory[c])
@@ -1099,32 +1103,67 @@ async function renderPaymentsView(studentId) {
       <td><select id="edit_category" style="margin-bottom:0;">${Object.keys(FEE_CATEGORY_LABELS)
         .map((c) => `<option value="${c}" ${inst.category === c ? 'selected' : ''}>${FEE_CATEGORY_LABELS[c]}</option>`)
         .join('')}</select></td>
-      <td>${inst.dueDate || '—'}</td>
-      <td><span class="badge ${inst.paid ? 'paid' : 'unpaid'}">${inst.paid ? 'Paid' : 'Unpaid'}</span></td>
+      <td>${inst.amountPaid.toLocaleString()} CFA</td>
+      <td>—</td>
       <td>
         <button class="btn small" onclick="saveInstallmentEdit('${studentId}','${inst.id}')">Save</button>
         <button class="btn ghost small" onclick="cancelInstallmentEdit('${studentId}')">Cancel</button>
       </td>
     </tr>`;
       }
-      return `<tr>
-      <td>${i + 1}</td>
+      const mainRow = `<tr>
+      <td>${i + 1} &middot; ${FEE_CATEGORY_LABELS[inst.category] || 'Other'}${inst.dueDate ? ` <span class="muted">(due ${inst.dueDate})</span>` : ''}</td>
       <td>${inst.amount.toLocaleString()} CFA</td>
-      <td>${FEE_CATEGORY_LABELS[inst.category] || 'Other'}</td>
-      <td>${inst.dueDate || '—'}</td>
-      <td><span class="badge ${inst.paid ? 'paid' : 'unpaid'}">${inst.paid ? 'Paid' : 'Unpaid'}</span></td>
+      <td>${inst.amountPaid.toLocaleString()} CFA</td>
+      <td>${inst.balance > 0 ? inst.balance.toLocaleString() + ' CFA' : '—'}</td>
+      <td><span class="badge ${inst.status}">${inst.status}</span></td>
       <td>
-        ${inst.paid ? `<button class="btn ghost small" onclick="viewReceipt('${s.id}','${inst.id}')">Receipt</button>` : `<button class="btn small" onclick="markPaid('${s.id}','${inst.id}')">Mark paid</button>`}
+        ${inst.balance > 0 ? `<button class="btn small" onclick="recordPaymentClick('${inst.id}','${studentId}')">Record payment</button>` : ''}
+        ${inst.payments.length ? `<button class="btn ghost small" onclick="toggleInstallmentHistory('${inst.id}','${studentId}')">${expandedInstallmentId === inst.id ? 'Hide' : ''} History (${inst.payments.length})</button>` : ''}
         <button class="btn ghost small" onclick="editInstallmentClick('${inst.id}','${studentId}')">Edit</button>
       </td>
     </tr>`;
+
+      let extraRow = '';
+      if (payingInstallmentId === inst.id) {
+        extraRow = `<tr><td colspan="6" style="background:var(--bg);">
+          <div class="grid4" style="align-items:end;">
+            <div><label>Amount (CFA)</label><input type="number" id="pay_amount" value="${inst.balance}" style="margin-bottom:0;"></div>
+            <div><label>Method</label><select id="pay_method" style="margin-bottom:0;"><option>Cash</option><option>Bank Transfer</option><option>Cheque</option><option>Wave</option><option>Mobile Money</option></select></div>
+            <div><label>Date</label><input type="date" id="pay_date" value="${new Date().toISOString().slice(0, 10)}" style="margin-bottom:0;"></div>
+            <div><label>Notes (optional)</label><input id="pay_notes" style="margin-bottom:0;"></div>
+          </div>
+          <div style="margin-top:10px;">
+            <button class="btn small" onclick="saveRecordPayment('${studentId}','${inst.id}')">Save payment</button>
+            <button class="btn ghost small" onclick="cancelRecordPayment('${studentId}')">Cancel</button>
+          </div>
+          <p id="pay_error" class="muted error-text"></p>
+        </td></tr>`;
+      } else if (expandedInstallmentId === inst.id && inst.payments.length) {
+        const histRows = inst.payments
+          .map(
+            (p) => `<tr>
+            <td>${p.date}</td><td>${p.amount.toLocaleString()} CFA</td><td>${p.method || '—'}</td><td>${p.receiptNumber || '—'}</td><td>${p.notes || '—'}</td>
+            <td>
+              <button class="btn ghost small" onclick="viewReceipt('${studentId}','${p.id}')">Receipt</button>
+              <button class="btn ghost small" onclick="voidPaymentClick('${p.id}','${studentId}')">Void</button>
+            </td>
+          </tr>`
+          )
+          .join('');
+        extraRow = `<tr><td colspan="6" style="background:var(--bg);padding:10px 14px;">
+          <table><thead><tr><th>Date</th><th>Amount</th><th>Method</th><th>Receipt</th><th>Notes</th><th></th></tr></thead><tbody>${histRows}</tbody></table>
+        </td></tr>`;
+      }
+      return mainRow + extraRow;
     })
     .join('');
   const html = `
     <h3 style="color:var(--navy);">${s.fullName} — Payment schedule</h3>
     <p class="muted">Total ${s.total.toLocaleString()} CFA &middot; Balance ${balanceOf(s).toLocaleString()} CFA</p>
     ${breakdown ? `<p class="muted">Paid so far — ${breakdown}</p>` : ''}
-    <table><thead><tr><th>#</th><th>Amount</th><th>For</th><th>Due date</th><th>Status</th><th>Action</th></tr></thead><tbody>${rows}</tbody></table>
+    <table><thead><tr><th>Fee</th><th>Owed</th><th>Paid</th><th>Balance</th><th>Status</th><th>Action</th></tr></thead><tbody>${rows}</tbody></table>
+    <button class="btn ghost small" style="margin-top:12px;" onclick="addFeeLineClick('${studentId}')">+ Add fee line</button>
   `;
   document.getElementById('docContent').innerHTML = html;
 }
@@ -1153,23 +1192,93 @@ async function saveInstallmentEdit(studentId, instId) {
   renderStudentsTable();
 }
 
-async function markPaid(studentId, installmentId) {
-  const method = prompt('Payment method (Bank Transfer / Cheque / Wave / Cash):', 'Cash');
-  if (method === null) return;
+function recordPaymentClick(instId, studentId) {
+  payingInstallmentId = instId;
+  expandedInstallmentId = null;
+  renderPaymentsView(studentId);
+}
+
+function cancelRecordPayment(studentId) {
+  payingInstallmentId = null;
+  renderPaymentsView(studentId);
+}
+
+async function saveRecordPayment(studentId, installmentId) {
+  const amount = Number(document.getElementById('pay_amount').value || 0);
+  const method = document.getElementById('pay_method').value;
+  const date = document.getElementById('pay_date').value;
+  const notes = document.getElementById('pay_notes').value.trim();
+  const errEl = document.getElementById('pay_error');
+  errEl.textContent = '';
+  if (!amount || amount <= 0) {
+    errEl.textContent = 'Enter an amount greater than 0.';
+    return;
+  }
   try {
-    await db.markInstallmentPaid(installmentId, method);
+    await db.recordPayment({ studentId, installmentId, amount, method, date, notes });
   } catch (e) {
-    alert('Could not record payment: ' + (e.message || e));
+    errEl.textContent = e.message || 'Could not record payment.';
+    return;
+  }
+  payingInstallmentId = null;
+  await renderPaymentsView(studentId);
+  renderStudentsTable();
+}
+
+function toggleInstallmentHistory(instId, studentId) {
+  expandedInstallmentId = expandedInstallmentId === instId ? null : instId;
+  payingInstallmentId = null;
+  renderPaymentsView(studentId);
+}
+
+async function voidPaymentClick(paymentId, studentId) {
+  if (!confirm('Void this payment? This cannot be undone — use it to correct a mistaken entry.')) return;
+  try {
+    await db.deletePayment(paymentId);
+  } catch (e) {
+    alert('Could not void payment: ' + (e.message || e));
     return;
   }
   await renderPaymentsView(studentId);
   renderStudentsTable();
 }
 
-async function viewReceipt(studentId, installmentId) {
+async function addFeeLineClick(studentId) {
+  const category = prompt('Fee category — registration, training, test, or other:', 'other');
+  if (category === null) return;
+  const amountStr = prompt('Amount owed for this fee (CFA):');
+  if (amountStr === null) return;
+  const amount = Number(amountStr);
+  if (!amount || amount <= 0) {
+    alert('Enter a valid amount.');
+    return;
+  }
+  const cat = Object.keys(FEE_CATEGORY_LABELS).includes(category.trim().toLowerCase()) ? category.trim().toLowerCase() : 'other';
+  try {
+    await db.addInstallmentLine(studentId, { amount, category: cat });
+  } catch (e) {
+    alert('Could not add fee line: ' + (e.message || e));
+    return;
+  }
+  await renderPaymentsView(studentId);
+  renderStudentsTable();
+}
+
+async function viewReceipt(studentId, paymentId) {
   const students = await db.loadAllStudents();
   const s = students.find((x) => x.id === studentId);
-  const inst = s.installments.find((i) => i.id === installmentId);
+  let payment = null;
+  let inst = null;
+  for (const i of s.installments) {
+    const p = i.payments.find((p) => p.id === paymentId);
+    if (p) {
+      payment = p;
+      inst = i;
+      break;
+    }
+  }
+  if (!payment) return;
+  const balanceAfter = inst.amount - inst.payments.filter((p) => p.date <= payment.date).reduce((sum, p) => sum + p.amount, 0);
   const html = `
     <div style="display:flex;justify-content:space-between;align-items:center;border-bottom:3px solid #1a2b6b;padding-bottom:16px;margin-bottom:20px;">
       ${documentHeaderLogos()}
@@ -1179,16 +1288,18 @@ async function viewReceipt(studentId, installmentId) {
       <div><div style="font-size:11px;font-weight:bold;">RECEIVED FROM</div>
         <div style="font-size:18px;font-weight:bold;color:#1a2b6b;">${s.fullName}</div></div>
       <div style="text-align:right;font-size:13px;">
-        <div><b>Receipt No.</b> ${inst.receiptNumber}</div>
-        <div><b>Date</b> ${inst.paidDate}</div>
+        <div><b>Receipt No.</b> ${payment.receiptNumber}</div>
+        <div><b>Date</b> ${payment.date}</div>
         <div><b>Invoice Ref.</b> ${s.invoiceNumber}</div>
       </div>
     </div>
     <div style="background:#1a2b6b;color:#fff;display:flex;justify-content:space-between;padding:14px 18px;font-weight:bold;font-size:16px;margin-bottom:16px;">
-      <span>AMOUNT RECEIVED</span><span style="background:#b81f2c;padding:5px 12px;">${inst.amount.toLocaleString()} CFA</span>
+      <span>AMOUNT RECEIVED</span><span style="background:#b81f2c;padding:5px 12px;">${payment.amount.toLocaleString()} CFA</span>
     </div>
-    <p><b>For:</b> ${FEE_CATEGORY_LABELS[inst.category] || 'Other'}</p>
-    <p><b>Payment method:</b> ${inst.method || '—'}</p>
+    <p><b>For:</b> ${FEE_CATEGORY_LABELS[inst.category] || 'Other'} (${inst.amount.toLocaleString()} CFA owed)</p>
+    <p><b>Payment method:</b> ${payment.method || '—'}</p>
+    <p><b>Balance remaining on this fee:</b> ${balanceAfter > 0 ? balanceAfter.toLocaleString() + ' CFA' : 'Paid in full'}</p>
+    ${payment.notes ? `<p><b>Notes:</b> ${payment.notes}</p>` : ''}
     ${signatureBlock()}
     <p style="margin-top:24px;font-size:11px;color:#666;text-align:center;border-top:1px solid #e0e4ec;padding-top:10px;">
       Thank you for choosing WAAPC Training Centre.
@@ -2679,17 +2790,20 @@ async function deleteTimetableEntryClick(id) {
 // =====================================================================
 // Finance (Admin only) — income (from paid installments) vs. expenses
 // =====================================================================
+let financeStudents = [];
+
 async function renderFinancePage() {
-  const [students, expenses] = await Promise.all([db.loadAllStudents(), db.listExpenses()]);
+  const [students, expenses, payments] = await Promise.all([db.loadAllStudents(), db.listExpenses(), db.listAllPayments()]);
+  financeStudents = students;
 
   const incomeByCategory = {};
   let totalIncome = 0;
   students.forEach((s) => {
     s.installments.forEach((inst) => {
-      if (!inst.paid) return;
+      if (!inst.amountPaid) return;
       const cat = inst.category || 'other';
-      incomeByCategory[cat] = (incomeByCategory[cat] || 0) + inst.amount;
-      totalIncome += inst.amount;
+      incomeByCategory[cat] = (incomeByCategory[cat] || 0) + inst.amountPaid;
+      totalIncome += inst.amountPaid;
     });
   });
   const totalExpenses = expenses.reduce((sum, e) => sum + Number(e.amount), 0);
@@ -2707,6 +2821,49 @@ async function renderFinancePage() {
       )
       .join('') || '<p class="muted">No income recorded yet.</p>';
 
+  const arrears = students
+    .map((s) => ({ s, balance: balanceOf(s) }))
+    .filter((x) => x.balance > 0)
+    .sort((a, b) => b.balance - a.balance);
+  document.getElementById('fin_arrearsEmpty').classList.toggle('hidden', arrears.length > 0);
+  document.querySelector('#fin_arrearsTable tbody').innerHTML = arrears
+    .map(({ s, balance }) => {
+      const paid = s.total - balance;
+      return `<tr>
+        <td>${s.fullName}</td>
+        <td>${s.programs.map((p) => p.test).join(', ') || '—'}</td>
+        <td>${s.total.toLocaleString()} CFA</td>
+        <td>${paid.toLocaleString()} CFA</td>
+        <td style="font-weight:bold;color:var(--red);">${balance.toLocaleString()} CFA</td>
+        <td><button class="btn small" onclick="financeSelectStudent('${s.id}')">Record payment</button></td>
+      </tr>`;
+    })
+    .join('');
+
+  document.getElementById('fin_ledgerEmpty').classList.toggle('hidden', payments.length > 0);
+  document.querySelector('#fin_ledgerTable tbody').innerHTML = payments
+    .map(
+      (p) => `<tr>
+      <td>${p.date}</td>
+      <td>${p.studentName || '—'}</td>
+      <td>${FEE_CATEGORY_LABELS[p.category] || 'Other'}</td>
+      <td>${p.amount.toLocaleString()} CFA</td>
+      <td>${p.method || '—'}</td>
+      <td>${p.receiptNumber || '—'}</td>
+      <td><button class="btn ghost small" onclick="financeVoidPaymentClick('${p.id}')">Void</button></td>
+    </tr>`
+    )
+    .join('');
+
+  const studentSelect = document.getElementById('pay_student');
+  const prevValue = studentSelect.value;
+  studentSelect.innerHTML =
+    '<option value="">Select a student…</option>' +
+    students.map((s) => `<option value="${s.id}">${s.fullName}${balanceOf(s) > 0 ? ' — owes ' + balanceOf(s).toLocaleString() + ' CFA' : ''}</option>`).join('');
+  studentSelect.value = prevValue;
+  populateFinanceInstallmentOptions();
+  if (!document.getElementById('fpay_date').value) document.getElementById('fpay_date').value = new Date().toISOString().slice(0, 10);
+
   const listEl = document.querySelector('#fin_expenseTable tbody');
   document.getElementById('fin_expenseListEmpty').classList.toggle('hidden', expenses.length > 0);
   listEl.innerHTML = expenses
@@ -2720,6 +2877,113 @@ async function renderFinancePage() {
       </tr>`
     )
     .join('');
+}
+
+function populateFinanceInstallmentOptions() {
+  const studentId = document.getElementById('pay_student').value;
+  const instSelect = document.getElementById('pay_installment');
+  const s = financeStudents.find((x) => x.id === studentId);
+  if (!s) {
+    instSelect.innerHTML = '<option value="">—</option>';
+    document.getElementById('fpay_amount').value = '';
+    return;
+  }
+  const outstanding = s.installments.filter((i) => i.balance > 0);
+  instSelect.innerHTML = outstanding.length
+    ? outstanding.map((i) => `<option value="${i.id}">${FEE_CATEGORY_LABELS[i.category] || 'Other'} — balance ${i.balance.toLocaleString()} CFA</option>`).join('')
+    : '<option value="">No outstanding fee lines — add one</option>';
+  onFinanceInstallmentChange();
+}
+
+function onFinancePayStudentChange() {
+  populateFinanceInstallmentOptions();
+}
+
+function onFinanceInstallmentChange() {
+  const studentId = document.getElementById('pay_student').value;
+  const instId = document.getElementById('pay_installment').value;
+  const s = financeStudents.find((x) => x.id === studentId);
+  const inst = s && s.installments.find((i) => i.id === instId);
+  document.getElementById('fpay_amount').value = inst ? inst.balance : '';
+}
+
+function financeSelectStudent(studentId) {
+  const select = document.getElementById('pay_student');
+  select.value = studentId;
+  populateFinanceInstallmentOptions();
+  select.scrollIntoView({ behavior: 'smooth', block: 'center' });
+}
+
+async function financeRecordPaymentClick() {
+  const studentId = document.getElementById('pay_student').value;
+  const installmentId = document.getElementById('pay_installment').value;
+  const amount = Number(document.getElementById('fpay_amount').value || 0);
+  const method = document.getElementById('fpay_method').value;
+  const date = document.getElementById('fpay_date').value;
+  const notes = document.getElementById('fpay_notes').value.trim();
+  const errEl = document.getElementById('fpay_error');
+  errEl.textContent = '';
+  if (!studentId) {
+    errEl.textContent = 'Select a student.';
+    return;
+  }
+  if (!installmentId) {
+    errEl.textContent = 'Select a fee line (or add one).';
+    return;
+  }
+  if (!amount || amount <= 0) {
+    errEl.textContent = 'Enter an amount greater than 0.';
+    return;
+  }
+  try {
+    await db.recordPayment({ studentId, installmentId, amount, method, date, notes });
+  } catch (e) {
+    errEl.textContent = e.message || 'Could not record payment.';
+    return;
+  }
+  document.getElementById('fpay_amount').value = '';
+  document.getElementById('fpay_notes').value = '';
+  await renderFinancePage();
+  document.getElementById('pay_student').value = studentId;
+  populateFinanceInstallmentOptions();
+}
+
+async function financeAddFeeLineClick() {
+  const studentId = document.getElementById('pay_student').value;
+  if (!studentId) {
+    alert('Select a student first.');
+    return;
+  }
+  const category = prompt('Fee category — registration, training, test, or other:', 'other');
+  if (category === null) return;
+  const amountStr = prompt('Amount owed for this fee (CFA):');
+  if (amountStr === null) return;
+  const amount = Number(amountStr);
+  if (!amount || amount <= 0) {
+    alert('Enter a valid amount.');
+    return;
+  }
+  const cat = Object.keys(FEE_CATEGORY_LABELS).includes(category.trim().toLowerCase()) ? category.trim().toLowerCase() : 'other';
+  try {
+    await db.addInstallmentLine(studentId, { amount, category: cat });
+  } catch (e) {
+    alert('Could not add fee line: ' + (e.message || e));
+    return;
+  }
+  await renderFinancePage();
+  document.getElementById('pay_student').value = studentId;
+  populateFinanceInstallmentOptions();
+}
+
+async function financeVoidPaymentClick(paymentId) {
+  if (!confirm('Void this payment? This cannot be undone — use it to correct a mistaken entry.')) return;
+  try {
+    await db.deletePayment(paymentId);
+  } catch (e) {
+    alert('Could not void payment: ' + (e.message || e));
+    return;
+  }
+  await renderFinancePage();
 }
 
 async function createExpenseClick() {
@@ -2978,12 +3242,23 @@ Object.assign(window, {
   openPlacementResults,
   closeDoc,
   openPayments,
-  markPaid,
   editInstallmentClick,
   cancelInstallmentEdit,
   saveInstallmentEdit,
+  recordPaymentClick,
+  cancelRecordPayment,
+  saveRecordPayment,
+  toggleInstallmentHistory,
+  voidPaymentClick,
+  addFeeLineClick,
   createExpenseClick,
   deleteExpenseClick,
+  onFinancePayStudentChange,
+  onFinanceInstallmentChange,
+  financeSelectStudent,
+  financeRecordPaymentClick,
+  financeAddFeeLineClick,
+  financeVoidPaymentClick,
   viewReceipt,
   openAttendance,
   recordAttendance,

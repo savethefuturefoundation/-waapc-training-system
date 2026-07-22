@@ -41,6 +41,7 @@ Requirements: [Node.js](https://nodejs.org/) (LTS) and a Supabase project.
    - `extra_schema_13.sql` — Timetable, seeded with WAAPC's real GED weekly schedule
    - `extra_schema_14.sql` — Payment fee categories (Registration/Training/Test/Other) on installments
    - `extra_schema_15.sql` — Finance: expenses tracking (admin only)
+   - `extra_schema_16.sql` — Payment ledger: every payment is now its own dated, receipted transaction, so partial payments and arrears are tracked accurately (existing "paid" installments are backfilled into the ledger automatically)
 4. In Supabase **Authentication → Providers → Email**, turn off "Confirm email" (so a student's, teacher's, or parent's first-login signup works immediately).
 5. Create your admin account: **Authentication → Users → Add user** (check "Auto Confirm User"), then in the SQL Editor:
    ```sql
