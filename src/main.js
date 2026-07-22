@@ -1220,6 +1220,7 @@ function statTile({ label, value, borderColor, navId }) {
 
 async function renderProgressPanel(s, opts = {}) {
   const [grades, assignments] = await Promise.all([db.listGradesForStudent(s.id), db.listAssignmentsForStudent(s.id)]);
+  const isGed = studentHasGed(s);
   const gedGrades = grades.filter((g) => g.test === 'GED');
   const attendancePct = attendanceRateOf(s);
   const doneCount = assignments.filter((a) => a.submission?.status === 'done').length;
@@ -1228,30 +1229,43 @@ async function renderProgressPanel(s, opts = {}) {
   const bestGed = gedGrades.length ? gedGrades.reduce((best, g) => (g.score > best.score ? g : best), gedGrades[0]) : null;
   const nav = (id) => (opts.interactive ? id : null);
 
-  const statTiles = `
-    <div class="stat-grid" style="grid-template-columns:repeat(4,1fr);margin-bottom:16px;">
-      ${statTile({
+  // GED score tiles/chart only make sense for students actually enrolled
+  // in GED — everyone else just gets attendance/assignments.
+  const tiles = [];
+  if (isGed) {
+    tiles.push(
+      statTile({
         label: 'Latest GED Score',
         value: latestGed ? latestGed.score + ' — ' + gedTier(latestGed.score) : '—',
         borderColor: latestGed ? GED_TIER_COLOR[gedTier(latestGed.score)] : 'var(--gold)',
         navId: nav('nav-student-grades'),
-      })}
-      ${statTile({
+      }),
+      statTile({
         label: 'Best GED Score',
         value: bestGed ? bestGed.score + ' — ' + gedTier(bestGed.score) : '—',
         borderColor: bestGed ? GED_TIER_COLOR[gedTier(bestGed.score)] : 'var(--gold)',
         navId: nav('nav-student-grades'),
-      })}
-      ${statTile({ label: 'Attendance', value: attendancePct !== null ? attendancePct + '%' : '—', navId: nav('nav-student-attendance') })}
-      ${statTile({ label: 'Assignments done', value: doneCount + '/' + assignments.length, navId: nav('nav-student-assignments') })}
+      })
+    );
+  }
+  tiles.push(
+    statTile({ label: 'Attendance', value: attendancePct !== null ? attendancePct + '%' : '—', navId: nav('nav-student-attendance') }),
+    statTile({ label: 'Assignments done', value: doneCount + '/' + assignments.length, navId: nav('nav-student-assignments') })
+  );
+
+  const statTiles = `
+    <div class="stat-grid" style="grid-template-columns:repeat(${tiles.length},1fr);margin-bottom:16px;">
+      ${tiles.join('')}
     </div>
   `;
 
-  const chart = gedGrades.length
+  const chart = !isGed
+    ? ''
+    : gedGrades.length
     ? `<div class="card"><h2>GED Score Progress</h2>${gedScoreTrendChart(gedGrades)}</div>`
     : '<p class="muted">No Friday GED test scores entered yet — this chart fills in as scores are recorded in the Gradebook.</p>';
 
-  const readyCards = studentHasGed(s) ? gedReadyScoreCards(gedGrades, opts) : '';
+  const readyCards = isGed ? gedReadyScoreCards(gedGrades, opts) : '';
 
   return readyCards + statTiles + chart;
 }
