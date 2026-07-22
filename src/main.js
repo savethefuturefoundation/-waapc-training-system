@@ -297,7 +297,11 @@ async function renderParentChildren() {
 
   const cards = await Promise.all(
     children.map(async (s) => {
-      const [assignments, grades] = await Promise.all([db.listAssignmentsForStudent(s.id), db.listGradesForStudent(s.id)]);
+      const [assignments, grades, progressHtml] = await Promise.all([
+        db.listAssignmentsForStudent(s.id),
+        db.listGradesForStudent(s.id),
+        renderProgressPanel(s),
+      ]);
       const assignmentsHtml = assignments.length
         ? assignments.map((a) => renderAssignmentCard(a, { editable: false })).join('')
         : '<p class="muted">No assignments yet.</p>';
@@ -311,6 +315,8 @@ async function renderParentChildren() {
         <p class="muted">${s.programs.map((p) => p.test).join(', ') || 'No programs enrolled'}</p>
         <button class="btn ghost small" onclick="openAttendance('${s.id}')">View attendance</button>
         <button class="btn ghost small" onclick="openProgressReport('${s.id}')">View progress report</button>
+        <h3 style="margin-top:16px;color:var(--navy);">Progress</h3>
+        ${progressHtml}
         <h3 style="margin-top:16px;color:var(--navy);">Grades</h3>
         ${gradesHtml}
         <h3 style="margin-top:16px;color:var(--navy);">Assignments</h3>
@@ -341,6 +347,7 @@ async function renderTeacherInvites() {
 async function addTeacherInvite() {
   const name = document.getElementById('t_name').value.trim();
   const email = document.getElementById('t_email').value.trim();
+  const subjects = document.getElementById('t_subjects').value.trim();
   const errEl = document.getElementById('t_inviteError');
   errEl.textContent = '';
   if (!email) {
@@ -348,9 +355,10 @@ async function addTeacherInvite() {
     return;
   }
   try {
-    await db.addTeacherInvite(email, name);
+    await db.addTeacherInvite(email, name, subjects);
     document.getElementById('t_name').value = '';
     document.getElementById('t_email').value = '';
+    document.getElementById('t_subjects').value = '';
     await renderTeacherInvites();
   } catch (e) {
     errEl.textContent = e.message || 'Could not send invite.';
@@ -360,6 +368,64 @@ async function addTeacherInvite() {
 async function revokeTeacherInvite(id) {
   await db.revokeTeacherInvite(id);
   await renderTeacherInvites();
+}
+
+// =====================================================================
+// Teachers directory (Admin/Teacher) — active teachers, mirroring the
+// Parents directory, so students know their tutors via the timetable
+// and admin can see who teaches what at a glance.
+// =====================================================================
+let editingTeacherId = null;
+
+async function renderTeachersPage() {
+  const teachers = await db.listTeachers();
+  const tbody = document.querySelector('#teachersTable tbody');
+  document.getElementById('teachersEmpty').classList.toggle('hidden', teachers.length > 0);
+  const isAdmin = currentSession?.role === 'admin';
+  tbody.innerHTML = teachers
+    .map((t) => {
+      if (editingTeacherId === t.id) {
+        return `<tr>
+          <td><input id="teach_edit_name" value="${t.fullName || ''}" style="margin-bottom:0;"></td>
+          <td>${t.email}</td>
+          <td><input id="teach_edit_subjects" value="${t.subjectsTaught || ''}" style="margin-bottom:0;" placeholder="e.g. Mathematics, Science"></td>
+          <td>
+            <button class="btn small" onclick="saveTeacherEdit('${t.id}')">Save</button>
+            <button class="btn ghost small" onclick="cancelTeacherEdit()">Cancel</button>
+          </td>
+        </tr>`;
+      }
+      return `<tr>
+        <td>${t.fullName || '—'}</td>
+        <td>${t.email}</td>
+        <td>${t.subjectsTaught || '—'}</td>
+        <td>${isAdmin ? `<button class="btn ghost small" onclick="editTeacherClick('${t.id}')">Edit</button>` : ''}</td>
+      </tr>`;
+    })
+    .join('');
+}
+
+function editTeacherClick(id) {
+  editingTeacherId = id;
+  renderTeachersPage();
+}
+
+function cancelTeacherEdit() {
+  editingTeacherId = null;
+  renderTeachersPage();
+}
+
+async function saveTeacherEdit(id) {
+  const fullName = document.getElementById('teach_edit_name').value.trim();
+  const subjectsTaught = document.getElementById('teach_edit_subjects').value.trim();
+  try {
+    await db.updateTeacherProfile(id, { fullName, subjectsTaught });
+  } catch (e) {
+    alert('Could not save changes: ' + (e.message || e));
+    return;
+  }
+  editingTeacherId = null;
+  await renderTeachersPage();
 }
 
 // =====================================================================
@@ -542,6 +608,7 @@ function showTab(name) {
   if (name === 'timetable') renderTimetablePage();
   if (name === 'attendance') renderAttendancePage();
   if (name === 'parents') renderParentsPage();
+  if (name === 'teachers') renderTeachersPage();
   if (name === 'finance') renderFinancePage();
 }
 
@@ -752,6 +819,68 @@ function statusOf(student) {
   return 'unpaid';
 }
 
+// Interactive management screens (attendance, payments, gradebook,
+// placement, speaking) render in-place inside the student profile page
+// when it's open; everywhere else (teacher/parent views, or before the
+// profile page exists) they fall back to the popup overlay. Printable
+// documents (invoice, progress report, certificate) always use the
+// popup so printing keeps working.
+function isStudentProfileActive() {
+  const el = document.getElementById('page-student-profile');
+  return !!el && !el.classList.contains('hidden');
+}
+
+function renderDoc(html) {
+  if (isStudentProfileActive()) {
+    document.getElementById('studentProfileContent').innerHTML = html;
+  } else {
+    document.getElementById('docContent').innerHTML = html;
+    document.getElementById('docOverlay').classList.add('show');
+  }
+}
+
+let currentProfileStudentId = null;
+
+async function openStudentProfile(id) {
+  currentProfileStudentId = id;
+  document.querySelectorAll('#appShell .page').forEach((p) => p.classList.add('hidden'));
+  document.querySelectorAll('.tab-btn').forEach((b) => b.classList.remove('active'));
+  document.getElementById('page-student-profile').classList.remove('hidden');
+  await studentProfileNav('overview');
+}
+
+function closeStudentProfile() {
+  currentProfileStudentId = null;
+  showTab('manage');
+}
+
+async function studentProfileNav(section) {
+  if (!currentProfileStudentId) return;
+  document.querySelectorAll('.student-subnav-item').forEach((b) => b.classList.toggle('active', b.dataset.section === section));
+  const id = currentProfileStudentId;
+  const students = await db.loadAllStudents();
+  const s = students.find((x) => x.id === id);
+  if (!s) return;
+  document.getElementById('sp_name').textContent = s.fullName;
+  document.getElementById('sp_status').innerHTML = `<span class="badge ${statusOf(s)}">${statusOf(s)}</span>`;
+  if (section === 'attendance') return openAttendance(id);
+  if (section === 'payments') return openPayments(id);
+  if (section === 'gradebook') return openGradebook(id);
+  if (section === 'placement') return openPlacementResults(id);
+  if (section === 'speaking') return openSpeakingSubmissions(id);
+  return openStudentDetail(id);
+}
+
+function openCurrentProfileInvoice() {
+  if (currentProfileStudentId) openInvoiceById(currentProfileStudentId);
+}
+function openCurrentProfileProgressReport() {
+  if (currentProfileStudentId) openProgressReport(currentProfileStudentId);
+}
+function openCurrentProfileCertificate() {
+  if (currentProfileStudentId) openCertificateForm(currentProfileStudentId);
+}
+
 async function renderStudentsTable() {
   const students = await db.loadAllStudents();
   const tbody = document.querySelector('#studentsTable tbody');
@@ -761,12 +890,12 @@ async function renderStudentsTable() {
     const status = statusOf(s);
     const tr = document.createElement('tr');
     tr.className = 'row-clickable';
-    tr.onclick = () => openStudentDetail(s.id);
+    tr.onclick = () => openStudentProfile(s.id);
     tr.innerHTML = `
       <td><b>${s.fullName}</b></td>
       <td>${s.programs.map((p) => p.test).join(', ') || '—'}</td>
       <td><span class="badge ${status}">${status}</span></td>
-      <td><button class="btn ghost small" onclick="event.stopPropagation(); openStudentDetail('${s.id}')">View</button></td>
+      <td><button class="btn ghost small" onclick="event.stopPropagation(); openStudentProfile('${s.id}')">View</button></td>
     `;
     tbody.appendChild(tr);
   });
@@ -778,6 +907,7 @@ async function openStudentDetail(id) {
   if (!s) return;
   const bal = balanceOf(s);
   const status = statusOf(s);
+  const progressHtml = await renderProgressPanel(s);
 
   const programRows = s.programs
     .map(
@@ -819,19 +949,10 @@ async function openStudentDetail(id) {
     <table><thead><tr><th>Program</th><th>Schedule</th><th>Price</th></tr></thead><tbody>${programRows}</tbody></table>
     <p class="muted" style="margin-top:10px;">Invoice ${s.invoiceNumber || '—'} — Total ${s.total.toLocaleString()} CFA, Balance ${bal.toLocaleString()} CFA</p>
 
-    <div style="margin-top:20px;display:flex;gap:8px;flex-wrap:wrap;" class="no-print">
-      <button class="btn small" onclick="openInvoiceById('${s.id}')">Invoice</button>
-      <button class="btn ghost small" onclick="openPayments('${s.id}')">Payments</button>
-      <button class="btn ghost small" onclick="openAttendance('${s.id}')">Attendance</button>
-      <button class="btn ghost small" onclick="openProgressReport('${s.id}')">Progress report</button>
-      <button class="btn ghost small" onclick="openGradebook('${s.id}')">Gradebook</button>
-      <button class="btn ghost small" onclick="openPlacementResults('${s.id}')">Placement</button>
-      <button class="btn ghost small" onclick="openCertificateForm('${s.id}')">Certificate</button>
-      <button class="btn ghost small" onclick="openSpeakingSubmissions('${s.id}')">Speaking</button>
-    </div>
+    <h3 style="color:var(--navy);margin-top:20px;">Progress</h3>
+    ${progressHtml}
   `;
-  document.getElementById('docContent').innerHTML = html;
-  document.getElementById('docOverlay').classList.add('show');
+  renderDoc(html);
 }
 
 // =====================================================================
@@ -848,6 +969,117 @@ function gedTier(score) {
 
 function gradeScoreDisplay(g) {
   return g.test === 'GED' ? `${g.score} / 200 — ${gedTier(g.score)}` : `${g.score} / ${g.maxScore}`;
+}
+
+// =====================================================================
+// Progress panel (student dashboard, parent per-child view, admin
+// overview) — GED score trend since Friday tests started, plus quick
+// stats. Baseline (GAPA placement, 0-100 English readiness) and GED
+// scores (100-200 official scale) are different measurements, so they
+// get separate panels rather than one misleading combined chart.
+// =====================================================================
+const GED_TIER_COLOR = {
+  'Below Passing': 'var(--red)',
+  Passing: 'var(--amber)',
+  'College Ready': 'var(--blue)',
+  'College Ready + Credit': 'var(--green)',
+};
+
+function gedScoreTrendChart(gedGrades) {
+  const points = gedGrades.slice().sort((a, b) => new Date(a.enteredAt) - new Date(b.enteredAt));
+  const W = 560, H = 240, ML = 42, MR = 16, MT = 16, MB = 44;
+  const plotW = W - ML - MR, plotH = H - MT - MB;
+  const yMin = 100, yMax = 200;
+  const scaleY = (v) => MT + ((yMax - v) / (yMax - yMin)) * plotH;
+  const scaleX = (i) => (points.length > 1 ? ML + (i / (points.length - 1)) * plotW : ML + plotW / 2);
+
+  const bands = [
+    { from: 100, to: 145, color: 'var(--red)' },
+    { from: 145, to: 165, color: 'var(--amber)' },
+    { from: 165, to: 175, color: 'var(--blue)' },
+    { from: 175, to: 200, color: 'var(--green)' },
+  ];
+  const bandRects = bands
+    .map((b) => `<rect x="${ML}" y="${scaleY(b.to)}" width="${plotW}" height="${scaleY(b.from) - scaleY(b.to)}" fill="${b.color}" opacity="0.07"></rect>`)
+    .join('');
+
+  const linePoints = points.map((g, i) => `${scaleX(i)},${scaleY(g.score)}`).join(' ');
+  const dots = points
+    .map((g, i) => {
+      const x = scaleX(i), y = scaleY(g.score);
+      const color = GED_TIER_COLOR[gedTier(g.score)];
+      const dateLabel = new Date(g.enteredAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+      return `
+        <circle cx="${x}" cy="${y}" r="5" fill="${color}" stroke="var(--white)" stroke-width="2"></circle>
+        <text x="${x}" y="${y - 12}" text-anchor="middle" font-size="11" font-weight="700" fill="var(--navy)">${g.score}</text>
+        <text x="${x}" y="${H - MB + 16}" text-anchor="middle" font-size="10" fill="var(--gray-500)">${dateLabel}</text>
+      `;
+    })
+    .join('');
+
+  const yTicks = [100, 145, 165, 175, 200]
+    .map(
+      (v) => `<text x="${ML - 8}" y="${scaleY(v) + 4}" text-anchor="end" font-size="10" fill="var(--gray-500)">${v}</text>
+      <line x1="${ML}" y1="${scaleY(v)}" x2="${ML + plotW}" y2="${scaleY(v)}" stroke="var(--gray-200)" stroke-width="1"></line>`
+    )
+    .join('');
+
+  const legend = Object.entries(GED_TIER_COLOR)
+    .map(
+      ([label, color]) =>
+        `<span style="display:inline-flex;align-items:center;gap:5px;margin-right:14px;font-size:11px;color:var(--gray-600);"><span style="width:9px;height:9px;border-radius:50%;background:${color};display:inline-block;"></span>${label}</span>`
+    )
+    .join('');
+
+  return `
+    <svg viewBox="0 0 ${W} ${H}" width="100%" style="max-width:560px;display:block;" role="img" aria-label="GED score trend: ${points
+    .map((g) => `${new Date(g.enteredAt).toLocaleDateString()} scored ${g.score}, ${gedTier(g.score)}`)
+    .join('; ')}">
+      ${bandRects}
+      ${yTicks}
+      <polyline points="${linePoints}" fill="none" stroke="var(--navy)" stroke-width="2"></polyline>
+      ${dots}
+    </svg>
+    <div style="margin-top:6px;">${legend}</div>
+  `;
+}
+
+function attendanceRateOf(student) {
+  const records = student.attendance || [];
+  if (!records.length) return null;
+  const present = records.filter((r) => r.present).length;
+  return Math.round((present / records.length) * 100);
+}
+
+async function renderProgressPanel(s) {
+  const [grades, assignments] = await Promise.all([db.listGradesForStudent(s.id), db.listAssignmentsForStudent(s.id)]);
+  const gedGrades = grades.filter((g) => g.test === 'GED');
+  const attendancePct = attendanceRateOf(s);
+  const doneCount = assignments.filter((a) => a.submission?.status === 'done').length;
+  const sortedGed = gedGrades.slice().sort((a, b) => new Date(b.enteredAt) - new Date(a.enteredAt));
+  const latestGed = sortedGed[0] || null;
+  const bestGed = gedGrades.length ? gedGrades.reduce((best, g) => (g.score > best.score ? g : best), gedGrades[0]) : null;
+
+  const statTiles = `
+    <div class="stat-grid" style="grid-template-columns:repeat(4,1fr);margin-bottom:16px;">
+      <div class="stat-card" style="border-left-color:${latestGed ? GED_TIER_COLOR[gedTier(latestGed.score)] : 'var(--gold)'};">
+        <div class="stat-label">Latest GED Score</div>
+        <div class="stat-value" style="font-size:19px;">${latestGed ? latestGed.score + ' — ' + gedTier(latestGed.score) : '—'}</div>
+      </div>
+      <div class="stat-card" style="border-left-color:${bestGed ? GED_TIER_COLOR[gedTier(bestGed.score)] : 'var(--gold)'};">
+        <div class="stat-label">Best GED Score</div>
+        <div class="stat-value" style="font-size:19px;">${bestGed ? bestGed.score + ' — ' + gedTier(bestGed.score) : '—'}</div>
+      </div>
+      <div class="stat-card"><div class="stat-label">Attendance</div><div class="stat-value" style="font-size:19px;">${attendancePct !== null ? attendancePct + '%' : '—'}</div></div>
+      <div class="stat-card"><div class="stat-label">Assignments done</div><div class="stat-value" style="font-size:19px;">${doneCount}/${assignments.length}</div></div>
+    </div>
+  `;
+
+  const chart = gedGrades.length
+    ? `<div class="card"><h2>GED Score Progress</h2>${gedScoreTrendChart(gedGrades)}</div>`
+    : '<p class="muted">No Friday GED test scores entered yet — this chart fills in as scores are recorded in the Gradebook.</p>';
+
+  return statTiles + chart;
 }
 
 function isGedSubject(subjectId) {
@@ -883,7 +1115,6 @@ async function openGradebook(studentId) {
   if (!s) return;
   await ensureCatalog();
   await renderGradebook(s);
-  document.getElementById('docOverlay').classList.add('show');
 }
 
 async function renderGradebook(s) {
@@ -935,7 +1166,7 @@ async function renderGradebook(s) {
       <p id="grade_error" class="muted error-text"></p>
     </div>
   `;
-  document.getElementById('docContent').innerHTML = html;
+  renderDoc(html);
   updateGradeScoreUI();
 }
 
@@ -1075,7 +1306,6 @@ async function openPayments(id) {
   payingInstallmentId = null;
   expandedInstallmentId = null;
   await renderPaymentsView(id);
-  document.getElementById('docOverlay').classList.add('show');
 }
 
 async function renderPaymentsView(studentId) {
@@ -1165,7 +1395,7 @@ async function renderPaymentsView(studentId) {
     <table><thead><tr><th>Fee</th><th>Owed</th><th>Paid</th><th>Balance</th><th>Status</th><th>Action</th></tr></thead><tbody>${rows}</tbody></table>
     <button class="btn ghost small" style="margin-top:12px;" onclick="addFeeLineClick('${studentId}')">+ Add fee line</button>
   `;
-  document.getElementById('docContent').innerHTML = html;
+  renderDoc(html);
 }
 
 function editInstallmentClick(instId, studentId) {
@@ -1348,8 +1578,7 @@ async function openAttendance(studentId) {
     </div>
     <table><thead><tr><th>Date</th><th>Program</th><th>Status</th></tr></thead><tbody>${rows || '<tr><td colspan="3" class="muted">No attendance recorded yet.</td></tr>'}</tbody></table>
   `;
-  document.getElementById('docContent').innerHTML = html;
-  document.getElementById('docOverlay').classList.add('show');
+  renderDoc(html);
 }
 
 async function recordAttendance(studentId, present) {
@@ -1526,8 +1755,7 @@ async function openSpeakingSubmissions(studentId) {
     <h3 style="color:#1a2b6b;">Speaking submissions</h3>
     ${rows || '<p class="muted">No speaking submissions yet.</p>'}
   `;
-  document.getElementById('docContent').innerHTML = html;
-  document.getElementById('docOverlay').classList.add('show');
+  renderDoc(html);
 }
 
 async function markSpeakingReviewed(studentId, submissionId) {
@@ -1559,6 +1787,12 @@ async function showStudentDashboardView() {
   renderMyAssignments();
   renderMyGrades();
   renderPlacementCard();
+  renderMyProgress();
+}
+
+async function renderMyProgress() {
+  if (!currentStudentRecord) return;
+  document.getElementById('progressPanel').innerHTML = await renderProgressPanel(currentStudentRecord);
 }
 
 async function renderMyGrades() {
@@ -1752,8 +1986,7 @@ async function openPlacementResults(studentId) {
       <tbody>${rows || '<tr><td colspan="7" class="muted">No placement attempts yet.</td></tr>'}</tbody>
     </table>
   `;
-  document.getElementById('docContent').innerHTML = html;
-  document.getElementById('docOverlay').classList.add('show');
+  renderDoc(html);
 }
 
 // =====================================================================
@@ -2730,8 +2963,16 @@ async function renderTimetablePage() {
     }
   }
 
-  const entries = await db.listTimetable();
+  let entries = await db.listTimetable();
   const listEl = document.getElementById('tt_list');
+
+  // Students see their own personal timetable: entries for their enrolled
+  // program(s) plus general (no-program) entries, with their tutor's name.
+  if (currentSession?.role === 'student' && currentStudentRecord) {
+    const myPrograms = new Set(currentStudentRecord.programs.map((p) => p.test));
+    entries = entries.filter((e) => !e.testName || myPrograms.has(e.testName));
+  }
+
   document.getElementById('tt_listEmpty').classList.toggle('hidden', entries.length > 0);
 
   const byDay = {};
@@ -2747,6 +2988,7 @@ async function renderTimetablePage() {
           (e) => `<tr>
         <td>${e.start.slice(0, 5)}–${e.end.slice(0, 5)}</td>
         <td>${e.activity}${e.testName ? ' <span class="muted">(' + e.testName + ')</span>' : ''}</td>
+        <td>${e.teacherName || '—'}</td>
         <td><span class="badge ${TIMETABLE_KIND_BADGE[e.kind] || 'neutral'}">${e.kind}</span></td>
         ${canPostAsStaff() ? `<td class="no-print"><button class="btn ghost small" onclick="deleteTimetableEntryClick('${e.id}')">Delete</button></td>` : ''}
       </tr>`
@@ -2754,7 +2996,7 @@ async function renderTimetablePage() {
         .join('');
       return `<div class="card">
         <h2>${TIMETABLE_DAY_LABELS[d]}</h2>
-        <table><thead><tr><th>Time</th><th>Activity</th><th>Type</th>${canPostAsStaff() ? '<th></th>' : ''}</tr></thead><tbody>${rows}</tbody></table>
+        <table><thead><tr><th>Time</th><th>Activity</th><th>Tutor</th><th>Type</th>${canPostAsStaff() ? '<th></th>' : ''}</tr></thead><tbody>${rows}</tbody></table>
       </div>`;
     })
     .join('');
@@ -2767,6 +3009,7 @@ async function createTimetableEntryClick() {
   const end = document.getElementById('tt_end').value;
   const activity = document.getElementById('tt_activity').value.trim();
   const kind = document.getElementById('tt_kind').value;
+  const teacherName = document.getElementById('tt_teacher').value.trim();
   const errEl = document.getElementById('tt_error');
   errEl.textContent = '';
   if (!start || !end || !activity) {
@@ -2774,8 +3017,9 @@ async function createTimetableEntryClick() {
     return;
   }
   try {
-    await db.createTimetableEntry({ testId, day, start, end, activity, kind });
+    await db.createTimetableEntry({ testId, day, start, end, activity, kind, teacherName });
     document.getElementById('tt_activity').value = '';
+    document.getElementById('tt_teacher').value = '';
     await renderTimetablePage();
   } catch (e) {
     errEl.textContent = e.message || 'Could not add timetable entry.';
@@ -3218,6 +3462,10 @@ Object.assign(window, {
   loadAttendanceRoster,
   markRosterAttendance,
   renderParentsPage,
+  renderTeachersPage,
+  editTeacherClick,
+  cancelTeacherEdit,
+  saveTeacherEdit,
   openConversation,
   sendMessageClick,
   handlePhoto,
@@ -3230,6 +3478,12 @@ Object.assign(window, {
   resetRegistrationForm,
   openInvoiceById,
   openStudentDetail,
+  openStudentProfile,
+  closeStudentProfile,
+  studentProfileNav,
+  openCurrentProfileInvoice,
+  openCurrentProfileProgressReport,
+  openCurrentProfileCertificate,
   openGradebook,
   addGradeClick,
   updateGradeScoreUI,

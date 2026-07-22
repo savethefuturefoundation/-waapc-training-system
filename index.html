@@ -105,7 +105,8 @@
         <button class="tab-btn sidebar-nav-item" data-tab="register" onclick="showTab('register')"><span class="sidebar-nav-icon">➕</span>New Registration</button>
         <button class="tab-btn sidebar-nav-item" data-tab="manage" onclick="showTab('manage')"><span class="sidebar-nav-icon">👥</span>Students & Payments</button>
         <button class="tab-btn sidebar-nav-item" data-tab="qb" onclick="showTab('qb')"><span class="sidebar-nav-icon">📝</span>Question Bank</button>
-        <button class="tab-btn sidebar-nav-item" data-tab="staff" onclick="showTab('staff')"><span class="sidebar-nav-icon">🧑‍🏫</span>Teachers</button>
+        <button class="tab-btn sidebar-nav-item" data-tab="staff" onclick="showTab('staff')"><span class="sidebar-nav-icon">🧑‍🏫</span>Invite Teachers</button>
+        <button class="tab-btn sidebar-nav-item" data-tab="teachers" onclick="showTab('teachers')"><span class="sidebar-nav-icon">👩‍🏫</span>Teachers</button>
         <button class="tab-btn sidebar-nav-item" data-tab="parents" onclick="showTab('parents')"><span class="sidebar-nav-icon">👨‍👩‍👧</span>Parents</button>
         <button class="tab-btn sidebar-nav-item" data-tab="finance" onclick="showTab('finance')"><span class="sidebar-nav-icon">💰</span>Finance</button>
         <button class="tab-btn sidebar-nav-item" data-tab="assignments" onclick="showTab('assignments')"><span class="sidebar-nav-icon">📚</span>Assignments</button>
@@ -120,6 +121,7 @@
         <button class="sidebar-nav-item" onclick="sidebarNavTo('page-teacher-assignments', this)"><span class="sidebar-nav-icon">📚</span>Assignments</button>
         <button class="sidebar-nav-item" onclick="sidebarNavTo('tab-attendance', this); renderAttendancePage();"><span class="sidebar-nav-icon">✅</span>Attendance</button>
         <button class="sidebar-nav-item" onclick="sidebarNavTo('tab-parents', this); renderParentsPage();"><span class="sidebar-nav-icon">👨‍👩‍👧</span>Parents</button>
+        <button class="sidebar-nav-item" onclick="sidebarNavTo('tab-teachers', this); renderTeachersPage();"><span class="sidebar-nav-icon">👩‍🏫</span>Teachers</button>
         <button class="sidebar-nav-item" onclick="sidebarNavTo('tab-announcements', this); renderAnnouncementsPage();"><span class="sidebar-nav-icon">📢</span>Announcements</button>
         <button class="sidebar-nav-item" onclick="sidebarNavTo('tab-calendar', this); renderCalendarPage();"><span class="sidebar-nav-icon">📅</span>Calendar</button>
         <button class="sidebar-nav-item" onclick="sidebarNavTo('tab-timetable', this); renderTimetablePage();"><span class="sidebar-nav-icon">🗓</span>Timetable</button>
@@ -256,6 +258,28 @@
       </div>
     </div>
 
+    <!-- ================= STUDENT PROFILE (Admin) ================= -->
+    <div id="page-student-profile" class="page hidden">
+      <div class="student-profile-layout">
+        <div class="student-subnav">
+          <button class="btn ghost small" onclick="closeStudentProfile()">&larr; Back to students</button>
+          <div class="student-subnav-name" id="sp_name"></div>
+          <div class="student-subnav-status" id="sp_status"></div>
+          <button class="student-subnav-item" data-section="overview" onclick="studentProfileNav('overview')">Overview</button>
+          <button class="student-subnav-item" data-section="attendance" onclick="studentProfileNav('attendance')">Attendance</button>
+          <button class="student-subnav-item" data-section="payments" onclick="studentProfileNav('payments')">Payments</button>
+          <button class="student-subnav-item" data-section="gradebook" onclick="studentProfileNav('gradebook')">Gradebook</button>
+          <button class="student-subnav-item" data-section="placement" onclick="studentProfileNav('placement')">Placement</button>
+          <button class="student-subnav-item" data-section="speaking" onclick="studentProfileNav('speaking')">Speaking</button>
+          <div class="student-subnav-divider"></div>
+          <button class="student-subnav-item" onclick="openCurrentProfileInvoice()">Invoice (print)</button>
+          <button class="student-subnav-item" onclick="openCurrentProfileProgressReport()">Progress report (print)</button>
+          <button class="student-subnav-item" onclick="openCurrentProfileCertificate()">Certificate (print)</button>
+        </div>
+        <div class="student-subnav-content" id="studentProfileContent"></div>
+      </div>
+    </div>
+
     <div id="tab-qb" class="page tab-panel hidden">
       <div class="card">
         <h2>Choose test & subject</h2>
@@ -366,9 +390,10 @@ GED,Mathematical Reasoning,What is 7 x 8?,54,56,58,60,B"></textarea>
       <div class="card">
         <h2>Invite a teacher</h2>
         <p class="muted">Add their email below, then have them open the Teacher portal — the login screen will let them set a password on first login.</p>
-        <div class="grid2">
+        <div class="grid3">
           <div><label>Full name</label><input id="t_name"></div>
           <div><label>Email</label><input id="t_email" type="email"></div>
+          <div><label>Subjects taught</label><input id="t_subjects" placeholder="e.g. Mathematics, Science"></div>
         </div>
         <button class="btn red" onclick="addTeacherInvite()">Send invite</button>
         <p id="t_inviteError" class="muted error-text"></p>
@@ -545,6 +570,18 @@ GED,Mathematical Reasoning,What is 7 x 8?,54,56,58,60,B"></textarea>
       </div>
     </div>
 
+    <!-- ================= TEACHERS DIRECTORY (Admin/Teacher only) ================= -->
+    <div id="tab-teachers" class="page hidden">
+      <div class="card">
+        <h2>Teachers</h2>
+        <table id="teachersTable">
+          <thead><tr><th>Name</th><th>Email</th><th>Subjects taught</th><th></th></tr></thead>
+          <tbody></tbody>
+        </table>
+        <div id="teachersEmpty" class="empty hidden">No active teachers yet — invited teachers appear here once they log in for the first time.</div>
+      </div>
+    </div>
+
     <!-- ================= ATTENDANCE (Admin/Teacher only) ================= -->
     <div id="tab-attendance" class="page hidden">
       <div class="card">
@@ -592,6 +629,8 @@ GED,Mathematical Reasoning,What is 7 x 8?,54,56,58,60,B"></textarea>
           <div><label>End time</label><input id="tt_end" type="time"></div>
           <div><label>Activity</label><input id="tt_activity"></div>
         </div>
+        <label>Tutor (optional)</label>
+        <input id="tt_teacher" placeholder="e.g. Mr. John Doe">
         <button class="btn red" onclick="createTimetableEntryClick()">Add entry</button>
         <p id="tt_error" class="muted error-text"></p>
       </div>
@@ -660,6 +699,7 @@ GED,Mathematical Reasoning,What is 7 x 8?,54,56,58,60,B"></textarea>
         <h2 id="welcomeMsg"></h2>
         <div id="enrollmentsList"></div>
       </div>
+      <div id="progressPanel"></div>
       <div class="card">
         <h2>Assignments</h2>
         <div id="myAssignmentsList"></div>

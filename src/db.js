@@ -410,8 +410,10 @@ export async function teacherSignUp(email, password) {
   if (claimErr) throw claimErr;
 }
 
-export async function addTeacherInvite(email, fullName) {
-  const { error } = await supabase.from('teacher_invites').insert({ email: email.toLowerCase(), full_name: fullName || null });
+export async function addTeacherInvite(email, fullName, subjectsTaught) {
+  const { error } = await supabase
+    .from('teacher_invites')
+    .insert({ email: email.toLowerCase(), full_name: fullName || null, subjects_taught: subjectsTaught || null });
   if (error) throw error;
 }
 
@@ -419,6 +421,17 @@ export async function listTeacherInvites() {
   const { data, error } = await supabase.from('teacher_invites').select('*').order('created_at', { ascending: false });
   if (error) throw error;
   return data;
+}
+
+export async function listTeachers() {
+  const { data, error } = await supabase.rpc('list_teachers');
+  if (error) throw error;
+  return (data || []).map((t) => ({ id: t.id, email: t.email, fullName: t.full_name, subjectsTaught: t.subjects_taught }));
+}
+
+export async function updateTeacherProfile(id, { fullName, subjectsTaught }) {
+  const { error } = await supabase.from('profiles').update({ full_name: fullName, subjects_taught: subjectsTaught }).eq('id', id);
+  if (error) throw error;
 }
 
 export async function revokeTeacherInvite(id) {
@@ -856,13 +869,14 @@ export async function listTimetable() {
     end: t.end_time,
     activity: t.activity,
     kind: t.kind,
+    teacherName: t.teacher_name,
   }));
 }
 
-export async function createTimetableEntry({ testId, day, start, end, activity, kind }) {
+export async function createTimetableEntry({ testId, day, start, end, activity, kind, teacherName }) {
   const { error } = await supabase
     .from('timetable_entries')
-    .insert({ test_id: testId || null, day_of_week: day, start_time: start, end_time: end, activity, kind });
+    .insert({ test_id: testId || null, day_of_week: day, start_time: start, end_time: end, activity, kind, teacher_name: teacherName || null });
   if (error) throw error;
 }
 

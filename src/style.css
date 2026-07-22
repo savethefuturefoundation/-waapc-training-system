@@ -141,6 +141,26 @@
   .hidden { display: none !important; }
   .field-remove { background: var(--red-light); color: var(--red); border: none; border-radius: 6px; width: 26px; height: 26px; cursor: pointer; }
 
+  /* ---------------- Student profile (admin) ---------------- */
+  .student-profile-layout { display: flex; align-items: flex-start; gap: 24px; }
+  .student-subnav { width: 190px; flex-shrink: 0; position: sticky; top: 24px; display: flex; flex-direction: column; gap: 3px; }
+  .student-subnav-name { margin-top: 14px; font-weight: 800; color: var(--navy); font-size: 15px; line-height: 1.25; }
+  .student-subnav-status { margin: 4px 0 10px; }
+  .student-subnav-item {
+    display: block; width: 100%; text-align: left; background: transparent; border: none;
+    padding: 10px 12px; border-radius: 8px; font-size: 13px; font-weight: 600; color: var(--gray-600);
+    cursor: pointer; font-family: inherit;
+  }
+  .student-subnav-item:hover { background: var(--bg); }
+  .student-subnav-item.active { background: var(--navy); color: var(--white); }
+  .student-subnav-divider { height: 1px; background: var(--gray-200); margin: 8px 4px; }
+  .student-subnav-content { flex: 1; min-width: 0; }
+  @media (max-width: 860px) {
+    .student-profile-layout { flex-direction: column; }
+    .student-subnav { width: 100%; position: static; flex-direction: row; flex-wrap: wrap; }
+    .student-subnav-name, .student-subnav-status { width: 100%; }
+  }
+
   @media print {
     .auth-screen, .app-shell, .no-print { display: none !important; }
     .doc-overlay { position: static !important; background: none !important; padding: 0 !important; overflow: visible !important; }
