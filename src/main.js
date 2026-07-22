@@ -1978,40 +1978,45 @@ function renderCertificate(student, program, cert) {
   const html = `
     <div class="certificate-frame">
       <div class="certificate-inner">
-        <img src="/logo-waapc.jpg" class="certificate-crest" alt="WAAPC">
-        <div class="certificate-org">WAAPC TRAINING CENTRE</div>
-        <div class="certificate-org-sub">${isGed ? 'Authorized GED Testing Service Provider' : 'Testing & Examination Services'}</div>
+        <img src="/logo-waapc.jpg" class="certificate-watermark" alt="">
+        <div class="certificate-content">
+          <img src="/logo-waapc.jpg" class="certificate-crest" alt="WAAPC">
+          <div class="certificate-org">WAAPC TRAINING CENTRE</div>
+          <div class="certificate-org-sub">${isGed ? 'Authorized GED Testing Service Provider' : 'Testing & Examination Services'}</div>
 
-        <div class="certificate-kicker">Certificate of Completion</div>
-        <div class="certificate-presented">This certificate is proudly presented to</div>
-        <div class="certificate-name">${student.fullName}</div>
-        <div class="certificate-rule"></div>
+          <div class="certificate-kicker">Certificate of Completion</div>
+          <div class="certificate-presented">This certificate is proudly presented to</div>
+          <div class="certificate-name">${student.fullName}</div>
+          <div class="certificate-rule"></div>
 
-        <p class="certificate-body">
-          For successfully completing the <strong>${program.test} Preparation Program</strong> at WAAPC Training Centre,
-          demonstrating commitment, discipline, and mastery of the required competencies.
-        </p>
-        ${statsParts.length ? `<p class="certificate-stats">${statsParts.join(' &nbsp;·&nbsp; ')}</p>` : '<div style="margin-bottom:30px;"></div>'}
+          <p class="certificate-body">
+            For successfully completing the <strong>${program.test} Preparation Program</strong> at WAAPC Training Centre,
+            demonstrating commitment, discipline, and mastery of the required competencies.
+          </p>
+          ${statsParts.length ? `<p class="certificate-stats">${statsParts.join(' &nbsp;·&nbsp; ')}</p>` : '<div style="margin-bottom:30px;"></div>'}
 
-        <div class="certificate-sig-row">
-          <div class="certificate-sig-col">
-            <div class="certificate-meta-label">Certificate No.</div>
-            <div class="certificate-meta-value">${cert.certNumber}</div>
-            <div class="certificate-meta-label" style="margin-top:10px;">Date Issued</div>
-            <div class="certificate-meta-value">${cert.issuedDate}</div>
-          </div>
-          ${
-            isGed
-              ? `<div class="certificate-seal-wrap">
-            <img src="/badge-ged-authorized.jpg" class="certificate-seal" alt="Authorized GED Provider Seal">
-          </div>`
-              : ''
-          }
-          <div class="certificate-sig-col certificate-sig-col-right">
-            <div class="certificate-sig-blank"></div>
-            <div class="certificate-sig-line"></div>
-            <div class="certificate-sig-name">Samuel Palmer</div>
-            <div class="certificate-sig-title">Academic Lead</div>
+          <div class="certificate-sig-row">
+            <div class="certificate-sig-col">
+              <div class="certificate-meta-label">Certificate No.</div>
+              <div class="certificate-meta-value">${cert.certNumber}</div>
+              <div class="certificate-meta-label" style="margin-top:10px;">Date Issued</div>
+              <div class="certificate-meta-value">${cert.issuedDate}</div>
+            </div>
+            ${
+              isGed
+                ? `<div class="certificate-seal-wrap">
+              <img src="/badge-ged-authorized.jpg" class="certificate-seal" alt="Authorized GED Provider Seal">
+            </div>`
+                : `<div class="certificate-own-seal-wrap">
+              <img src="/logo-waapc.jpg" class="certificate-own-seal" alt="WAAPC Seal">
+            </div>`
+            }
+            <div class="certificate-sig-col certificate-sig-col-right">
+              <div class="certificate-sig-blank"></div>
+              <div class="certificate-sig-line"></div>
+              <div class="certificate-sig-name">Samuel Palmer</div>
+              <div class="certificate-sig-title">Academic Lead</div>
+            </div>
           </div>
         </div>
       </div>

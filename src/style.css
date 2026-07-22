@@ -131,8 +131,10 @@
 
   /* ---------------- Certificate ---------------- */
   .certificate-frame { padding: 10px; background: var(--navy); border-radius: 6px; }
-  .certificate-inner { background: #FFFDF7; border: 1.5px solid var(--gold); padding: 46px 40px 34px; text-align: center; position: relative; }
-  .certificate-inner::before { content: ''; position: absolute; inset: 7px; border: 1px solid var(--navy-light); pointer-events: none; }
+  .certificate-inner { background: #FFFDF7; border: 1.5px solid var(--gold); padding: 46px 40px 34px; text-align: center; position: relative; overflow: hidden; }
+  .certificate-inner::before { content: ''; position: absolute; inset: 7px; border: 1px solid var(--navy-light); pointer-events: none; z-index: 2; }
+  .certificate-watermark { position: absolute; top: 50%; left: 50%; transform: translate(-50%,-50%); width: 320px; height: 320px; object-fit: contain; opacity: 0.05; pointer-events: none; z-index: 0; }
+  .certificate-content { position: relative; z-index: 1; }
   .certificate-crest { width: 60px; height: 60px; object-fit: contain; margin: 0 auto 10px; display: block; }
   .certificate-org { font-size: 12px; font-weight: 800; letter-spacing: 3px; color: var(--gold); }
   .certificate-org-sub { font-size: 10px; color: var(--gray-500); letter-spacing: 1px; margin-top: 3px; text-transform: uppercase; }
@@ -150,6 +152,8 @@
   .certificate-meta-value { font-size: 12px; font-weight: 700; color: var(--navy); margin-top: 1px; }
   .certificate-seal-wrap { flex-shrink: 0; }
   .certificate-seal { width: 68px; height: 68px; object-fit: contain; opacity: 0.95; }
+  .certificate-own-seal-wrap { flex-shrink: 0; }
+  .certificate-own-seal { width: 62px; height: 62px; object-fit: cover; border-radius: 50%; border: 3px double var(--navy); padding: 6px; background: #fff; }
   .certificate-signature { font-size: 28px; line-height: 1; }
   .certificate-sig-blank { height: 34px; }
   .certificate-sig-line { border-top: 1px solid var(--gray-400); margin-top: 3px; padding-top: 4px; width: 170px; margin-left: auto; }
