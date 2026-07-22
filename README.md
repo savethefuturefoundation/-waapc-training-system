@@ -45,6 +45,7 @@ Requirements: [Node.js](https://nodejs.org/) (LTS) and a Supabase project.
    - `extra_schema_17.sql` — Teachers directory (subjects taught, `list_teachers()`) and a tutor name on each timetable entry
    - `extra_schema_18.sql` — Announcement audience targeting (post to everyone or one program only)
    - `extra_schema_19.sql` — Self-service display name, Teachers directory restricted to admin only, and teacher-to-program assignments (scopes a teacher's student list once admin assigns them)
+   - `extra_schema_20.sql` — Tags a grade entry as an official GED Ready practice test score, for the "Most Recent GED Ready Practice Test Scores" dashboard
 4. In Supabase **Authentication → Providers → Email**, turn off "Confirm email" (so a student's, teacher's, or parent's first-login signup works immediately).
 5. Create your admin account: **Authentication → Users → Add user** (check "Auto Confirm User"), then in the SQL Editor:
    ```sql

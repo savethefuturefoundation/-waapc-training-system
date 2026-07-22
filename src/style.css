@@ -9,6 +9,7 @@
     --red: #C62828; --red-light: #FFEBEE; --red-border: #EF9A9A;
     --amber: #E65100; --amber-light: #FFF3E0;
     --blue: #1565C0; --blue-light: #E3F2FD;
+    --purple: #6A3D82; --teal: #1B7A8C;
   }
   * { box-sizing: border-box; }
   body {
@@ -141,6 +142,20 @@
   .empty { text-align: center; color: var(--gray-400); padding: 30px; font-size: 13px; }
   .hidden { display: none !important; }
   .field-remove { background: var(--red-light); color: var(--red); border: none; border-radius: 6px; width: 26px; height: 26px; cursor: pointer; }
+
+  /* ---------------- GED Ready score cards ---------------- */
+  .ged-ready-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 18px; margin-top: 14px; }
+  .ged-ready-card { border-radius: 12px; overflow: hidden; box-shadow: 0 2px 8px rgba(27,58,107,0.08); background: var(--white); }
+  .ged-ready-card-header { padding: 14px 18px; color: #fff; }
+  .ged-ready-card-kicker { font-size: 10px; font-weight: 700; letter-spacing: 0.6px; opacity: 0.85; margin-bottom: 4px; text-transform: uppercase; }
+  .ged-ready-card-subject { font-size: 17px; font-weight: 800; }
+  .ged-ready-card-body { padding: 22px 18px; text-align: center; }
+  .ged-ready-score-circle { width: 84px; height: 84px; border-radius: 50%; background: var(--gray-100); color: var(--gray-800); display: flex; align-items: center; justify-content: center; font-size: 26px; font-weight: 800; margin: 0 auto 12px; }
+  .ged-ready-status { font-weight: 700; color: var(--gray-600); margin-bottom: 4px; font-size: 13px; }
+  .ged-ready-date { font-size: 11px; color: var(--gray-400); margin-bottom: 10px; }
+  .ged-ready-pill { display: inline-block; padding: 7px 18px; border-radius: 20px; font-size: 12px; font-weight: 700; border: 1.5px solid; }
+  .ged-ready-report-link { display: block; margin-top: 8px; font-size: 12px; font-weight: 600; }
+  @media (max-width: 860px) { .ged-ready-grid { grid-template-columns: 1fr; } }
 
   /* ---------------- Messages ---------------- */
   .messages-layout { display: flex; align-items: flex-start; gap: 18px; }

@@ -828,7 +828,7 @@ export async function deleteCalendarEvent(id) {
 export async function listGradesForStudent(studentId) {
   const { data, error } = await supabase
     .from('grades')
-    .select('id, label, score, max_score, notes, entered_at, subjects(name, tests(name))')
+    .select('id, label, score, max_score, notes, entered_at, source, subjects(name, tests(name))')
     .eq('student_id', studentId)
     .order('entered_at', { ascending: false });
   if (error) throw error;
@@ -839,12 +839,13 @@ export async function listGradesForStudent(studentId) {
     maxScore: Number(g.max_score),
     notes: g.notes,
     enteredAt: g.entered_at,
+    source: g.source || 'manual',
     subject: g.subjects?.name,
     test: g.subjects?.tests?.name,
   }));
 }
 
-export async function addGrade({ studentId, subjectId, label, score, maxScore, notes }) {
+export async function addGrade({ studentId, subjectId, label, score, maxScore, notes, source }) {
   const { error } = await supabase.from('grades').insert({
     student_id: studentId,
     subject_id: subjectId,
@@ -852,6 +853,7 @@ export async function addGrade({ studentId, subjectId, label, score, maxScore, n
     score,
     max_score: maxScore,
     notes: notes || null,
+    source: source || 'manual',
   });
   if (error) throw error;
 }

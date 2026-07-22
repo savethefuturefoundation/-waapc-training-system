@@ -1064,6 +1064,65 @@ const GED_TIER_COLOR = {
   'College Ready + Credit': 'var(--green)',
 };
 
+// The four real GED content areas, in the fixed order/colors GED Ready's
+// own score report uses — every student sees the same subject always in
+// the same color, so identity never depends on the data.
+const GED_READY_SUBJECTS = [
+  { name: 'Science', short: 'Science', color: 'var(--red)' },
+  { name: 'Social Studies', short: 'Social Studies', color: 'var(--green)' },
+  { name: 'Reasoning Through Language Arts', short: 'Language Arts', color: 'var(--purple)' },
+  { name: 'Mathematical Reasoning', short: 'Math', color: 'var(--teal)' },
+];
+
+// Every GED student takes the real, authorized GED Ready practice test
+// before starting classes (their baseline), and may retake it during
+// training to check readiness for the actual exam. This shows the most
+// recent official GED Ready score per subject, styled like the real
+// GED Ready score report.
+function gedReadyScoreCards(gedGrades, opts = {}) {
+  const latestBySubject = {};
+  gedGrades
+    .filter((g) => g.source === 'ged_ready')
+    .forEach((g) => {
+      const prev = latestBySubject[g.subject];
+      if (!prev || new Date(g.enteredAt) > new Date(prev.enteredAt)) latestBySubject[g.subject] = g;
+    });
+
+  const cards = GED_READY_SUBJECTS.map((cfg) => {
+    const g = latestBySubject[cfg.name];
+    const passing = g && g.score >= 145;
+    const notTaken = !g;
+    const statusText = notTaken ? 'Not yet taken' : passing ? "You're ready — schedule now!" : 'Keep Studying!';
+    const pillText = notTaken ? 'Not yet taken' : passing ? 'Schedule Test' : 'Keep Studying!';
+    const pillStyle = passing
+      ? `background:${cfg.color};border-color:${cfg.color};color:#fff;`
+      : `background:transparent;border-color:${cfg.color};color:${cfg.color};`;
+    return `
+      <div class="ged-ready-card">
+        <div class="ged-ready-card-header" style="background:${cfg.color};">
+          <div class="ged-ready-card-kicker">✎ Practice Test</div>
+          <div class="ged-ready-card-subject">${cfg.short}</div>
+        </div>
+        <div class="ged-ready-card-body">
+          <div class="ged-ready-score-circle">${g ? g.score : '—'}</div>
+          <div class="ged-ready-status">${statusText}</div>
+          ${g ? `<div class="ged-ready-date">Taken ${new Date(g.enteredAt).toLocaleDateString()}</div>` : '<div class="ged-ready-date">&nbsp;</div>'}
+          <span class="ged-ready-pill" style="${pillStyle}">${pillText}</span>
+          ${passing ? `<span class="ged-ready-report-link" style="color:${cfg.color};">Review score report ›</span>` : ''}
+        </div>
+      </div>
+    `;
+  }).join('');
+
+  return `
+    <div class="card">
+      <h2>Most Recent GED Ready Practice Test Scores</h2>
+      <p class="muted">After taking your practice test, if you're <i>likely to pass</i> then schedule your test right away. If not, focus your studying on exactly the skills you need to brush up on.</p>
+      <div class="ged-ready-grid"${opts.interactive ? ` onclick="sidebarClickById('nav-student-grades')" style="cursor:pointer;"` : ''}>${cards}</div>
+    </div>
+  `;
+}
+
 function gedScoreTrendChart(gedGrades) {
   const points = gedGrades.slice().sort((a, b) => new Date(a.enteredAt) - new Date(b.enteredAt));
   const W = 560, H = 240, ML = 42, MR = 16, MT = 16, MB = 44;
@@ -1171,7 +1230,9 @@ async function renderProgressPanel(s, opts = {}) {
     ? `<div class="card"><h2>GED Score Progress</h2>${gedScoreTrendChart(gedGrades)}</div>`
     : '<p class="muted">No Friday GED test scores entered yet — this chart fills in as scores are recorded in the Gradebook.</p>';
 
-  return statTiles + chart;
+  const readyCards = studentHasGed(s) ? gedReadyScoreCards(gedGrades, opts) : '';
+
+  return readyCards + statTiles + chart;
 }
 
 function isGedSubject(subjectId) {
@@ -1186,6 +1247,8 @@ function updateGradeScoreUI() {
   maxInput.classList.toggle('hidden', ged);
   document.getElementById('grade_score_label').textContent = ged ? 'GED Scale Score (100–200)' : 'Score / Max';
   if (ged) maxInput.value = 200;
+  const readyWrap = document.getElementById('grade_ready_wrap');
+  if (readyWrap) readyWrap.classList.toggle('hidden', !ged);
   updateGradeTierPreview();
 }
 
@@ -1211,6 +1274,7 @@ async function openGradebook(studentId) {
 
 async function renderGradebook(s) {
   const grades = await db.listGradesForStudent(s.id);
+  const gedGrades = grades.filter((g) => g.test === 'GED');
   const subjectOptions = s.programs
     .flatMap((p) => {
       const subjects = (CATALOG[p.test] && CATALOG[p.test].subjects) || [];
@@ -1222,7 +1286,7 @@ async function renderGradebook(s) {
     .map(
       (g) => `<tr>
       <td>${g.test || ''} — ${g.subject || ''}</td>
-      <td>${g.label}</td>
+      <td>${g.label}${g.source === 'ged_ready' ? ' <span class="badge neutral">GED Ready</span>' : ''}</td>
       <td>${gradeScoreDisplay(g)}</td>
       <td>${new Date(g.enteredAt).toLocaleDateString()}</td>
       <td class="no-print"><button class="btn ghost small" onclick="deleteGradeClick('${g.id}','${s.id}')">Delete</button></td>
@@ -1230,8 +1294,11 @@ async function renderGradebook(s) {
     )
     .join('');
 
+  const readyCards = studentHasGed(s) ? gedReadyScoreCards(gedGrades) : '';
+
   const html = `
     <h3 style="color:var(--navy);">${s.fullName} — Gradebook</h3>
+    ${readyCards}
     <table style="margin-top:12px;">
       <thead><tr><th>Subject</th><th>Label</th><th>Score</th><th>Date</th><th></th></tr></thead>
       <tbody>${rows || '<tr><td colspan="5" class="muted">No grades entered yet.</td></tr>'}</tbody>
@@ -1252,6 +1319,10 @@ async function renderGradebook(s) {
           <p class="muted" id="grade_tier_preview" style="margin-top:4px;"></p>
         </div>
       </div>
+      <label id="grade_ready_wrap" class="hidden">
+        <input type="checkbox" id="grade_is_ged_ready" style="width:auto;display:inline-block;margin:0 6px 0 0;vertical-align:middle;">
+        <span style="text-transform:none;font-weight:normal;letter-spacing:normal;">This is an official GED Ready practice test score</span>
+      </label>
       <label>Notes (optional)</label>
       <textarea id="grade_notes" rows="2"></textarea>
       <button class="btn red" onclick="addGradeClick('${s.id}')">Add grade</button>
@@ -1268,6 +1339,7 @@ async function addGradeClick(studentId) {
   const score = parseFloat(document.getElementById('grade_score').value);
   const maxScore = parseFloat(document.getElementById('grade_max').value) || 100;
   const notes = document.getElementById('grade_notes').value.trim();
+  const isGedReady = isGedSubject(subjectId) && !!document.getElementById('grade_is_ged_ready')?.checked;
   const errEl = document.getElementById('grade_error');
   errEl.textContent = '';
   if (!subjectId) {
@@ -1287,7 +1359,7 @@ async function addGradeClick(studentId) {
     return;
   }
   try {
-    await db.addGrade({ studentId, subjectId, label, score, maxScore, notes });
+    await db.addGrade({ studentId, subjectId, label, score, maxScore, notes, source: isGedReady ? 'ged_ready' : 'manual' });
     const students = await db.loadAllStudents();
     const s = students.find((x) => x.id === studentId);
     await renderGradebook(s);
