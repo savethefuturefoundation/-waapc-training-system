@@ -1010,13 +1010,22 @@ async function openStudentDetail(id) {
   const progressHtml = await renderProgressPanel(s);
 
   const programRows = s.programs
-    .map(
-      (p) => `<tr>
+    .map((p) => {
+      const graduated = p.status === 'graduated';
+      return `<tr>
       <td>${p.test} <span class="muted">(${p.level || '—'})</span></td>
       <td>${p.start || '—'} → ${p.end || '—'}</td>
       <td>${p.price.toLocaleString()} CFA</td>
-    </tr>`
-    )
+      <td><span class="badge ${graduated ? 'paid' : 'neutral'}">${graduated ? 'Graduated' : 'Active'}</span>${graduated && p.graduatedDate ? ` <span class="muted">(${p.graduatedDate})</span>` : ''}</td>
+      <td class="no-print">
+        ${
+          graduated
+            ? `<button class="btn ghost small" onclick="ungraduateEnrollmentClick('${p.id}','${s.id}')">Undo</button>`
+            : `<button class="btn small" onclick="graduateEnrollmentClick('${p.id}','${s.id}')">Graduate</button>`
+        }
+      </td>
+    </tr>`;
+    })
     .join('');
 
   const html = `
@@ -1046,13 +1055,42 @@ async function openStudentDetail(id) {
     </div>
 
     <h3 style="color:var(--navy);margin-top:20px;">Programs</h3>
-    <table><thead><tr><th>Program</th><th>Schedule</th><th>Price</th></tr></thead><tbody>${programRows}</tbody></table>
+    <table><thead><tr><th>Program</th><th>Schedule</th><th>Price</th><th>Status</th><th></th></tr></thead><tbody>${programRows}</tbody></table>
     <p class="muted" style="margin-top:10px;">Invoice ${s.invoiceNumber || '—'} — Total ${s.total.toLocaleString()} CFA, Balance ${bal.toLocaleString()} CFA</p>
 
     <h3 style="color:var(--navy);margin-top:20px;">Progress</h3>
     ${progressHtml}
   `;
   renderDoc(html);
+}
+
+// Graduating is tracked per enrollment (a student can be in more than
+// one program at once) and never restricts login — the student/parent
+// can always view final grades, attendance, and the certificate. Only
+// the "take practice test" actions for that specific program retire.
+async function graduateEnrollmentClick(enrollmentId, studentId) {
+  if (!confirm('Mark this program as graduated? You can undo this afterward if needed.')) return;
+  try {
+    await db.graduateEnrollment(enrollmentId);
+  } catch (e) {
+    alert('Could not update: ' + (e.message || e));
+    return;
+  }
+  await openStudentDetail(studentId);
+  if (confirm('Marked as graduated. Issue their certificate now?')) {
+    await openCertificateForm(studentId);
+  }
+}
+
+async function ungraduateEnrollmentClick(enrollmentId, studentId) {
+  if (!confirm('Undo graduated status for this program?')) return;
+  try {
+    await db.ungraduateEnrollment(enrollmentId);
+  } catch (e) {
+    alert('Could not update: ' + (e.message || e));
+    return;
+  }
+  await openStudentDetail(studentId);
 }
 
 // =====================================================================
@@ -2464,37 +2502,45 @@ function renderStudentDashboard(s) {
   list.innerHTML = s.programs
     .map((p) => {
       const subjects = (CATALOG[p.test] && CATALOG[p.test].subjects) || [];
+      const graduated = p.status === 'graduated';
+      const body = graduated
+        ? `<p class="muted" style="margin:0 0 12px;">You've completed this program${
+            p.graduatedDate ? ' on ' + p.graduatedDate : ''
+          } — congratulations! Practice and mock exams are no longer needed here; check your Grades and Certificate for your results.</p>`
+        : subjects
+            .map((subObj) => {
+              const sub = subObj.name;
+              if (subObj.kind === 'speaking') {
+                return `<div class="subject-card">
+                <div>
+                  <div class="name">${sub}</div>
+                  <div class="stats">Recorded speaking practice</div>
+                </div>
+                <div>
+                  <button class="btn ghost small" onclick="startSession('${p.test}','${sub}','practice')">Practice</button>
+                  <button class="btn small" onclick="startSession('${p.test}','${sub}','mock')">Record for review</button>
+                </div>
+              </div>`;
+              }
+              const attempts = s.attempts.filter((a) => a.test === p.test && a.subject === sub && a.mode === 'mock');
+              const best = attempts.length ? Math.max(...attempts.map((a) => Math.round((a.score / a.total) * 100))) : null;
+              return `<div class="subject-card">
+              <div>
+                <div class="name">${sub}</div>
+                <div class="stats">${attempts.length ? attempts.length + ' mock attempt(s) · best ' + best + '%' : 'No mock attempts yet'}</div>
+              </div>
+              <div>
+                <button class="btn ghost small" onclick="startSession('${p.test}','${sub}','practice')">Practice</button>
+                <button class="btn small" onclick="startSession('${p.test}','${sub}','mock')">Take mock exam</button>
+              </div>
+            </div>`;
+            })
+            .join('');
       return `<div style="margin-bottom:16px;">
-      <div style="font-weight:bold;color:#1a2b6b;font-size:15px;margin-bottom:8px;">${p.test} <span class="muted">(${p.level})</span></div>
-      ${subjects
-        .map((subObj) => {
-          const sub = subObj.name;
-          if (subObj.kind === 'speaking') {
-            return `<div class="subject-card">
-            <div>
-              <div class="name">${sub}</div>
-              <div class="stats">Recorded speaking practice</div>
-            </div>
-            <div>
-              <button class="btn ghost small" onclick="startSession('${p.test}','${sub}','practice')">Practice</button>
-              <button class="btn small" onclick="startSession('${p.test}','${sub}','mock')">Record for review</button>
-            </div>
-          </div>`;
-          }
-          const attempts = s.attempts.filter((a) => a.test === p.test && a.subject === sub && a.mode === 'mock');
-          const best = attempts.length ? Math.max(...attempts.map((a) => Math.round((a.score / a.total) * 100))) : null;
-          return `<div class="subject-card">
-          <div>
-            <div class="name">${sub}</div>
-            <div class="stats">${attempts.length ? attempts.length + ' mock attempt(s) · best ' + best + '%' : 'No mock attempts yet'}</div>
-          </div>
-          <div>
-            <button class="btn ghost small" onclick="startSession('${p.test}','${sub}','practice')">Practice</button>
-            <button class="btn small" onclick="startSession('${p.test}','${sub}','mock')">Take mock exam</button>
-          </div>
-        </div>`;
-        })
-        .join('')}
+      <div style="font-weight:bold;color:#1a2b6b;font-size:15px;margin-bottom:8px;">${p.test} <span class="muted">(${p.level})</span> ${
+        graduated ? '<span class="badge paid">Graduated</span>' : ''
+      }</div>
+      ${body}
     </div>`;
     })
     .join('');
@@ -3897,6 +3943,8 @@ Object.assign(window, {
   resetRegistrationForm,
   openInvoiceById,
   openStudentDetail,
+  graduateEnrollmentClick,
+  ungraduateEnrollmentClick,
   openStudentProfile,
   closeStudentProfile,
   deleteCurrentProfileStudent,

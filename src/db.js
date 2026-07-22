@@ -46,7 +46,7 @@ const STUDENT_SELECT = `
   guardian_name, guardian_relationship, guardian_phone, guardian_email, address,
   photo_url, notes, created_at,
   enrollments (
-    id, test_id, level, sessions_per_week, start_date, end_date, registration_only, price,
+    id, test_id, level, sessions_per_week, start_date, end_date, registration_only, price, status, graduated_date,
     tests ( name ),
     attendance ( id, session_date, present )
   ),
@@ -76,6 +76,8 @@ function mapStudentRow(row) {
     sessionsPerWeek: e.sessions_per_week,
     price: Number(e.price),
     regOnly: e.registration_only,
+    status: e.status || 'active',
+    graduatedDate: e.graduated_date,
   }));
 
   const attendance = (row.enrollments || []).flatMap((e) =>
@@ -337,6 +339,19 @@ export async function recordAttendance(enrollmentId, date, present) {
   const { error } = await supabase
     .from('attendance')
     .upsert({ enrollment_id: enrollmentId, session_date: date, present }, { onConflict: 'enrollment_id,session_date' });
+  if (error) throw error;
+}
+
+export async function graduateEnrollment(enrollmentId) {
+  const { error } = await supabase
+    .from('enrollments')
+    .update({ status: 'graduated', graduated_date: new Date().toISOString().slice(0, 10) })
+    .eq('id', enrollmentId);
+  if (error) throw error;
+}
+
+export async function ungraduateEnrollment(enrollmentId) {
+  const { error } = await supabase.from('enrollments').update({ status: 'active', graduated_date: null }).eq('id', enrollmentId);
   if (error) throw error;
 }
 
