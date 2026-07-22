@@ -246,6 +246,17 @@ export async function registerStudent({ student, programs, installments, photoFi
   return { studentId, invoiceNumber };
 }
 
+// Removes the student record and everything tied to it (enrollments,
+// invoices/payments, grades, attendance, attempts, certificates,
+// assignments, placement attempts) via on-delete-cascade foreign keys.
+// If the student had already created their own login, that auth account
+// isn't removable from the client — the admin needs to delete it
+// separately in the Supabase dashboard (Authentication → Users).
+export async function deleteStudent(id) {
+  const { error } = await supabase.from('students').delete().eq('id', id);
+  if (error) throw error;
+}
+
 // ---------------------------------------------------------------------
 // Payments / attendance / certificates
 // ---------------------------------------------------------------------
@@ -464,6 +475,11 @@ export async function adminSignIn(email, password) {
 
 export async function signOut() {
   await supabase.auth.signOut();
+}
+
+export async function changePassword(newPassword) {
+  const { error } = await supabase.auth.updateUser({ password: newPassword });
+  if (error) throw error;
 }
 
 export async function getCurrentSessionInfo() {

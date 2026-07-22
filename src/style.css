@@ -47,7 +47,7 @@
     width: 250px; min-height: 100vh; background: var(--navy-dark); display: flex; flex-direction: column;
     position: fixed; left: 0; top: 0; bottom: 0; z-index: 100; overflow-y: auto; flex-shrink: 0;
   }
-  .sidebar-logo { padding: 18px; display: flex; align-items: center; gap: 12px; border-bottom: 1px solid rgba(255,255,255,0.1); }
+  .sidebar-logo { padding: 18px; display: flex; align-items: center; gap: 12px; border-bottom: 1px solid rgba(255,255,255,0.1); cursor: pointer; }
   .sidebar-logo-mark { width: 32px; height: 36px; flex-shrink: 0; }
   .sidebar-logo-title { color: var(--white); font-weight: 800; font-size: 13px; }
   .sidebar-logo-sub { color: var(--gold-light); font-size: 10px; }

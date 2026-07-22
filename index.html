@@ -88,7 +88,7 @@
 
 <div id="appShell" class="app-shell hidden">
   <nav class="sidebar">
-    <div class="sidebar-logo">
+    <div class="sidebar-logo" onclick="goHome()" role="button" tabindex="0" title="Go to your dashboard">
       <div class="sidebar-logo-mark">
         <img src="/logo-waapc.jpg" alt="WAAPC">
       </div>
@@ -135,11 +135,15 @@
         <button class="sidebar-nav-item" onclick="sidebarNavTo('tab-messages', this); renderMessagesPage();"><span class="sidebar-nav-icon">✉️</span>Messages</button>
       </div>
       <div id="sidebarNavStudent" class="hidden">
-        <button class="sidebar-nav-item active" onclick="sidebarNavTo('page-student-dashboard', this)"><span class="sidebar-nav-icon">⊞</span>Dashboard</button>
-        <button class="sidebar-nav-item" onclick="sidebarNavTo('tab-announcements', this); renderAnnouncementsPage();"><span class="sidebar-nav-icon">📢</span>Announcements</button>
-        <button class="sidebar-nav-item" onclick="sidebarNavTo('tab-timetable', this); renderTimetablePage();"><span class="sidebar-nav-icon">🗓</span>Timetable</button>
-        <button class="sidebar-nav-item" onclick="sidebarNavTo('tab-calendar', this); renderCalendarPage();"><span class="sidebar-nav-icon">📅</span>Calendar</button>
-        <button class="sidebar-nav-item" onclick="sidebarNavTo('tab-messages', this); renderMessagesPage();"><span class="sidebar-nav-icon">✉️</span>Messages</button>
+        <button class="sidebar-nav-item active" id="nav-student-dashboard" onclick="sidebarNavTo('page-student-dashboard', this); renderMyProgress();"><span class="sidebar-nav-icon">⊞</span>Dashboard</button>
+        <button class="sidebar-nav-item" id="nav-student-courses" onclick="sidebarNavTo('page-student-courses', this); renderMyCoursesPage();"><span class="sidebar-nav-icon">📖</span>My Courses</button>
+        <button class="sidebar-nav-item" id="nav-student-assignments" onclick="sidebarNavTo('page-student-assignments', this); renderMyAssignments();"><span class="sidebar-nav-icon">📚</span>Assignments</button>
+        <button class="sidebar-nav-item" id="nav-student-grades" onclick="sidebarNavTo('page-student-grades', this); renderMyGrades();"><span class="sidebar-nav-icon">🎓</span>Grades</button>
+        <button class="sidebar-nav-item" id="nav-student-attendance" onclick="sidebarNavTo('page-student-attendance', this); renderMyAttendance();"><span class="sidebar-nav-icon">✅</span>Attendance</button>
+        <button class="sidebar-nav-item" id="nav-student-announcements" onclick="sidebarNavTo('tab-announcements', this); renderAnnouncementsPage();"><span class="sidebar-nav-icon">📢</span>Announcements</button>
+        <button class="sidebar-nav-item" id="nav-student-timetable" onclick="sidebarNavTo('tab-timetable', this); renderTimetablePage();"><span class="sidebar-nav-icon">🗓</span>Timetable</button>
+        <button class="sidebar-nav-item" id="nav-student-calendar" onclick="sidebarNavTo('tab-calendar', this); renderCalendarPage();"><span class="sidebar-nav-icon">📅</span>Calendar</button>
+        <button class="sidebar-nav-item" id="nav-student-messages" onclick="sidebarNavTo('tab-messages', this); renderMessagesPage();"><span class="sidebar-nav-icon">✉️</span>Messages</button>
       </div>
     </div>
 
@@ -149,6 +153,7 @@
     </div>
     <div class="sidebar-user">
       <div class="sidebar-user-email" id="sidebarEmail"></div>
+      <button class="btn ghost small" style="width:100%;justify-content:center;margin-bottom:6px;" onclick="openChangePassword()">Change password</button>
       <button class="btn ghost small" id="sidebarLogoutBtn" style="width:100%;justify-content:center;">Log out</button>
     </div>
   </nav>
@@ -275,6 +280,8 @@
           <button class="student-subnav-item" onclick="openCurrentProfileInvoice()">Invoice (print)</button>
           <button class="student-subnav-item" onclick="openCurrentProfileProgressReport()">Progress report (print)</button>
           <button class="student-subnav-item" onclick="openCurrentProfileCertificate()">Certificate (print)</button>
+          <div class="student-subnav-divider"></div>
+          <button class="student-subnav-item" style="color:var(--red);" onclick="deleteCurrentProfileStudent()">Delete student</button>
         </div>
         <div class="student-subnav-content" id="studentProfileContent"></div>
       </div>
@@ -705,22 +712,19 @@ GED,Mathematical Reasoning,What is 7 x 8?,54,56,58,60,B"></textarea>
       <div id="parentChildrenEmpty" class="empty hidden">No student record lists this email as parent/guardian yet. Contact the school.</div>
     </div>
 
-    <!-- ================= STUDENT PAGE ================= -->
+    <!-- ================= STUDENT PAGES ================= -->
     <div id="page-student-dashboard" class="page hidden">
       <div class="card">
         <h2 id="welcomeMsg"></h2>
-        <div id="enrollmentsList"></div>
+        <p class="muted">Here's how you're doing. Use the sidebar for your courses, assignments, grades, attendance, and more.</p>
       </div>
       <div id="progressPanel"></div>
+    </div>
+
+    <div id="page-student-courses" class="page hidden">
       <div class="card">
-        <h2>Assignments</h2>
-        <div id="myAssignmentsList"></div>
-        <div id="myAssignmentsEmpty" class="empty hidden">No assignments yet.</div>
-      </div>
-      <div class="card">
-        <h2>Grades</h2>
-        <div id="myGradesList"></div>
-        <div id="myGradesEmpty" class="empty hidden">No grades yet.</div>
+        <h2>My Courses</h2>
+        <div id="enrollmentsList"></div>
       </div>
       <div class="card hidden" id="placementCard">
         <h2>GED Placement Assessment</h2>
@@ -728,6 +732,27 @@ GED,Mathematical Reasoning,What is 7 x 8?,54,56,58,60,B"></textarea>
         <button class="btn red" onclick="startPlacementTest()">Take / retake assessment</button>
       </div>
       <div id="subjectArea"></div>
+    </div>
+
+    <div id="page-student-assignments" class="page hidden">
+      <div class="card">
+        <h2>Assignments</h2>
+        <div id="myAssignmentsList"></div>
+        <div id="myAssignmentsEmpty" class="empty hidden">No assignments yet.</div>
+      </div>
+    </div>
+
+    <div id="page-student-grades" class="page hidden">
+      <div class="card">
+        <h2>Grades</h2>
+        <div id="myGradesList"></div>
+        <div id="myGradesEmpty" class="empty hidden">No grades yet.</div>
+      </div>
+    </div>
+
+    <div id="page-student-attendance" class="page hidden">
+      <div id="myAttendanceList"></div>
+      <div id="myAttendanceEmpty" class="empty hidden">No attendance recorded yet.</div>
     </div>
 
   </main>

@@ -53,6 +53,21 @@ function sidebarNavTo(pageId, btn) {
   document.getElementById(pageId).classList.remove('hidden');
 }
 
+// Clicking the sidebar logo takes you back to your home/dashboard page,
+// like clicking a site logo anywhere else.
+function goHome() {
+  if (!currentSession) return;
+  if (currentSession.role === 'admin') return showTab('dashboard');
+  const homeButtonByRole = {
+    teacher: '#sidebarNavTeacher .sidebar-nav-item',
+    parent: '#sidebarNavParent .sidebar-nav-item',
+    student: '#nav-student-dashboard',
+  };
+  const selector = homeButtonByRole[currentSession.role];
+  const btn = selector && document.querySelector(selector);
+  if (btn) btn.click();
+}
+
 async function ensureCatalog() {
   if (!CATALOG || Object.keys(CATALOG).length === 0) CATALOG = await db.loadCatalog();
 }
@@ -865,6 +880,29 @@ function closeStudentProfile() {
   showTab('manage');
 }
 
+async function deleteCurrentProfileStudent() {
+  if (!currentProfileStudentId) return;
+  const students = await db.loadAllStudents();
+  const s = students.find((x) => x.id === currentProfileStudentId);
+  if (!s) return;
+  const typed = prompt(
+    `This permanently deletes ${s.fullName} and everything tied to them — enrollments, invoices, payments, grades, attendance, assignments, certificates. This cannot be undone.\n\nType the student's full name to confirm:`
+  );
+  if (typed === null) return;
+  if (typed.trim().toLowerCase() !== s.fullName.trim().toLowerCase()) {
+    alert('Name did not match — nothing was deleted.');
+    return;
+  }
+  try {
+    await db.deleteStudent(s.id);
+  } catch (e) {
+    alert('Could not delete student: ' + (e.message || e));
+    return;
+  }
+  alert(`${s.fullName} has been deleted. If they had already created their own login, remove it separately in Supabase (Authentication → Users).`);
+  closeStudentProfile();
+}
+
 async function studentProfileNav(section) {
   if (!currentProfileStudentId) return;
   document.querySelectorAll('.student-subnav-item').forEach((b) => b.classList.toggle('active', b.dataset.section === section));
@@ -1067,7 +1105,15 @@ function attendanceRateOf(student) {
   return Math.round((present / records.length) * 100);
 }
 
-async function renderProgressPanel(s) {
+function statTile({ label, value, borderColor, navId }) {
+  const styleParts = [];
+  if (borderColor) styleParts.push(`border-left-color:${borderColor}`);
+  if (navId) styleParts.push('cursor:pointer');
+  const attrs = `${styleParts.length ? ` style="${styleParts.join(';')};"` : ''}${navId ? ` onclick="sidebarClickById('${navId}')"` : ''}`;
+  return `<div class="stat-card"${attrs}><div class="stat-label">${label}</div><div class="stat-value" style="font-size:19px;">${value}</div></div>`;
+}
+
+async function renderProgressPanel(s, opts = {}) {
   const [grades, assignments] = await Promise.all([db.listGradesForStudent(s.id), db.listAssignmentsForStudent(s.id)]);
   const gedGrades = grades.filter((g) => g.test === 'GED');
   const attendancePct = attendanceRateOf(s);
@@ -1075,19 +1121,24 @@ async function renderProgressPanel(s) {
   const sortedGed = gedGrades.slice().sort((a, b) => new Date(b.enteredAt) - new Date(a.enteredAt));
   const latestGed = sortedGed[0] || null;
   const bestGed = gedGrades.length ? gedGrades.reduce((best, g) => (g.score > best.score ? g : best), gedGrades[0]) : null;
+  const nav = (id) => (opts.interactive ? id : null);
 
   const statTiles = `
     <div class="stat-grid" style="grid-template-columns:repeat(4,1fr);margin-bottom:16px;">
-      <div class="stat-card" style="border-left-color:${latestGed ? GED_TIER_COLOR[gedTier(latestGed.score)] : 'var(--gold)'};">
-        <div class="stat-label">Latest GED Score</div>
-        <div class="stat-value" style="font-size:19px;">${latestGed ? latestGed.score + ' — ' + gedTier(latestGed.score) : '—'}</div>
-      </div>
-      <div class="stat-card" style="border-left-color:${bestGed ? GED_TIER_COLOR[gedTier(bestGed.score)] : 'var(--gold)'};">
-        <div class="stat-label">Best GED Score</div>
-        <div class="stat-value" style="font-size:19px;">${bestGed ? bestGed.score + ' — ' + gedTier(bestGed.score) : '—'}</div>
-      </div>
-      <div class="stat-card"><div class="stat-label">Attendance</div><div class="stat-value" style="font-size:19px;">${attendancePct !== null ? attendancePct + '%' : '—'}</div></div>
-      <div class="stat-card"><div class="stat-label">Assignments done</div><div class="stat-value" style="font-size:19px;">${doneCount}/${assignments.length}</div></div>
+      ${statTile({
+        label: 'Latest GED Score',
+        value: latestGed ? latestGed.score + ' — ' + gedTier(latestGed.score) : '—',
+        borderColor: latestGed ? GED_TIER_COLOR[gedTier(latestGed.score)] : 'var(--gold)',
+        navId: nav('nav-student-grades'),
+      })}
+      ${statTile({
+        label: 'Best GED Score',
+        value: bestGed ? bestGed.score + ' — ' + gedTier(bestGed.score) : '—',
+        borderColor: bestGed ? GED_TIER_COLOR[gedTier(bestGed.score)] : 'var(--gold)',
+        navId: nav('nav-student-grades'),
+      })}
+      ${statTile({ label: 'Attendance', value: attendancePct !== null ? attendancePct + '%' : '—', navId: nav('nav-student-attendance') })}
+      ${statTile({ label: 'Assignments done', value: doneCount + '/' + assignments.length, navId: nav('nav-student-assignments') })}
     </div>
   `;
 
@@ -1560,6 +1611,49 @@ function closeDoc() {
 }
 
 // =====================================================================
+// Change password — available to every role from the sidebar.
+// =====================================================================
+function openChangePassword() {
+  const html = `
+    <h3 style="color:var(--navy);">Change password</h3>
+    <label>New password</label>
+    <input type="password" id="cp_new" placeholder="At least 6 characters">
+    <label>Confirm new password</label>
+    <input type="password" id="cp_confirm">
+    <button class="btn red" onclick="changePasswordClick()">Update password</button>
+    <p id="cp_error" class="muted error-text"></p>
+    <p id="cp_success" class="muted" style="color:var(--green);"></p>
+  `;
+  document.getElementById('docContent').innerHTML = html;
+  document.getElementById('docOverlay').classList.add('show');
+}
+
+async function changePasswordClick() {
+  const pw = document.getElementById('cp_new').value;
+  const confirmPw = document.getElementById('cp_confirm').value;
+  const errEl = document.getElementById('cp_error');
+  const okEl = document.getElementById('cp_success');
+  errEl.textContent = '';
+  okEl.textContent = '';
+  if (!pw || pw.length < 6) {
+    errEl.textContent = 'Password must be at least 6 characters.';
+    return;
+  }
+  if (pw !== confirmPw) {
+    errEl.textContent = 'Passwords do not match.';
+    return;
+  }
+  try {
+    await db.changePassword(pw);
+    okEl.textContent = 'Password updated.';
+    document.getElementById('cp_new').value = '';
+    document.getElementById('cp_confirm').value = '';
+  } catch (e) {
+    errEl.textContent = e.message || 'Could not update password.';
+  }
+}
+
+// =====================================================================
 // Attendance
 // =====================================================================
 async function openAttendance(studentId) {
@@ -1799,16 +1893,53 @@ async function showStudentDashboardView() {
   document.querySelectorAll('#appShell .page').forEach((p) => p.classList.add('hidden'));
   document.getElementById('page-student-dashboard').classList.remove('hidden');
   await ensureCatalog();
-  renderStudentDashboard(currentStudentRecord);
-  renderMyAssignments();
-  renderMyGrades();
-  renderPlacementCard();
+  document.getElementById('welcomeMsg').textContent = 'Welcome, ' + currentStudentRecord.fullName.split(' ')[0];
   renderMyProgress();
+}
+
+function sidebarClickById(id) {
+  const btn = document.getElementById(id);
+  if (btn) btn.click();
+}
+
+async function renderMyCoursesPage() {
+  if (!currentStudentRecord) return;
+  renderStudentDashboard(currentStudentRecord);
+  renderPlacementCard();
+}
+
+async function renderMyAttendance() {
+  if (!currentStudentRecord) return;
+  const students = await db.loadAllStudents();
+  const s = students.find((x) => x.id === currentStudentRecord.id);
+  if (!s) return;
+  currentStudentRecord = s;
+  const listEl = document.getElementById('myAttendanceList');
+  document.getElementById('myAttendanceEmpty').classList.toggle('hidden', (s.attendance || []).length > 0);
+  listEl.innerHTML = s.programs
+    .map((p) => {
+      const stats = attendanceStatsFor(s, p.id);
+      const rows = (s.attendance || [])
+        .filter((r) => r.programId === p.id)
+        .slice()
+        .sort((a, b) => (a.date < b.date ? 1 : -1))
+        .map((r) => `<tr><td>${r.date}</td><td><span class="badge ${r.present ? 'paid' : 'unpaid'}">${r.present ? 'Present' : 'Absent'}</span></td></tr>`)
+        .join('');
+      return `<div class="card">
+        <h2>${p.test} <span class="muted">(${p.level})</span></h2>
+        <p class="muted">${stats.total > 0 ? stats.present + ' / ' + stats.total + ' sessions (' + stats.pct + '%)' : 'No sessions recorded yet'}</p>
+        <table><thead><tr><th>Date</th><th>Status</th></tr></thead><tbody>${rows || '<tr><td colspan="2" class="muted">No records yet.</td></tr>'}</tbody></table>
+      </div>`;
+    })
+    .join('');
 }
 
 async function renderMyProgress() {
   if (!currentStudentRecord) return;
-  document.getElementById('progressPanel').innerHTML = await renderProgressPanel(currentStudentRecord);
+  const students = await db.loadAllStudents();
+  const fresh = students.find((x) => x.id === currentStudentRecord.id) || currentStudentRecord;
+  currentStudentRecord = fresh;
+  document.getElementById('progressPanel').innerHTML = await renderProgressPanel(fresh, { interactive: true });
 }
 
 async function renderMyGrades() {
@@ -2130,7 +2261,6 @@ async function studentLogout() {
 }
 
 function renderStudentDashboard(s) {
-  document.getElementById('welcomeMsg').textContent = 'Welcome, ' + s.fullName.split(' ')[0];
   const list = document.getElementById('enrollmentsList');
   list.innerHTML = s.programs
     .map((p) => {
@@ -2864,27 +2994,42 @@ function canPostAsStaff() {
   return !!(currentSession && (currentSession.role === 'admin' || currentSession.role === 'teacher'));
 }
 
+// A failed fetch (e.g. a migration not yet run) used to leave these
+// shared pages completely blank, which reads as broken. Always land on
+// a visible message instead — either the data, an empty state, or this.
+function showPageError(containerId, emptyId) {
+  const el = document.getElementById(containerId);
+  if (el) el.innerHTML = '';
+  const empty = emptyId && document.getElementById(emptyId);
+  if (empty) {
+    empty.textContent = 'Something went wrong loading this page. Try refreshing — if it keeps happening, let the admin know.';
+    empty.classList.remove('hidden');
+  }
+}
+
 async function renderAnnouncementsPage() {
   document.getElementById('ann_composer').classList.toggle('hidden', !canPostAsStaff());
-  if (canPostAsStaff()) {
-    await ensureCatalog();
-    const audienceSelect = document.getElementById('ann_audience');
-    if (!audienceSelect.dataset.loaded) {
-      audienceSelect.innerHTML =
-        '<option value="">Everyone</option>' + Object.keys(CATALOG).map((t) => `<option value="${CATALOG[t].id}">${t} students only</option>`).join('');
-      audienceSelect.dataset.loaded = '1';
+  try {
+    if (canPostAsStaff()) {
+      await ensureCatalog();
+      const audienceSelect = document.getElementById('ann_audience');
+      if (!audienceSelect.dataset.loaded) {
+        audienceSelect.innerHTML =
+          '<option value="">Everyone</option>' + Object.keys(CATALOG).map((t) => `<option value="${CATALOG[t].id}">${t} students only</option>`).join('');
+        audienceSelect.dataset.loaded = '1';
+      }
     }
-  }
 
-  let items = await db.listAnnouncements();
-  if (currentSession?.role === 'student' && currentStudentRecord) {
-    const myPrograms = new Set(currentStudentRecord.programs.map((p) => p.test));
-    items = items.filter((a) => !a.targetTestName || myPrograms.has(a.targetTestName));
-  }
+    let items = await db.listAnnouncements();
+    if (currentSession?.role === 'student' && currentStudentRecord) {
+      const myPrograms = new Set(currentStudentRecord.programs.map((p) => p.test));
+      items = items.filter((a) => !a.targetTestName || myPrograms.has(a.targetTestName));
+    }
 
-  const listEl = document.getElementById('ann_list');
-  document.getElementById('ann_listEmpty').classList.toggle('hidden', items.length > 0);
-  listEl.innerHTML = items
+    const listEl = document.getElementById('ann_list');
+    document.getElementById('ann_listEmpty').textContent = 'No announcements yet.';
+    document.getElementById('ann_listEmpty').classList.toggle('hidden', items.length > 0);
+    listEl.innerHTML = items
     .map(
       (a) => `<div class="card" style="margin-bottom:12px;">
         <div style="display:flex;justify-content:space-between;align-items:start;">
@@ -2898,6 +3043,10 @@ async function renderAnnouncementsPage() {
       </div>`
     )
     .join('');
+  } catch (e) {
+    console.error('renderAnnouncementsPage failed:', e);
+    showPageError('ann_list', 'ann_listEmpty');
+  }
 }
 
 async function createAnnouncementClick() {
@@ -2986,52 +3135,58 @@ const TIMETABLE_KIND_BADGE = { class: 'paid', test: 'partial', plan: 'neutral', 
 
 async function renderTimetablePage() {
   document.getElementById('tt_composer').classList.toggle('hidden', !canPostAsStaff());
-  if (canPostAsStaff()) {
-    await ensureCatalog();
-    const select = document.getElementById('tt_test');
-    if (!select.dataset.loaded) {
-      select.innerHTML = '<option value="">General (no specific program)</option>' + Object.keys(CATALOG).map((t) => `<option value="${CATALOG[t].id}">${t}</option>`).join('');
-      select.dataset.loaded = '1';
+  try {
+    if (canPostAsStaff()) {
+      await ensureCatalog();
+      const select = document.getElementById('tt_test');
+      if (!select.dataset.loaded) {
+        select.innerHTML = '<option value="">General (no specific program)</option>' + Object.keys(CATALOG).map((t) => `<option value="${CATALOG[t].id}">${t}</option>`).join('');
+        select.dataset.loaded = '1';
+      }
     }
+
+    let entries = await db.listTimetable();
+    const listEl = document.getElementById('tt_list');
+
+    // Students see their own personal timetable: entries for their enrolled
+    // program(s) plus general (no-program) entries, with their tutor's name.
+    if (currentSession?.role === 'student' && currentStudentRecord) {
+      const myPrograms = new Set(currentStudentRecord.programs.map((p) => p.test));
+      entries = entries.filter((e) => !e.testName || myPrograms.has(e.testName));
+    }
+
+    document.getElementById('tt_listEmpty').textContent = 'No timetable entries yet.';
+    document.getElementById('tt_listEmpty').classList.toggle('hidden', entries.length > 0);
+
+    const byDay = {};
+    entries.forEach((e) => {
+      byDay[e.day] = byDay[e.day] || [];
+      byDay[e.day].push(e);
+    });
+
+    listEl.innerHTML = TIMETABLE_DAY_ORDER.filter((d) => byDay[d])
+      .map((d) => {
+        const rows = byDay[d]
+          .map(
+            (e) => `<tr>
+          <td>${e.start.slice(0, 5)}–${e.end.slice(0, 5)}</td>
+          <td>${e.activity}${e.testName ? ' <span class="muted">(' + e.testName + ')</span>' : ''}</td>
+          <td>${e.teacherName || '—'}</td>
+          <td><span class="badge ${TIMETABLE_KIND_BADGE[e.kind] || 'neutral'}">${e.kind}</span></td>
+          ${canPostAsStaff() ? `<td class="no-print"><button class="btn ghost small" onclick="deleteTimetableEntryClick('${e.id}')">Delete</button></td>` : ''}
+        </tr>`
+          )
+          .join('');
+        return `<div class="card">
+          <h2>${TIMETABLE_DAY_LABELS[d]}</h2>
+          <table><thead><tr><th>Time</th><th>Activity</th><th>Tutor</th><th>Type</th>${canPostAsStaff() ? '<th></th>' : ''}</tr></thead><tbody>${rows}</tbody></table>
+        </div>`;
+      })
+      .join('');
+  } catch (e) {
+    console.error('renderTimetablePage failed:', e);
+    showPageError('tt_list', 'tt_listEmpty');
   }
-
-  let entries = await db.listTimetable();
-  const listEl = document.getElementById('tt_list');
-
-  // Students see their own personal timetable: entries for their enrolled
-  // program(s) plus general (no-program) entries, with their tutor's name.
-  if (currentSession?.role === 'student' && currentStudentRecord) {
-    const myPrograms = new Set(currentStudentRecord.programs.map((p) => p.test));
-    entries = entries.filter((e) => !e.testName || myPrograms.has(e.testName));
-  }
-
-  document.getElementById('tt_listEmpty').classList.toggle('hidden', entries.length > 0);
-
-  const byDay = {};
-  entries.forEach((e) => {
-    byDay[e.day] = byDay[e.day] || [];
-    byDay[e.day].push(e);
-  });
-
-  listEl.innerHTML = TIMETABLE_DAY_ORDER.filter((d) => byDay[d])
-    .map((d) => {
-      const rows = byDay[d]
-        .map(
-          (e) => `<tr>
-        <td>${e.start.slice(0, 5)}–${e.end.slice(0, 5)}</td>
-        <td>${e.activity}${e.testName ? ' <span class="muted">(' + e.testName + ')</span>' : ''}</td>
-        <td>${e.teacherName || '—'}</td>
-        <td><span class="badge ${TIMETABLE_KIND_BADGE[e.kind] || 'neutral'}">${e.kind}</span></td>
-        ${canPostAsStaff() ? `<td class="no-print"><button class="btn ghost small" onclick="deleteTimetableEntryClick('${e.id}')">Delete</button></td>` : ''}
-      </tr>`
-        )
-        .join('');
-      return `<div class="card">
-        <h2>${TIMETABLE_DAY_LABELS[d]}</h2>
-        <table><thead><tr><th>Time</th><th>Activity</th><th>Tutor</th><th>Type</th>${canPostAsStaff() ? '<th></th>' : ''}</tr></thead><tbody>${rows}</tbody></table>
-      </div>`;
-    })
-    .join('');
 }
 
 async function createTimetableEntryClick() {
@@ -3381,20 +3536,26 @@ let activeContactId = null;
 
 async function renderMessagesPage() {
   const listEl = document.getElementById('msg_contacts');
-  const [contacts, unread] = await Promise.all([db.listMessageContacts(), db.listUnreadCounts(currentSession.userId)]);
-  messageContacts = contacts;
-  document.getElementById('msg_contactsEmpty').classList.toggle('hidden', contacts.length > 0);
-  listEl.innerHTML = contacts
-    .map(
-      (c) => `<div class="subject-card row-clickable ${c.userId === activeContactId ? 'contact-active' : ''}" onclick="openConversation('${c.userId}')">
-        <div>
-          <div class="name">${c.name} <span class="badge neutral">${c.role}</span></div>
-          <div class="stats">${c.email}</div>
-        </div>
-        ${unread[c.userId] ? `<span class="badge unpaid">${unread[c.userId]} new</span>` : ''}
-      </div>`
-    )
-    .join('');
+  try {
+    const [contacts, unread] = await Promise.all([db.listMessageContacts(), db.listUnreadCounts(currentSession.userId)]);
+    messageContacts = contacts;
+    document.getElementById('msg_contactsEmpty').textContent = 'No one to message yet — contacts appear here once a teacher, parent, or student has logged in at least once.';
+    document.getElementById('msg_contactsEmpty').classList.toggle('hidden', contacts.length > 0);
+    listEl.innerHTML = contacts
+      .map(
+        (c) => `<div class="subject-card row-clickable ${c.userId === activeContactId ? 'contact-active' : ''}" onclick="openConversation('${c.userId}')">
+          <div>
+            <div class="name">${c.name} <span class="badge neutral">${c.role}</span></div>
+            <div class="stats">${c.email}</div>
+          </div>
+          ${unread[c.userId] ? `<span class="badge unpaid">${unread[c.userId]} new</span>` : ''}
+        </div>`
+      )
+      .join('');
+  } catch (e) {
+    console.error('renderMessagesPage failed:', e);
+    showPageError('msg_contacts', 'msg_contactsEmpty');
+  }
 }
 
 async function openConversation(otherUserId) {
@@ -3465,6 +3626,9 @@ Object.assign(window, {
   setRole,
   showTab,
   sidebarNavTo,
+  goHome,
+  openChangePassword,
+  changePasswordClick,
   adminLogin,
   adminLogout,
   teacherCheckEmail,
@@ -3490,10 +3654,20 @@ Object.assign(window, {
   markRosterAttendance,
   renderParentsPage,
   renderTeachersPage,
+  sidebarClickById,
+  renderMyCoursesPage,
+  renderMyAttendance,
+  renderMyGrades,
+  renderMyAssignments,
+  renderMyProgress,
   editTeacherClick,
   cancelTeacherEdit,
   saveTeacherEdit,
   renderMessagesPage,
+  renderAnnouncementsPage,
+  renderCalendarPage,
+  renderTimetablePage,
+  renderAttendancePage,
   openConversation,
   sendMessageClick,
   handlePhoto,
@@ -3508,6 +3682,7 @@ Object.assign(window, {
   openStudentDetail,
   openStudentProfile,
   closeStudentProfile,
+  deleteCurrentProfileStudent,
   studentProfileNav,
   openCurrentProfileInvoice,
   openCurrentProfileProgressReport,
