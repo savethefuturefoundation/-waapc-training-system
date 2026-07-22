@@ -128,6 +128,37 @@
   .doc-overlay-bar { max-width: 800px; margin: 0 auto 10px; display: flex; justify-content: flex-end; gap: 8px; }
   .doc-page { background: var(--white); max-width: 800px; margin: 0 auto; padding: 36px 44px; border-radius: 8px; }
   .signature-script { font-family: 'Alex Brush', cursive; font-size: 34px; color: var(--navy); line-height: 1.2; }
+
+  /* ---------------- Certificate ---------------- */
+  .certificate-frame { padding: 10px; background: var(--navy); border-radius: 6px; }
+  .certificate-inner { background: #FFFDF7; border: 1.5px solid var(--gold); padding: 46px 40px 34px; text-align: center; position: relative; }
+  .certificate-inner::before { content: ''; position: absolute; inset: 7px; border: 1px solid var(--navy-light); pointer-events: none; }
+  .certificate-crest { width: 60px; height: 60px; object-fit: contain; margin: 0 auto 10px; display: block; }
+  .certificate-org { font-size: 12px; font-weight: 800; letter-spacing: 3px; color: var(--gold); }
+  .certificate-org-sub { font-size: 10px; color: var(--gray-500); letter-spacing: 1px; margin-top: 3px; text-transform: uppercase; }
+  .certificate-kicker { font-family: 'Playfair Display', serif; font-size: 30px; font-weight: 700; color: var(--navy); margin: 24px 0 8px; }
+  .certificate-presented { font-size: 11px; color: var(--gray-500); letter-spacing: 1.5px; text-transform: uppercase; margin-bottom: 14px; }
+  .certificate-name { font-family: 'Playfair Display', serif; font-style: italic; font-weight: 600; font-size: 32px; color: var(--gold); margin-bottom: 12px; word-break: break-word; }
+  .certificate-rule { width: 130px; height: 1px; background: var(--gold-light); margin: 0 auto 22px; position: relative; }
+  .certificate-rule::before { content: '◆'; position: absolute; top: 50%; left: 50%; transform: translate(-50%,-50%); background: #FFFDF7; color: var(--gold); font-size: 11px; padding: 0 10px; }
+  .certificate-body { font-size: 14px; color: var(--gray-800); line-height: 1.75; max-width: 520px; margin: 0 auto 10px; }
+  .certificate-stats { font-size: 11px; color: var(--gray-500); letter-spacing: 0.3px; margin-bottom: 30px; }
+  .certificate-sig-row { display: flex; justify-content: space-between; align-items: flex-end; margin-top: 20px; gap: 16px; }
+  .certificate-sig-col { flex: 1; text-align: left; }
+  .certificate-sig-col-right { text-align: right; }
+  .certificate-meta-label { font-size: 9px; letter-spacing: 1px; text-transform: uppercase; color: var(--gray-400); }
+  .certificate-meta-value { font-size: 12px; font-weight: 700; color: var(--navy); margin-top: 1px; }
+  .certificate-seal-wrap { flex-shrink: 0; }
+  .certificate-seal { width: 68px; height: 68px; object-fit: contain; opacity: 0.95; }
+  .certificate-signature { font-size: 28px; line-height: 1; }
+  .certificate-sig-line { border-top: 1px solid var(--gray-400); margin-top: 3px; padding-top: 4px; width: 170px; margin-left: auto; }
+  .certificate-sig-name { font-size: 12px; font-weight: 700; color: var(--navy); }
+  .certificate-sig-title { font-size: 10px; color: var(--gray-500); letter-spacing: 0.5px; text-transform: uppercase; }
+  @media (max-width: 640px) {
+    .certificate-sig-row { flex-direction: column; align-items: center; text-align: center; gap: 16px; }
+    .certificate-sig-col, .certificate-sig-col-right { text-align: center; }
+    .certificate-sig-line { margin: 2px auto 0; }
+  }
   .subject-card { border: 1px solid var(--gray-200); border-radius: 10px; padding: 14px 16px; margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center; }
   .subject-card .name { font-weight: bold; color: var(--navy); }
   .subject-card .stats { font-size: 12px; color: var(--gray-500); margin-top: 3px; }

@@ -1970,21 +1970,45 @@ async function issueCertificate(studentId) {
 
 function renderCertificate(student, program, cert) {
   const pct = cert.finalTotal > 0 ? Math.round((cert.finalScore / cert.finalTotal) * 100) : null;
+  const statsParts = [];
+  if (cert.attendancePct !== null) statsParts.push(`${cert.attendancePct}% Attendance`);
+  if (pct !== null) statsParts.push(`Final Mock Assessment ${cert.finalScore}/${cert.finalTotal} (${pct}%)`);
+
   const html = `
-    <div style="border:6px double #1a2b6b;padding:40px;text-align:center;">
-      <div style="font-size:14px;letter-spacing:2px;color:#b81f2c;font-weight:bold;">WAAPC TRAINING CENTRE</div>
-      <div style="font-size:28px;font-weight:bold;color:#1a2b6b;margin:14px 0;">Certificate of Completion</div>
-      <p style="font-size:13px;color:#555;">This certifies that</p>
-      <div style="font-size:24px;font-weight:bold;color:#1a2b6b;margin:10px 0;">${student.fullName}</div>
-      <p style="font-size:13px;color:#555;">has successfully completed the</p>
-      <div style="font-size:18px;font-weight:bold;color:#b81f2c;margin:8px 0;">${program.test} Preparation Program</div>
-      <p style="font-size:13px;color:#555;margin-top:16px;">
-        ${cert.attendancePct !== null ? 'Attendance: ' + cert.attendancePct + '% &nbsp; | &nbsp; ' : ''}
-        ${pct !== null ? 'Final mock assessment: ' + cert.finalScore + '/' + cert.finalTotal + ' (' + pct + '%)' : ''}
-      </p>
-      <div style="display:flex;justify-content:space-between;margin-top:40px;font-size:12px;color:#666;">
-        <div>Certificate No. ${cert.certNumber}</div>
-        <div>Issued ${cert.issuedDate}</div>
+    <div class="certificate-frame">
+      <div class="certificate-inner">
+        <img src="/logo-waapc.jpg" class="certificate-crest" alt="WAAPC">
+        <div class="certificate-org">WAAPC TRAINING CENTRE</div>
+        <div class="certificate-org-sub">Authorized GED Testing Service Provider</div>
+
+        <div class="certificate-kicker">Certificate of Completion</div>
+        <div class="certificate-presented">This certificate is proudly presented to</div>
+        <div class="certificate-name">${student.fullName}</div>
+        <div class="certificate-rule"></div>
+
+        <p class="certificate-body">
+          For successfully completing the <strong>${program.test} Preparation Program</strong> at WAAPC Training Centre,
+          demonstrating commitment, discipline, and mastery of the required competencies.
+        </p>
+        ${statsParts.length ? `<p class="certificate-stats">${statsParts.join(' &nbsp;·&nbsp; ')}</p>` : '<div style="margin-bottom:30px;"></div>'}
+
+        <div class="certificate-sig-row">
+          <div class="certificate-sig-col">
+            <div class="certificate-meta-label">Certificate No.</div>
+            <div class="certificate-meta-value">${cert.certNumber}</div>
+            <div class="certificate-meta-label" style="margin-top:10px;">Date Issued</div>
+            <div class="certificate-meta-value">${cert.issuedDate}</div>
+          </div>
+          <div class="certificate-seal-wrap">
+            <img src="/badge-ged-authorized.jpg" class="certificate-seal" alt="Authorized GED Provider Seal">
+          </div>
+          <div class="certificate-sig-col certificate-sig-col-right">
+            <div class="signature-script certificate-signature">Samuel Palmer</div>
+            <div class="certificate-sig-line"></div>
+            <div class="certificate-sig-name">Samuel Palmer</div>
+            <div class="certificate-sig-title">Academic Lead</div>
+          </div>
+        </div>
       </div>
     </div>
   `;
