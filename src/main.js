@@ -1973,13 +1973,14 @@ function renderCertificate(student, program, cert) {
   const statsParts = [];
   if (cert.attendancePct !== null) statsParts.push(`${cert.attendancePct}% Attendance`);
   if (pct !== null) statsParts.push(`Final Mock Assessment ${cert.finalScore}/${cert.finalTotal} (${pct}%)`);
+  const isGed = program.test === 'GED';
 
   const html = `
     <div class="certificate-frame">
       <div class="certificate-inner">
         <img src="/logo-waapc.jpg" class="certificate-crest" alt="WAAPC">
         <div class="certificate-org">WAAPC TRAINING CENTRE</div>
-        <div class="certificate-org-sub">Authorized GED Testing Service Provider</div>
+        <div class="certificate-org-sub">${isGed ? 'Authorized GED Testing Service Provider' : 'Testing & Examination Services'}</div>
 
         <div class="certificate-kicker">Certificate of Completion</div>
         <div class="certificate-presented">This certificate is proudly presented to</div>
@@ -1999,11 +2000,15 @@ function renderCertificate(student, program, cert) {
             <div class="certificate-meta-label" style="margin-top:10px;">Date Issued</div>
             <div class="certificate-meta-value">${cert.issuedDate}</div>
           </div>
-          <div class="certificate-seal-wrap">
+          ${
+            isGed
+              ? `<div class="certificate-seal-wrap">
             <img src="/badge-ged-authorized.jpg" class="certificate-seal" alt="Authorized GED Provider Seal">
-          </div>
+          </div>`
+              : ''
+          }
           <div class="certificate-sig-col certificate-sig-col-right">
-            <div class="signature-script certificate-signature">Samuel Palmer</div>
+            <div class="certificate-sig-blank"></div>
             <div class="certificate-sig-line"></div>
             <div class="certificate-sig-name">Samuel Palmer</div>
             <div class="certificate-sig-title">Academic Lead</div>
