@@ -657,6 +657,7 @@ function showTab(name) {
   if (target) target.classList.remove('hidden');
   if (name === 'dashboard') renderAdminDashboardStats();
   if (name === 'manage') renderStudentsTable();
+  if (name === 'graduates') renderGraduatesPage();
   if (name === 'qb') qbInit();
   if (name === 'staff') renderTeacherInvites();
   if (name === 'assignments') {
@@ -1094,6 +1095,81 @@ async function ungraduateEnrollmentClick(enrollmentId, studentId) {
 }
 
 // =====================================================================
+// Graduates dashboard — every completed enrollment, with a visual
+// breakdown of GED performance tiers and program mix, plus the full list.
+// =====================================================================
+async function renderGraduatesPage() {
+  const [grads, gedByStudent] = await Promise.all([db.listGraduates(), db.listGedScoresByStudent()]);
+
+  const attendanceVals = grads.map((g) => g.attendancePct).filter((v) => v != null);
+  const avgAttendance = attendanceVals.length
+    ? Math.round(attendanceVals.reduce((a, b) => a + Number(b), 0) / attendanceVals.length)
+    : null;
+
+  const gedGrads = grads.filter((g) => g.test === 'GED');
+  const gedPassCount = gedGrads.filter((g) => {
+    const best = gedByStudent[g.studentId];
+    return best != null && best >= 145;
+  }).length;
+  const gedPassRate = gedGrads.length ? Math.round((gedPassCount / gedGrads.length) * 100) : null;
+
+  document.getElementById('grad_stats').innerHTML = `
+    <div class="stat-grid" style="grid-template-columns:repeat(3,1fr);">
+      <div class="stat-card"><div class="stat-label">Total Graduates</div><div class="stat-value">${grads.length}</div></div>
+      <div class="stat-card"><div class="stat-label">GED Pass Rate</div><div class="stat-value">${gedPassRate != null ? gedPassRate + '%' : '—'}</div></div>
+      <div class="stat-card"><div class="stat-label">Avg. Attendance</div><div class="stat-value">${avgAttendance != null ? avgAttendance + '%' : '—'}</div></div>
+    </div>
+  `;
+
+  const tierCounts = { 'Below Passing': 0, Passing: 0, 'College Ready': 0, 'College Ready + Credit': 0 };
+  gedGrads.forEach((g) => {
+    const best = gedByStudent[g.studentId];
+    if (best != null) tierCounts[gedTier(best)]++;
+  });
+  document.getElementById('grad_gedChartEmpty').classList.toggle('hidden', gedGrads.length > 0);
+  document.getElementById('grad_gedChart').innerHTML = gedGrads.length
+    ? hBarChart(
+        Object.entries(GED_TIER_COLOR).map(([label, color]) => ({ label, value: tierCounts[label], color })),
+        { valueFmt: (v) => String(v) }
+      )
+    : '';
+
+  const programCounts = {};
+  grads.forEach((g) => { programCounts[g.test] = (programCounts[g.test] || 0) + 1; });
+  document.getElementById('grad_programChartEmpty').classList.toggle('hidden', grads.length > 0);
+  document.getElementById('grad_programChart').innerHTML = grads.length
+    ? hBarChart(
+        Object.entries(programCounts).map(([label, value]) => ({ label, value, color: 'var(--navy)' })),
+        { valueFmt: (v) => String(v) }
+      )
+    : '';
+
+  const tbody = document.querySelector('#grad_table tbody');
+  document.getElementById('grad_listEmpty').classList.toggle('hidden', grads.length > 0);
+  tbody.innerHTML = grads
+    .map((g) => {
+      const best = gedByStudent[g.studentId];
+      const scoreDisplay =
+        g.test === 'GED' && best != null
+          ? `${best} / 200 — ${gedTier(best)}`
+          : g.finalScore != null
+          ? `${g.finalScore} / ${g.finalTotal}`
+          : '—';
+      return `
+        <tr>
+          <td>${g.studentName || '—'}</td>
+          <td>${g.test || '—'}${g.level ? ' · ' + g.level : ''}</td>
+          <td>${g.graduatedDate ? new Date(g.graduatedDate).toLocaleDateString() : '—'}</td>
+          <td>${scoreDisplay}</td>
+          <td>${g.attendancePct != null ? g.attendancePct + '%' : '—'}</td>
+          <td>${g.certNumber || '—'}</td>
+        </tr>
+      `;
+    })
+    .join('');
+}
+
+// =====================================================================
 // Gradebook (Admin/Teacher entry; shared with Student/Parent read views)
 // =====================================================================
 // The real GED exam scores each subject 100-200, not as a percentage.
@@ -1468,7 +1544,7 @@ function signatureBlock() {
   return `
     <div style="margin-top:32px;display:flex;justify-content:flex-end;">
       <div style="text-align:center;">
-        <div class="signature-script">Samuel Palmer</div>
+        <img src="/signature-samuel-palmer.png" class="signature-image" alt="Samuel Palmer signature">
         <div style="border-top:1px solid #999;margin-top:2px;padding-top:4px;font-size:11px;color:#666;">Samuel Palmer &middot; Academic Lead</div>
       </div>
     </div>
@@ -2064,7 +2140,7 @@ function renderCertificate(student, program, cert) {
             </div>`
             }
             <div class="certificate-sig-col certificate-sig-col-right">
-              <div class="certificate-sig-blank"></div>
+              <img src="/signature-samuel-palmer.png" class="signature-image certificate-signature-image" alt="Samuel Palmer signature">
               <div class="certificate-sig-line"></div>
               <div class="certificate-sig-name">Samuel Palmer</div>
               <div class="certificate-sig-title">Academic Lead</div>

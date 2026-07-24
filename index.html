@@ -5,7 +5,7 @@
 <title>WAAPC Training Centre — System</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Alex+Brush&family=Playfair+Display:ital,wght@0,500;0,600;0,700;1,500&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,500;0,600;0,700;1,500&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="/src/style.css">
 </head>
 <body>
@@ -104,6 +104,7 @@
         <button class="tab-btn sidebar-nav-item active" data-tab="dashboard" onclick="showTab('dashboard')"><span class="sidebar-nav-icon">⊞</span>Dashboard</button>
         <button class="tab-btn sidebar-nav-item" data-tab="register" onclick="showTab('register')"><span class="sidebar-nav-icon">➕</span>New Registration</button>
         <button class="tab-btn sidebar-nav-item" data-tab="manage" onclick="showTab('manage')"><span class="sidebar-nav-icon">👥</span>Students & Payments</button>
+        <button class="tab-btn sidebar-nav-item" data-tab="graduates" onclick="showTab('graduates')"><span class="sidebar-nav-icon">🎓</span>Graduates</button>
         <button class="tab-btn sidebar-nav-item" data-tab="qb" onclick="showTab('qb')"><span class="sidebar-nav-icon">📝</span>Question Bank</button>
         <button class="tab-btn sidebar-nav-item" data-tab="staff" onclick="showTab('staff')"><span class="sidebar-nav-icon">🧑‍🏫</span>Invite Teachers</button>
         <button class="tab-btn sidebar-nav-item" data-tab="teachers" onclick="showTab('teachers')"><span class="sidebar-nav-icon">👩‍🏫</span>Teachers</button>
@@ -260,6 +261,34 @@
           <tbody></tbody>
         </table>
         <div id="studentsEmpty" class="empty hidden">No students registered yet.</div>
+      </div>
+    </div>
+
+    <!-- ================= GRADUATES (Admin) ================= -->
+    <div id="tab-graduates" class="page tab-panel hidden">
+      <div class="dash-header">
+        <div><h1>Graduates</h1><p class="muted">Everyone who has completed a program</p></div>
+      </div>
+      <div id="grad_stats"></div>
+      <div class="dash-charts">
+        <div class="card">
+          <h2>GED Performance at Graduation</h2>
+          <div id="grad_gedChart"></div>
+          <p id="grad_gedChartEmpty" class="empty hidden">No GED graduates yet.</p>
+        </div>
+        <div class="card">
+          <h2>Graduates by Program</h2>
+          <div id="grad_programChart"></div>
+          <p id="grad_programChartEmpty" class="empty hidden">No graduates yet.</p>
+        </div>
+      </div>
+      <div class="card">
+        <h2>All graduates</h2>
+        <table id="grad_table">
+          <thead><tr><th>Student</th><th>Program</th><th>Graduated</th><th>Score</th><th>Attendance</th><th>Certificate</th></tr></thead>
+          <tbody></tbody>
+        </table>
+        <div id="grad_listEmpty" class="empty hidden">No students have graduated yet — mark a completed program as graduated from the student's profile.</div>
       </div>
     </div>
 

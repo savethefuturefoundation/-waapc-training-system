@@ -355,6 +355,55 @@ export async function ungraduateEnrollment(enrollmentId) {
   if (error) throw error;
 }
 
+// ---------------------------------------------------------------------
+// Graduates — admin dashboard of everyone who has graduated, with their
+// final scores/attendance for the pass-rate and tier-distribution charts.
+// ---------------------------------------------------------------------
+export async function listGraduates() {
+  const { data, error } = await supabase
+    .from('enrollments')
+    .select(
+      `id, level, graduated_date,
+       tests ( name ),
+       students ( id, full_name ),
+       certificates ( certificate_number, issued_date, final_mock_score, final_mock_total, attendance_pct )`
+    )
+    .eq('status', 'graduated')
+    .order('graduated_date', { ascending: false });
+  if (error) throw error;
+  return data.map((e) => {
+    const cert = (e.certificates && e.certificates[0]) || null;
+    return {
+      enrollmentId: e.id,
+      studentId: e.students?.id,
+      studentName: e.students?.full_name,
+      test: e.tests?.name,
+      level: e.level,
+      graduatedDate: e.graduated_date,
+      certNumber: cert?.certificate_number || null,
+      finalScore: cert ? Number(cert.final_mock_score) : null,
+      finalTotal: cert ? Number(cert.final_mock_total) : null,
+      attendancePct: cert ? cert.attendance_pct : null,
+    };
+  });
+}
+
+// Best GED grade (100-200 scale) per student, for tier classification on
+// the Graduates dashboard — separate from the generic mock-score ratio
+// stored on certificates, since GED uses its own official scale.
+export async function listGedScoresByStudent() {
+  const { data, error } = await supabase.from('grades').select('student_id, score, subjects(tests(name))');
+  if (error) throw error;
+  const byStudent = {};
+  data
+    .filter((g) => g.subjects?.tests?.name === 'GED')
+    .forEach((g) => {
+      const score = Number(g.score);
+      if (!byStudent[g.student_id] || score > byStudent[g.student_id]) byStudent[g.student_id] = score;
+    });
+  return byStudent;
+}
+
 export async function issueCertificate({ studentId, enrollmentId, score, total, attendancePct }) {
   const seq = await nextSeq('cert_seq');
   const certNumber = 'CERT-' + new Date().getFullYear() + '-' + String(seq).padStart(3, '0');
