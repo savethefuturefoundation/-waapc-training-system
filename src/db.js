@@ -696,6 +696,17 @@ export async function gradeSpeakingSubmission(submissionId, score) {
   if (error) throw error;
 }
 
+// Sends via the send-parent-email Edge Function (Gmail SMTP under the
+// hood — see supabase/functions/send-parent-email). Throws with a clear
+// message if the function hasn't been deployed/configured yet, so the
+// caller can fall back to the mailto: draft.
+export async function sendParentEmail({ to, subject, body }) {
+  const { data, error } = await supabase.functions.invoke('send-parent-email', { body: { to, subject, body } });
+  if (error) throw error;
+  if (data?.error) throw new Error(data.error);
+  return data;
+}
+
 export async function listSpeakingSubmissions(studentId) {
   const { data, error } = await supabase
     .from('speaking_submissions')

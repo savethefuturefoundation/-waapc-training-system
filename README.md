@@ -84,6 +84,38 @@ Optional: in Supabase, under **Authentication → URL Configuration**, add your 
 (e.g. `https://your-project.pages.dev`) to the allowed URLs — not required for the email/password
 login flow this app uses, but good practice if you add email links or OAuth later.
 
+## Automated parent emails (optional)
+
+Admins and teachers can send a parent a progress-update email straight from the app —
+the "📤 Send progress update to parent" button on a student's Progress view. Until this
+is set up, that button shows a clear error and "✉️ Open as draft in my email instead"
+still works with zero setup.
+
+To turn on automatic sending (through a Gmail account, so it doesn't need a custom domain):
+
+1. Pick a Gmail account to send from — a dedicated one for the school (e.g.
+   `waapctrainingcentre@gmail.com`) is recommended over a personal account, so it stays
+   separate and isn't affected if Gmail ever rate-limits automated sending.
+2. On that account, turn on **2-Step Verification** (required for the next step):
+   https://myaccount.google.com/security
+3. Generate an **App Password**: https://myaccount.google.com/apppasswords — this is a
+   16-character code Google generates for exactly this purpose. It is *not* the account's
+   normal login password, and it's the only credential this integration ever uses.
+4. Install the [Supabase CLI](https://supabase.com/docs/guides/cli) and link it to your project:
+   ```
+   supabase login
+   supabase link --project-ref YOUR_PROJECT_REF
+   ```
+5. Deploy the function and set its secrets:
+   ```
+   supabase functions deploy send-parent-email
+   supabase secrets set GMAIL_USER=your-school-account@gmail.com
+   supabase secrets set GMAIL_APP_PASSWORD=xxxxxxxxxxxxxxxx
+   ```
+   (the app password, spaces removed)
+
+That's it — no code changes needed. The button starts working the moment the secrets are set.
+
 ## Keeping local and live in sync
 
 Cloudflare Pages only deploys what's pushed to `main` on GitHub — a feature finished

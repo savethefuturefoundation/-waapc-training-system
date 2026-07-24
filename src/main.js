@@ -2090,10 +2090,14 @@ async function openStudentProgress(studentId) {
   const s = students.find((x) => x.id === studentId);
   if (!s) return;
   const panelHtml = await renderProgressPanel(s);
-  const emailBtn = s.guardian?.email
-    ? `<button class="btn ghost small no-print" style="margin-bottom:14px;" onclick="emailParentClick('${s.id}')">✉️ Email parent a progress update</button>`
+  const emailBtns = s.guardian?.email
+    ? `<div class="no-print" style="margin-bottom:14px;display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
+        <button class="btn small" onclick="sendParentEmailClick('${s.id}')">📤 Send progress update to parent</button>
+        <button class="btn ghost small" onclick="emailParentClick('${s.id}')">✉️ Open as draft in my email instead</button>
+        <span id="sendParentEmailStatus_${s.id}" class="muted"></span>
+      </div>`
     : '';
-  renderDoc(`<h3 style="color:#1a2b6b;">${s.fullName} — Progress</h3>${emailBtn}${panelHtml}`);
+  renderDoc(`<h3 style="color:#1a2b6b;">${s.fullName} — Progress</h3>${emailBtns}${panelHtml}`);
 }
 
 function pronounsFor(gender) {
@@ -2102,19 +2106,9 @@ function pronounsFor(gender) {
   return { subj: 'they', obj: 'them', poss: 'their' };
 }
 
-// Drafts a parent progress-update email pre-filled with the student's real
-// name and latest GED score, opened via mailto: so it sends through the
-// staff member's own email client — no email-sending infrastructure
-// required. True automated (no-click) sending would need a transactional
-// email provider and a server-side function; this is the zero-setup version.
-async function emailParentClick(studentId) {
-  const students = await db.loadAllStudents();
-  const s = students.find((x) => x.id === studentId);
-  if (!s) return;
-  if (!s.guardian?.email) {
-    alert('No guardian email on file for this student.');
-    return;
-  }
+// Builds the parent progress-update content once, shared by both the
+// automatic-send and the open-as-draft actions below.
+async function buildParentEmailDraft(s) {
   const grades = await db.listGradesForStudent(s.id);
   const gedGrades = grades.filter((g) => g.test === 'GED');
   const latestGed = gedGrades.length ? gedGrades.slice().sort((a, b) => new Date(b.enteredAt) - new Date(a.enteredAt))[0] : null;
@@ -2138,7 +2132,44 @@ If you'd like to discuss ${firstName}'s progress in more detail, or have any que
 Warm regards,
 WAAPC Training Centre`;
 
-  const mailtoUrl = `mailto:${encodeURIComponent(s.guardian.email)}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+  return { to: s.guardian.email, subject, body };
+}
+
+// Sends automatically through the send-parent-email Edge Function (Gmail
+// SMTP server-side — see supabase/functions/send-parent-email). Fails
+// clearly if that function hasn't been deployed/configured yet.
+async function sendParentEmailClick(studentId) {
+  const students = await db.loadAllStudents();
+  const s = students.find((x) => x.id === studentId);
+  if (!s || !s.guardian?.email) return;
+  const statusEl = document.getElementById('sendParentEmailStatus_' + studentId);
+  if (statusEl) statusEl.textContent = 'Sending…';
+  try {
+    const draft = await buildParentEmailDraft(s);
+    await db.sendParentEmail(draft);
+    if (statusEl) statusEl.textContent = '✓ Sent to ' + s.guardian.email;
+  } catch (e) {
+    if (statusEl) statusEl.textContent = '';
+    alert(
+      "Couldn't send automatically: " +
+        (e.message || e) +
+        '\n\nUse "Open as draft in my email instead" for now, or finish setting up the send-parent-email function (see README.md).'
+    );
+  }
+}
+
+// Opens the same draft via mailto: so it sends through the staff member's
+// own email client — the zero-setup fallback that always works.
+async function emailParentClick(studentId) {
+  const students = await db.loadAllStudents();
+  const s = students.find((x) => x.id === studentId);
+  if (!s) return;
+  if (!s.guardian?.email) {
+    alert('No guardian email on file for this student.');
+    return;
+  }
+  const { to, subject, body } = await buildParentEmailDraft(s);
+  const mailtoUrl = `mailto:${encodeURIComponent(to)}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
   window.open(mailtoUrl, '_blank');
 }
 
@@ -4332,6 +4363,7 @@ Object.assign(window, {
   viewReceipt,
   openStudentProgress,
   emailParentClick,
+  sendParentEmailClick,
   openAttendance,
   recordAttendance,
   openProgressReport,
