@@ -904,6 +904,7 @@ function isStudentProfileActive() {
 }
 
 function renderDoc(html) {
+  setPrintOrientation(false);
   if (isStudentProfileActive()) {
     document.getElementById('studentProfileContent').innerHTML = html;
   } else {
@@ -1552,6 +1553,7 @@ function signatureBlock() {
 }
 
 function openInvoice(student) {
+  setPrintOrientation(false);
   const rows = student.programs
     .map((p, i) => {
       const title = p.regOnly ? `${p.test} — Registration Only (Test Sitting)` : `${p.test} Preparation & Registration`;
@@ -1808,6 +1810,7 @@ async function addFeeLineClick(studentId) {
 }
 
 async function viewReceipt(studentId, paymentId) {
+  setPrintOrientation(false);
   const students = await db.loadAllStudents();
   const s = students.find((x) => x.id === studentId);
   let payment = null;
@@ -1854,12 +1857,32 @@ async function viewReceipt(studentId, paymentId) {
 
 function closeDoc() {
   document.getElementById('docOverlay').classList.remove('show');
+  setPrintOrientation(false);
+}
+
+// Chrome does not reliably honor per-element named-page orientation
+// switching (@page <name> + page: <name>) within a single print job, so
+// certificates get their own landscape page by injecting/removing a plain
+// @page rule instead, scoped to whichever document is currently open.
+function setPrintOrientation(landscape) {
+  let style = document.getElementById('printOrientationStyle');
+  if (!landscape) {
+    if (style) style.remove();
+    return;
+  }
+  if (!style) {
+    style = document.createElement('style');
+    style.id = 'printOrientationStyle';
+    document.head.appendChild(style);
+  }
+  style.textContent = '@media print { @page { size: landscape; margin: 0.35in; } }';
 }
 
 // =====================================================================
 // Change password — available to every role from the sidebar.
 // =====================================================================
 function openChangePassword() {
+  setPrintOrientation(false);
   const showNameField = currentSession && (currentSession.role === 'admin' || currentSession.role === 'teacher');
   const html = `
     <h3 style="color:var(--navy);">Account settings</h3>
@@ -1998,6 +2021,7 @@ function attendanceStatsFor(student, programId) {
 // Progress report
 // =====================================================================
 async function openProgressReport(studentId) {
+  setPrintOrientation(false);
   const students = await db.loadAllStudents();
   const s = students.find((x) => x.id === studentId);
   if (!s) return;
@@ -2053,6 +2077,7 @@ async function openProgressReport(studentId) {
 // Certificates
 // =====================================================================
 async function openCertificateForm(studentId) {
+  setPrintOrientation(false);
   const students = await db.loadAllStudents();
   const s = students.find((x) => x.id === studentId);
   if (!s) return;
@@ -2152,6 +2177,7 @@ function renderCertificate(student, program, cert) {
   `;
   document.getElementById('docContent').innerHTML = html;
   document.getElementById('docOverlay').classList.add('show');
+  setPrintOrientation(true);
 }
 
 // =====================================================================

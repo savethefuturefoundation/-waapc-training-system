@@ -154,7 +154,7 @@
   .certificate-seal { width: 68px; height: 68px; object-fit: contain; opacity: 0.95; }
   .certificate-own-seal-wrap { flex-shrink: 0; }
   .certificate-own-seal { width: 62px; height: 62px; object-fit: cover; border-radius: 50%; border: 3px double var(--navy); padding: 6px; background: #fff; }
-  .certificate-signature-image { height: 44px; margin-left: auto; }
+  .certificate-signature-image { height: 62px; width: auto; object-fit: contain; display: block; margin: 0 0 4px auto; }
   .certificate-sig-line { border-top: 1px solid var(--gray-400); margin-top: 3px; padding-top: 4px; width: 170px; margin-left: auto; }
   .certificate-sig-name { font-size: 12px; font-weight: 700; color: var(--navy); }
   .certificate-sig-title { font-size: 10px; color: var(--gray-500); letter-spacing: 0.5px; text-transform: uppercase; }
@@ -231,10 +231,11 @@
     .doc-page { box-shadow: none !important; margin: 0 !important; }
     body { background: #fff; }
 
-    /* Certificates print landscape (their natural orientation) and use
-       the full page instead of the portrait doc-page width cap. */
-    @page certificate { size: landscape; margin: 0.35in; }
-    .certificate-frame { page: certificate; }
+    /* Certificates use the full page instead of the portrait doc-page width
+       cap. Actual landscape orientation is set by a JS-injected @page rule
+       (setPrintOrientation in main.js) rather than a named page here — Chrome
+       does not reliably honor per-element named-page orientation switching
+       within a single print job. */
     .doc-page:has(.certificate-frame) { max-width: none !important; padding: 0 !important; }
   }
 
