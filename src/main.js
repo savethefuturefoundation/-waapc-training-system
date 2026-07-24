@@ -220,6 +220,7 @@ async function renderTeacherStudentsTable() {
       <td>${s.fullName}</td>
       <td>${s.programs.map((p) => p.test).join(', ')}</td>
       <td>
+        <button class="btn ghost small" onclick="openStudentProgress('${s.id}')">Progress</button>
         <button class="btn ghost small" onclick="openAttendance('${s.id}')">Attendance</button>
         <button class="btn ghost small" onclick="openProgressReport('${s.id}')">Report</button>
         <button class="btn ghost small" onclick="openGradebook('${s.id}')">Gradebook</button>
@@ -2003,6 +2004,14 @@ async function changePasswordClick() {
 // =====================================================================
 // Attendance
 // =====================================================================
+async function openStudentProgress(studentId) {
+  const students = await db.loadAllStudents();
+  const s = students.find((x) => x.id === studentId);
+  if (!s) return;
+  const panelHtml = await renderProgressPanel(s);
+  renderDoc(`<h3 style="color:#1a2b6b;">${s.fullName} — Progress</h3>${panelHtml}`);
+}
+
 async function openAttendance(studentId) {
   const students = await db.loadAllStudents();
   const s = students.find((x) => x.id === studentId);
@@ -4191,6 +4200,7 @@ Object.assign(window, {
   financeAddFeeLineClick,
   financeVoidPaymentClick,
   viewReceipt,
+  openStudentProgress,
   openAttendance,
   recordAttendance,
   openProgressReport,
