@@ -2126,6 +2126,8 @@ function renderCertificate(student, program, cert) {
   const statsParts = [];
   if (cert.attendancePct !== null) statsParts.push(`${cert.attendancePct}% Attendance`);
   if (pct !== null) statsParts.push(`Final Mock Assessment ${cert.finalScore}/${cert.finalTotal} (${pct}%)`);
+  statsParts.push(`Certificate No. ${cert.certNumber}`);
+  statsParts.push(`Issued ${cert.issuedDate}`);
   const isGed = program.test === 'GED';
 
   const html = `
@@ -2146,14 +2148,14 @@ function renderCertificate(student, program, cert) {
             For successfully completing the <strong>${program.test} Preparation Program</strong> at WAAPC Training Centre,
             demonstrating commitment, discipline, and mastery of the required competencies.
           </p>
-          ${statsParts.length ? `<p class="certificate-stats">${statsParts.join(' &nbsp;·&nbsp; ')}</p>` : '<div style="margin-bottom:30px;"></div>'}
+          <p class="certificate-stats">${statsParts.join(' &nbsp;·&nbsp; ')}</p>
 
           <div class="certificate-sig-row">
             <div class="certificate-sig-col">
-              <div class="certificate-meta-label">Certificate No.</div>
-              <div class="certificate-meta-value">${cert.certNumber}</div>
-              <div class="certificate-meta-label" style="margin-top:10px;">Date Issued</div>
-              <div class="certificate-meta-value">${cert.issuedDate}</div>
+              <img src="/signature-samuel-palmer.png" class="signature-image certificate-signature-image" alt="Samuel Palmer signature">
+              <div class="certificate-sig-line"></div>
+              <div class="certificate-sig-name">Samuel Palmer</div>
+              <div class="certificate-sig-title">Academic Lead</div>
             </div>
             ${
               isGed
@@ -2165,10 +2167,10 @@ function renderCertificate(student, program, cert) {
             </div>`
             }
             <div class="certificate-sig-col certificate-sig-col-right">
-              <img src="/signature-samuel-palmer.png" class="signature-image certificate-signature-image" alt="Samuel Palmer signature">
+              <img src="/signature-nathan-adingra.png" class="signature-image certificate-signature-image" alt="Nathan Adingra signature">
               <div class="certificate-sig-line"></div>
-              <div class="certificate-sig-name">Samuel Palmer</div>
-              <div class="certificate-sig-title">Academic Lead</div>
+              <div class="certificate-sig-name">Nathan Adingra</div>
+              <div class="certificate-sig-title">Program Manager</div>
             </div>
           </div>
         </div>
