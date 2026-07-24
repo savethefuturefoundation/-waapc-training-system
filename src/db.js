@@ -147,7 +147,12 @@ function mapStudentRow(row) {
     },
     photoUrl: row.photo_url,
     programs,
-    total: programs.reduce((s, p) => s + p.price, 0),
+    // Installment amounts are the correctable source of truth for what a
+    // student owes (admins can edit them after registration to fix a
+    // mistake; there's no UI to edit an enrollment's price after the fact).
+    // Falling back to program price only applies before any installments
+    // exist yet, e.g. mid-registration.
+    total: installments.length ? installments.reduce((s, i) => s + i.amount, 0) : programs.reduce((s, p) => s + p.price, 0),
     installments,
     invoiceNumber: invoice?.invoice_number,
     invoiceDate: invoice?.invoice_date,
