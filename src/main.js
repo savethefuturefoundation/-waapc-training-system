@@ -3550,6 +3550,41 @@ const TIMETABLE_DAY_ORDER = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 const TIMETABLE_DAY_LABELS = { Mon: 'Monday', Tue: 'Tuesday', Wed: 'Wednesday', Thu: 'Thursday', Fri: 'Friday', Sat: 'Saturday', Sun: 'Sunday' };
 const TIMETABLE_KIND_BADGE = { class: 'paid', test: 'partial', plan: 'neutral', rest: 'unpaid' };
 
+// GED weekday core-subject rotation. Times, breaks, lunch, and Friday
+// stay exactly as scheduled — only which of the 4 core subjects occupies
+// each of the 4 class periods changes, so the same day-of-week doesn't
+// always teach the same subject first. The pattern also shifts forward
+// one step every week (a Latin square over day x period x week), cycling
+// through all 4 orderings before repeating.
+const GED_ROTATION_SUBJECTS = ['Reading & Language Arts', 'Mathematics', 'Science', 'Social Studies'];
+const GED_ROTATION_DAYS = ['Mon', 'Tue', 'Wed', 'Thu'];
+// 2024-01-01 is a Monday — a fixed, arbitrary reference point so the week
+// index (and therefore the rotation) is stable and deterministic forever.
+const GED_ROTATION_EPOCH = Date.UTC(2024, 0, 1);
+
+function gedRotationWeekIndex(date = new Date()) {
+  const dayMs = 24 * 60 * 60 * 1000;
+  const todayUTC = Date.UTC(date.getFullYear(), date.getMonth(), date.getDate());
+  const daysSinceEpoch = Math.floor((todayUTC - GED_ROTATION_EPOCH) / dayMs);
+  return Math.floor(daysSinceEpoch / 7) % GED_ROTATION_SUBJECTS.length;
+}
+
+// Mutates the given day's GED entries in place, relabeling the 4 rotating
+// class slots (matched by their original subject name, in time order)
+// with this week's rotated subject. Leaves everything else untouched.
+function applyGedRotation(dayEntries, day, weekIndex) {
+  const dayIndex = GED_ROTATION_DAYS.indexOf(day);
+  if (dayIndex === -1) return;
+  const rotatingSlots = dayEntries
+    .filter((e) => e.kind === 'class' && GED_ROTATION_SUBJECTS.includes(e.activity))
+    .sort((a, b) => a.start.localeCompare(b.start));
+  if (rotatingSlots.length !== GED_ROTATION_SUBJECTS.length) return;
+  rotatingSlots.forEach((entry, periodIndex) => {
+    const subjectIndex = (periodIndex + dayIndex + weekIndex) % GED_ROTATION_SUBJECTS.length;
+    entry.activity = GED_ROTATION_SUBJECTS[subjectIndex];
+  });
+}
+
 async function renderTimetablePage() {
   document.getElementById('tt_composer').classList.toggle('hidden', !canPostAsStaff());
   try {
@@ -3579,6 +3614,11 @@ async function renderTimetablePage() {
     entries.forEach((e) => {
       byDay[e.day] = byDay[e.day] || [];
       byDay[e.day].push(e);
+    });
+
+    const gedWeekIndex = gedRotationWeekIndex();
+    GED_ROTATION_DAYS.forEach((d) => {
+      if (byDay[d]) applyGedRotation(byDay[d].filter((e) => e.testName === 'GED'), d, gedWeekIndex);
     });
 
     listEl.innerHTML = TIMETABLE_DAY_ORDER.filter((d) => byDay[d])
