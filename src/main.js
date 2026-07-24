@@ -1333,6 +1333,27 @@ function statTile({ label, value, borderColor, navId }) {
   return `<div class="stat-card"${attrs}><div class="stat-label">${label}</div><div class="stat-value" style="font-size:19px;">${value}</div></div>`;
 }
 
+// Best score-% per subject, from a list of {test, subject, score, total}
+// attempts. Used for the non-GED "Mock Exam Performance" chart on the
+// profile page and the printed progress report.
+function subjectScoreChart(attempts, opts = {}) {
+  if (!attempts.length) return '';
+  const labelFor = opts.labelFor || ((a) => a.subject);
+  const bySubject = {};
+  attempts.forEach((a) => {
+    if (!a.total) return;
+    const pct = Math.round((a.score / a.total) * 100);
+    const key = labelFor(a);
+    if (!(key in bySubject) || pct > bySubject[key]) bySubject[key] = pct;
+  });
+  const items = Object.entries(bySubject).map(([label, value]) => ({
+    label,
+    value,
+    color: value >= 70 ? 'var(--green)' : value >= 50 ? 'var(--amber)' : 'var(--red)',
+  }));
+  return hBarChart(items, { valueFmt: (v) => v + '%' });
+}
+
 async function renderProgressPanel(s, opts = {}) {
   const [grades, assignments] = await Promise.all([db.listGradesForStudent(s.id), db.listAssignmentsForStudent(s.id)]);
   const isGed = studentHasGed(s);
@@ -1345,7 +1366,14 @@ async function renderProgressPanel(s, opts = {}) {
   const nav = (id) => (opts.interactive ? id : null);
 
   // GED score tiles/chart only make sense for students actually enrolled
-  // in GED — everyone else just gets attendance/assignments.
+  // in GED. Everyone else gets a mock-exam performance tile/chart instead
+  // of just attendance/assignments — mock attempts are auto-scored, so
+  // there's always something to show once the student has taken one.
+  const mockAttempts = (s.attempts || []).filter((a) => a.mode === 'mock' && a.test !== 'GED');
+  const sortedMock = mockAttempts.slice().sort((a, b) => new Date(b.date) - new Date(a.date));
+  const latestMock = sortedMock[0] || null;
+  const bestMockPct = mockAttempts.length ? Math.max(...mockAttempts.map((a) => Math.round((a.score / a.total) * 100))) : null;
+
   const tiles = [];
   if (isGed) {
     tiles.push(
@@ -1362,6 +1390,19 @@ async function renderProgressPanel(s, opts = {}) {
         navId: nav('nav-student-grades'),
       })
     );
+  } else {
+    tiles.push(
+      statTile({
+        label: 'Latest Mock Score',
+        value: latestMock ? `${latestMock.score}/${latestMock.total} (${Math.round((latestMock.score / latestMock.total) * 100)}%)` : '—',
+        navId: nav('nav-student-courses'),
+      }),
+      statTile({
+        label: 'Best Mock Score',
+        value: bestMockPct !== null ? bestMockPct + '%' : '—',
+        navId: nav('nav-student-courses'),
+      })
+    );
   }
   tiles.push(
     statTile({ label: 'Attendance', value: attendancePct !== null ? attendancePct + '%' : '—', navId: nav('nav-student-attendance') }),
@@ -1374,11 +1415,15 @@ async function renderProgressPanel(s, opts = {}) {
     </div>
   `;
 
-  const chart = !isGed
-    ? ''
-    : gedGrades.length
-    ? `<div class="card"><h2>GED Score Progress</h2>${gedScoreTrendChart(gedGrades)}</div>`
-    : '<p class="muted">No Friday GED test scores entered yet — this chart fills in as scores are recorded in the Gradebook.</p>';
+  const chart = isGed
+    ? gedGrades.length
+      ? `<div class="card"><h2>GED Score Progress</h2>${gedScoreTrendChart(gedGrades)}</div>`
+      : '<p class="muted">No Friday GED test scores entered yet — this chart fills in as scores are recorded in the Gradebook.</p>'
+    : mockAttempts.length
+    ? `<div class="card"><h2>Mock Exam Performance — Best Score by Subject</h2>${subjectScoreChart(mockAttempts, {
+        labelFor: (a) => `${a.test} — ${a.subject}`,
+      })}</div>`
+    : '<p class="muted">No mock exam attempts yet — this chart fills in once the student takes a practice or mock exam.</p>';
 
   const readyCards = isGed ? gedReadyScoreCards(gedGrades, opts) : '';
 
@@ -2032,9 +2077,10 @@ async function openProgressReport(studentId) {
     .map((p) => {
       const subjects = (CATALOG[p.test] && CATALOG[p.test].subjects.map((x) => x.name)) || [];
       const att = attendanceStatsFor(s, p.id);
+      const programMockAttempts = s.attempts.filter((a) => a.test === p.test && a.mode === 'mock');
       const subjectRows = subjects
         .map((sub) => {
-          const mockAttempts = s.attempts.filter((a) => a.test === p.test && a.subject === sub && a.mode === 'mock');
+          const mockAttempts = programMockAttempts.filter((a) => a.subject === sub);
           const best = mockAttempts.length ? Math.max(...mockAttempts.map((a) => Math.round((a.score / a.total) * 100))) : null;
           const latest = mockAttempts.length ? mockAttempts[mockAttempts.length - 1] : null;
           return `<tr>
@@ -2045,11 +2091,20 @@ async function openProgressReport(studentId) {
       </tr>`;
         })
         .join('');
+      const attendanceBar =
+        att.total > 0
+          ? hBarChart([{ label: 'Attendance', value: att.pct, color: att.pct >= 80 ? 'var(--green)' : att.pct >= 60 ? 'var(--amber)' : 'var(--red)' }], {
+              valueFmt: (v) => v + '%',
+            })
+          : '';
+      const perfChart = programMockAttempts.length ? subjectScoreChart(programMockAttempts) : '';
       return `
       <div style="margin-bottom:18px;">
         <div style="font-weight:bold;color:#1a2b6b;font-size:14px;margin-bottom:6px;">${p.test} <span class="muted">(${p.level})</span></div>
         <p class="muted" style="margin:0 0 8px 0;">Attendance: ${att.total > 0 ? att.present + ' / ' + att.total + ' sessions (' + att.pct + '%)' : 'No sessions recorded yet'}</p>
-        <table><thead><tr><th>Subject</th><th>Mock attempts</th><th>Best score</th><th>Latest attempt</th></tr></thead><tbody>${subjectRows}</tbody></table>
+        ${attendanceBar}
+        ${perfChart}
+        <table style="margin-top:8px;"><thead><tr><th>Subject</th><th>Mock attempts</th><th>Best score</th><th>Latest attempt</th></tr></thead><tbody>${subjectRows}</tbody></table>
       </div>`;
     })
     .join('');
@@ -2196,8 +2251,12 @@ async function openSpeakingSubmissions(studentId) {
       ${s.signedUrl ? `<audio controls src="${s.signedUrl}" style="width:100%;"></audio>` : '<p class="muted">Recording unavailable.</p>'}
       <p style="margin-top:8px;">
         <span class="badge ${s.reviewed ? 'paid' : 'unpaid'}">${s.reviewed ? 'Reviewed' : 'Not yet reviewed'}</span>
-        ${!s.reviewed ? `<button class="btn ghost small" onclick="markSpeakingReviewed('${studentId}','${s.id}')">Mark reviewed</button>` : ''}
+        ${s.score !== null ? `<span class="badge neutral" style="margin-left:6px;">Score: ${s.score}/100</span>` : ''}
       </p>
+      <div style="display:flex;gap:8px;align-items:center;margin-top:6px;">
+        <input type="number" min="0" max="100" placeholder="Score /100" value="${s.score !== null ? s.score : ''}" id="speak_score_${s.id}" style="margin-bottom:0;width:110px;">
+        <button class="btn ghost small" onclick="gradeSpeakingSubmissionClick('${studentId}','${s.id}')">Save score</button>
+      </div>
     </div>`
     )
     .join('');
@@ -2209,14 +2268,20 @@ async function openSpeakingSubmissions(studentId) {
   renderDoc(html);
 }
 
-async function markSpeakingReviewed(studentId, submissionId) {
-  try {
-    await db.markSpeakingReviewed(submissionId);
-  } catch (e) {
-    alert('Could not update: ' + (e.message || e));
+async function gradeSpeakingSubmissionClick(studentId, submissionId) {
+  const input = document.getElementById('speak_score_' + submissionId);
+  const score = parseFloat(input.value);
+  if (isNaN(score) || score < 0 || score > 100) {
+    alert('Enter a score between 0 and 100.');
     return;
   }
-  openSpeakingSubmissions(studentId);
+  try {
+    await db.gradeSpeakingSubmission(submissionId, score);
+  } catch (e) {
+    alert('Could not save score: ' + (e.message || e));
+    return;
+  }
+  await openSpeakingSubmissions(studentId);
 }
 
 // =====================================================================
@@ -4092,7 +4157,7 @@ Object.assign(window, {
   openCertificateForm,
   issueCertificate,
   openSpeakingSubmissions,
-  markSpeakingReviewed,
+  gradeSpeakingSubmissionClick,
   studentCheckEmail,
   studentBackToEmail,
   studentSubmitPassword,

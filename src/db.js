@@ -686,15 +686,15 @@ export async function submitSpeakingRecording({ studentId, promptId, blob }) {
   if (error) throw error;
 }
 
-export async function markSpeakingReviewed(submissionId) {
-  const { error } = await supabase.from('speaking_submissions').update({ reviewed: true }).eq('id', submissionId);
+export async function gradeSpeakingSubmission(submissionId, score) {
+  const { error } = await supabase.from('speaking_submissions').update({ score, reviewed: true }).eq('id', submissionId);
   if (error) throw error;
 }
 
 export async function listSpeakingSubmissions(studentId) {
   const { data, error } = await supabase
     .from('speaking_submissions')
-    .select('id, audio_url, submitted_at, reviewed, speaking_prompts(prompt_text)')
+    .select('id, audio_url, submitted_at, reviewed, score, speaking_prompts(prompt_text)')
     .eq('student_id', studentId)
     .order('submitted_at', { ascending: false });
   if (error) throw error;
@@ -707,6 +707,7 @@ export async function listSpeakingSubmissions(studentId) {
         promptText: s.speaking_prompts?.prompt_text,
         submittedAt: s.submitted_at,
         reviewed: s.reviewed,
+        score: s.score === null || s.score === undefined ? null : Number(s.score),
         signedUrl: signed?.signedUrl,
       };
     })
