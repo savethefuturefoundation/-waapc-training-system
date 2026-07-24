@@ -143,7 +143,7 @@
   .certificate-name { font-family: 'Playfair Display', serif; font-style: italic; font-weight: 600; font-size: 32px; color: var(--gold); margin-bottom: 12px; word-break: break-word; }
   .certificate-rule { width: 130px; height: 1px; background: var(--gold-light); margin: 0 auto 22px; position: relative; }
   .certificate-rule::before { content: '◆'; position: absolute; top: 50%; left: 50%; transform: translate(-50%,-50%); background: #FFFDF7; color: var(--gold); font-size: 11px; padding: 0 10px; }
-  .certificate-body { font-size: 14px; color: var(--gray-800); line-height: 1.75; max-width: 520px; margin: 0 auto 10px; }
+  .certificate-body { font-size: 14px; color: var(--gray-800); line-height: 1.75; max-width: 620px; margin: 0 auto 10px; }
   .certificate-stats { font-size: 11px; color: var(--gray-500); letter-spacing: 0.3px; margin-bottom: 30px; }
   .certificate-sig-row { display: flex; justify-content: space-between; align-items: flex-end; margin-top: 20px; gap: 16px; }
   .certificate-sig-col { flex: 1; text-align: left; }
@@ -236,7 +236,15 @@
        (setPrintOrientation in main.js) rather than a named page here — Chrome
        does not reliably honor per-element named-page orientation switching
        within a single print job. */
-    .doc-page:has(.certificate-frame) { max-width: none !important; padding: 0 !important; }
+    .doc-page:has(.certificate-frame) {
+      max-width: none !important; padding: 0 !important;
+      display: flex !important; align-items: center; justify-content: center; min-height: 100vh;
+    }
+    /* The certificate was designed at popup-modal size; scale it up so it
+       actually fills a landscape sheet instead of sitting as a small inset
+       card. Factor tuned to the certificate's fixed aspect ratio against a
+       US Letter/A4 landscape page at the 0.25in margin set below. */
+    .certificate-frame { transform: scale(1.27); }
   }
 
   @media (max-width: 860px) {

@@ -1875,7 +1875,7 @@ function setPrintOrientation(landscape) {
     style.id = 'printOrientationStyle';
     document.head.appendChild(style);
   }
-  style.textContent = '@media print { @page { size: landscape; margin: 0.35in; } }';
+  style.textContent = '@media print { @page { size: landscape; margin: 0.25in; } }';
 }
 
 // =====================================================================
