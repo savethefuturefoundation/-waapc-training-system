@@ -210,6 +210,63 @@ async function renderTeacherStudentsTable() {
     console.error('listMyTeacherAssignments failed (has extra_schema_19.sql been run?):', e);
   }
   const students = myTestIds.length ? allStudents.filter((s) => s.programs.some((p) => myTestIds.includes(p.testId))) : allStudents;
+
+  // Visual summary — stat tiles + charts scoped to just this teacher's own
+  // students, same pattern as the admin dashboard.
+  const gradesLists = await Promise.all(students.map((s) => db.listGradesForStudent(s.id).catch(() => [])));
+  const gedScores = gradesLists.flat().filter((g) => g.test === 'GED').map((g) => g.score);
+  const gedStudentCount = students.filter((s) => studentHasGed(s)).length;
+  const attendancePcts = students.map((s) => attendanceRateOf(s)).filter((v) => v !== null);
+  const avgAttendance = attendancePcts.length ? Math.round(attendancePcts.reduce((a, b) => a + b, 0) / attendancePcts.length) : null;
+  let pendingSpeaking = 0;
+  await Promise.all(
+    students
+      .filter((s) => studentHasSpeaking(s))
+      .map(async (s) => {
+        try {
+          const subs = await db.listSpeakingSubmissions(s.id);
+          pendingSpeaking += subs.filter((sub) => !sub.reviewed).length;
+        } catch (e) {
+          console.error('listSpeakingSubmissions failed for teacher summary:', e);
+        }
+      })
+  );
+
+  document.getElementById('teacherStats').innerHTML = `
+    <div class="stat-grid" style="grid-template-columns:repeat(4,1fr);">
+      <div class="stat-card"><div class="stat-label">My Students</div><div class="stat-value">${students.length}</div></div>
+      <div class="stat-card"><div class="stat-label">GED Students</div><div class="stat-value">${gedStudentCount}</div></div>
+      <div class="stat-card"><div class="stat-label">Avg. Attendance</div><div class="stat-value">${avgAttendance !== null ? avgAttendance + '%' : '—'}</div></div>
+      <div class="stat-card"><div class="stat-label">Pending Speaking Reviews</div><div class="stat-value">${pendingSpeaking}</div></div>
+    </div>
+  `;
+
+  const tierCounts = { 'Below Passing': 0, Passing: 0, 'College Ready': 0, 'College Ready + Credit': 0 };
+  gedScores.forEach((score) => {
+    tierCounts[gedTier(score)]++;
+  });
+  document.getElementById('teacherGedChartEmpty').classList.toggle('hidden', gedScores.length > 0);
+  document.getElementById('teacherGedChart').innerHTML = gedScores.length
+    ? hBarChart(
+        Object.entries(GED_TIER_COLOR).map(([label, color]) => ({ label, value: tierCounts[label], color })),
+        { valueFmt: (v) => String(v) }
+      )
+    : '';
+
+  const totalPresent = students.reduce((sum, s) => sum + (s.attendance || []).filter((r) => r.present).length, 0);
+  const totalAbsent = students.reduce((sum, s) => sum + (s.attendance || []).filter((r) => !r.present).length, 0);
+  document.getElementById('teacherAttChartEmpty').classList.toggle('hidden', totalPresent + totalAbsent > 0);
+  document.getElementById('teacherAttChart').innerHTML =
+    totalPresent + totalAbsent > 0
+      ? hBarChart(
+          [
+            { label: 'Present', value: totalPresent, color: 'var(--green)' },
+            { label: 'Absent', value: totalAbsent, color: 'var(--red)' },
+          ],
+          { valueFmt: (v) => String(v) }
+        )
+      : '';
+
   const tbody = document.querySelector('#teacherStudentsTable tbody');
   tbody.innerHTML = '';
   document.getElementById('teacherStudentsEmpty').classList.toggle('hidden', students.length > 0);
@@ -1326,6 +1383,29 @@ function attendanceRateOf(student) {
   return Math.round((present / records.length) * 100);
 }
 
+// A small present/absent heat-strip for the last ~30 sessions — one glance
+// at the pattern (a run of red, a recent recovery) instead of just a %.
+function attendanceHeatStrip(student) {
+  const records = (student.attendance || []).slice().sort((a, b) => (a.date < b.date ? -1 : 1));
+  if (!records.length) return '';
+  const recent = records.slice(-30);
+  const cells = recent
+    .map(
+      (r) =>
+        `<span title="${r.date} — ${r.present ? 'Present' : 'Absent'}" style="display:inline-block;width:10px;height:10px;border-radius:2px;margin:0 2px 2px 0;background:${
+          r.present ? 'var(--green)' : 'var(--red)'
+        };"></span>`
+    )
+    .join('');
+  return `
+    <div class="card" style="margin-top:16px;">
+      <h2>Recent Attendance</h2>
+      <div>${cells}</div>
+      <p class="muted" style="margin-top:8px;">Last ${recent.length} session${recent.length === 1 ? '' : 's'} — green is present, red is absent.</p>
+    </div>
+  `;
+}
+
 function statTile({ label, value, borderColor, navId }) {
   const styleParts = [];
   if (borderColor) styleParts.push(`border-left-color:${borderColor}`);
@@ -1427,8 +1507,9 @@ async function renderProgressPanel(s, opts = {}) {
     : '<p class="muted">No mock exam attempts yet — this chart fills in once the student takes a practice or mock exam.</p>';
 
   const readyCards = isGed ? gedReadyScoreCards(gedGrades, opts) : '';
+  const heatStrip = attendanceHeatStrip(s);
 
-  return readyCards + statTiles + chart;
+  return readyCards + statTiles + chart + heatStrip;
 }
 
 function isGedSubject(subjectId) {
@@ -2009,7 +2090,56 @@ async function openStudentProgress(studentId) {
   const s = students.find((x) => x.id === studentId);
   if (!s) return;
   const panelHtml = await renderProgressPanel(s);
-  renderDoc(`<h3 style="color:#1a2b6b;">${s.fullName} — Progress</h3>${panelHtml}`);
+  const emailBtn = s.guardian?.email
+    ? `<button class="btn ghost small no-print" style="margin-bottom:14px;" onclick="emailParentClick('${s.id}')">✉️ Email parent a progress update</button>`
+    : '';
+  renderDoc(`<h3 style="color:#1a2b6b;">${s.fullName} — Progress</h3>${emailBtn}${panelHtml}`);
+}
+
+function pronounsFor(gender) {
+  if (gender === 'Male') return { subj: 'he', obj: 'him', poss: 'his' };
+  if (gender === 'Female') return { subj: 'she', obj: 'her', poss: 'her' };
+  return { subj: 'they', obj: 'them', poss: 'their' };
+}
+
+// Drafts a parent progress-update email pre-filled with the student's real
+// name and latest GED score, opened via mailto: so it sends through the
+// staff member's own email client — no email-sending infrastructure
+// required. True automated (no-click) sending would need a transactional
+// email provider and a server-side function; this is the zero-setup version.
+async function emailParentClick(studentId) {
+  const students = await db.loadAllStudents();
+  const s = students.find((x) => x.id === studentId);
+  if (!s) return;
+  if (!s.guardian?.email) {
+    alert('No guardian email on file for this student.');
+    return;
+  }
+  const grades = await db.listGradesForStudent(s.id);
+  const gedGrades = grades.filter((g) => g.test === 'GED');
+  const latestGed = gedGrades.length ? gedGrades.slice().sort((a, b) => new Date(b.enteredAt) - new Date(a.enteredAt))[0] : null;
+
+  const firstName = s.fullName.split(' ')[0];
+  const p = pronounsFor(s.gender);
+  const subject = `${s.fullName}'s Current GED Progress — WAAPC Training Centre`;
+  const scoreLine = latestGed ? `Current level: ${latestGed.score} — ${gedTier(latestGed.score)}\n\n` : '';
+  const body = `Dear ${s.guardian.name || 'Parent/Guardian'},
+
+I hope this message finds you well.
+
+I'm writing to share an update on ${s.fullName}'s progress in our GED preparation program.${
+    latestGed ? ` ${firstName} recently completed a GED assessment, and I wanted to personally let you know where things stand.` : ''
+  }
+
+${scoreLine}This reflects where ${firstName} is right now, not where ${p.subj} will end up. When ${firstName} joined us, we committed to seeing this through with ${p.obj}, and that commitment hasn't changed. Our teaching team already has a plan in place to focus on the areas that will move this score forward, and we'll keep you updated as ${firstName} continues to test and improve.
+
+If you'd like to discuss ${firstName}'s progress in more detail, or have any questions in the meantime, please don't hesitate to reach out.
+
+Warm regards,
+WAAPC Training Centre`;
+
+  const mailtoUrl = `mailto:${encodeURIComponent(s.guardian.email)}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+  window.open(mailtoUrl, '_blank');
 }
 
 async function openAttendance(studentId) {
@@ -4201,6 +4331,7 @@ Object.assign(window, {
   financeVoidPaymentClick,
   viewReceipt,
   openStudentProgress,
+  emailParentClick,
   openAttendance,
   recordAttendance,
   openProgressReport,

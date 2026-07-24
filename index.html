@@ -698,6 +698,22 @@ GED,Mathematical Reasoning,What is 7 x 8?,54,56,58,60,B"></textarea>
 
     <!-- ================= TEACHER PAGES ================= -->
     <div id="page-teacher-students" class="page hidden">
+      <div class="dash-header">
+        <div><h1>My Students</h1><p class="muted">A quick look at how your students are doing</p></div>
+      </div>
+      <div id="teacherStats"></div>
+      <div class="dash-charts">
+        <div class="card">
+          <h2>GED Performance Levels</h2>
+          <div id="teacherGedChart"></div>
+          <p id="teacherGedChartEmpty" class="empty hidden">No GED grades recorded yet for your students.</p>
+        </div>
+        <div class="card">
+          <h2>Attendance</h2>
+          <div id="teacherAttChart"></div>
+          <p id="teacherAttChartEmpty" class="empty hidden">No attendance recorded yet for your students.</p>
+        </div>
+      </div>
       <div class="card">
         <h2>Students</h2>
         <p class="muted hidden" id="teacherStudentsScopeNote">Showing only students enrolled in the program(s) assigned to you.</p>
@@ -745,9 +761,9 @@ GED,Mathematical Reasoning,What is 7 x 8?,54,56,58,60,B"></textarea>
 
     <!-- ================= STUDENT PAGES ================= -->
     <div id="page-student-dashboard" class="page hidden">
-      <div class="card">
-        <h2 id="welcomeMsg"></h2>
-        <p class="muted">Here's how you're doing. Use the sidebar for your courses, assignments, grades, attendance, and more.</p>
+      <div class="dash-header">
+        <div><h1 id="welcomeMsg"></h1><p class="muted">Here's how you're doing. Use the sidebar for your courses, assignments, grades, attendance, and more.</p></div>
+      </div>
       </div>
       <div id="progressPanel"></div>
     </div>
