@@ -35,9 +35,29 @@ function showAuthScreen(portal) {
 
 const SIDEBAR_NAME_FALLBACK = { admin: 'Administrator', teacher: 'Teacher', parent: 'Parent', student: 'Student' };
 
+// Documents (invoices, receipts, certificates, reports) always print/look
+// light regardless of app theme — CSS resets the color variables back to
+// their light values scoped to .doc-overlay, so this toggle only ever
+// needs to touch the <html> attribute; nothing document-specific to sync.
+function updateDarkModeButtonLabel() {
+  const btn = document.getElementById('darkModeToggleBtn');
+  if (!btn) return;
+  const isDark = document.documentElement.dataset.theme === 'dark';
+  btn.textContent = isDark ? '☀️ Light mode' : '🌙 Dark mode';
+}
+
+function toggleDarkMode() {
+  const isDark = document.documentElement.dataset.theme === 'dark';
+  const next = isDark ? 'light' : 'dark';
+  document.documentElement.dataset.theme = next;
+  localStorage.setItem('waapc_theme', next);
+  updateDarkModeButtonLabel();
+}
+
 function showAppShell(role) {
   document.getElementById('authScreen').classList.add('hidden');
   document.getElementById('appShell').classList.remove('hidden');
+  updateDarkModeButtonLabel();
   document.getElementById('sidebarRoleBadge').textContent = ROLE_LABELS[role];
   document.getElementById('sidebarEmail').textContent = currentSession ? currentSession.email : '';
   const displayName = role === 'student' && currentStudentRecord ? currentStudentRecord.fullName : currentSession?.fullName;
@@ -3971,10 +3991,10 @@ async function renderAnnouncementsPage() {
     document.getElementById('ann_listEmpty').classList.toggle('hidden', items.length > 0);
     listEl.innerHTML = items
     .map(
-      (a) => `<div class="card" style="margin-bottom:12px;">
+      (a) => `<div class="card" style="margin-bottom:12px;border-left:4px solid ${a.targetTestName ? 'var(--gold)' : 'var(--navy)'};">
         <div style="display:flex;justify-content:space-between;align-items:start;">
           <div>
-            <h2 style="margin-bottom:4px;">${a.title} ${a.targetTestName ? `<span class="badge neutral">${a.targetTestName} only</span>` : ''}</h2>
+            <h2 style="margin-bottom:4px;">📢 ${a.title} ${a.targetTestName ? `<span class="badge neutral">${a.targetTestName} only</span>` : '<span class="badge neutral">Everyone</span>'}</h2>
             <p class="muted" style="margin:0 0 8px;">${new Date(a.created_at).toLocaleString()}</p>
             ${a.body ? `<p style="margin:0;">${a.body}</p>` : ''}
           </div>
@@ -4017,9 +4037,60 @@ async function deleteAnnouncementClick(id) {
 // =====================================================================
 // Calendar (shared page; admin/teacher post, everyone reads)
 // =====================================================================
+let calendarViewDate = new Date();
+let calendarSelectedDay = null; // 'YYYY-MM-DD' or null — filters the list below the grid
+let calendarEventsCache = [];
+
 async function renderCalendarPage() {
   document.getElementById('cal_composer').classList.toggle('hidden', !canPostAsStaff());
-  const events = await db.listCalendarEvents();
+  calendarEventsCache = await db.listCalendarEvents();
+  renderCalendarGrid();
+  renderCalendarList();
+}
+
+function renderCalendarGrid() {
+  const year = calendarViewDate.getFullYear();
+  const month = calendarViewDate.getMonth();
+  document.getElementById('cal_monthLabel').textContent = calendarViewDate.toLocaleDateString(undefined, { month: 'long', year: 'numeric' });
+
+  const eventsByDate = {};
+  calendarEventsCache.forEach((e) => {
+    (eventsByDate[e.event_date] = eventsByDate[e.event_date] || []).push(e);
+  });
+
+  const firstOfMonth = new Date(year, month, 1);
+  const startWeekday = firstOfMonth.getDay();
+  const daysInMonth = new Date(year, month + 1, 0).getDate();
+  const todayStr = new Date().toISOString().slice(0, 10);
+
+  const weekdayLabels = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((d) => `<div class="cal-weekday">${d}</div>`).join('');
+  const leadingBlanks = Array.from({ length: startWeekday }, () => `<div class="cal-day cal-day-empty"></div>`).join('');
+  const dayCells = Array.from({ length: daysInMonth }, (_, i) => {
+    const day = i + 1;
+    const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+    const dayEvents = eventsByDate[dateStr] || [];
+    const classes = ['cal-day'];
+    if (dayEvents.length) classes.push('has-events');
+    if (dateStr === todayStr) classes.push('today');
+    if (dateStr === calendarSelectedDay) classes.push('selected');
+    const dots = dayEvents.slice(0, 3).map(() => `<span class="cal-day-dot"></span>`).join('');
+    return `<button type="button" class="${classes.join(' ')}" title="${dayEvents.map((e) => e.title).join(', ')}" ${
+      dayEvents.length ? `onclick="selectCalendarDay('${dateStr}')"` : 'disabled'
+    }>
+      <span class="cal-day-num">${day}</span>
+      <span class="cal-day-dots">${dots}</span>
+    </button>`;
+  }).join('');
+
+  document.getElementById('cal_grid').innerHTML = `<div class="cal-grid">${weekdayLabels}${leadingBlanks}${dayCells}</div>`;
+}
+
+function renderCalendarList() {
+  const events = calendarSelectedDay ? calendarEventsCache.filter((e) => e.event_date === calendarSelectedDay) : calendarEventsCache;
+  document.getElementById('cal_clearFilter').classList.toggle('hidden', !calendarSelectedDay);
+  document.getElementById('cal_listTitle').textContent = calendarSelectedDay
+    ? new Date(calendarSelectedDay + 'T00:00:00').toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' })
+    : 'Upcoming';
   const listEl = document.getElementById('cal_list');
   document.getElementById('cal_listEmpty').classList.toggle('hidden', events.length > 0);
   listEl.innerHTML = events
@@ -4038,6 +4109,23 @@ async function renderCalendarPage() {
       </div>`
     )
     .join('');
+}
+
+function changeCalendarMonth(delta) {
+  calendarViewDate = new Date(calendarViewDate.getFullYear(), calendarViewDate.getMonth() + delta, 1);
+  renderCalendarGrid();
+}
+
+function selectCalendarDay(dateStr) {
+  calendarSelectedDay = calendarSelectedDay === dateStr ? null : dateStr;
+  renderCalendarGrid();
+  renderCalendarList();
+}
+
+function clearCalendarDayFilter() {
+  calendarSelectedDay = null;
+  renderCalendarGrid();
+  renderCalendarList();
 }
 
 async function createCalendarEventClick() {
@@ -4622,6 +4710,7 @@ Object.assign(window, {
   sidebarNavTo,
   goHome,
   openChangePassword,
+  toggleDarkMode,
   changePasswordClick,
   updateMyNameClick,
   adminLogin,
@@ -4653,6 +4742,9 @@ Object.assign(window, {
   deleteAnnouncementClick,
   createCalendarEventClick,
   deleteCalendarEventClick,
+  changeCalendarMonth,
+  selectCalendarDay,
+  clearCalendarDayFilter,
   createTimetableEntryClick,
   deleteTimetableEntryClick,
   loadAttendanceRoster,

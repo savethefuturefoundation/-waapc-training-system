@@ -7,6 +7,13 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,500;0,600;0,700;1,500&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="/src/style.css">
+<script>
+  (function () {
+    var stored = localStorage.getItem('waapc_theme');
+    var theme = stored || (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+    document.documentElement.dataset.theme = theme;
+  })();
+</script>
 </head>
 <body>
 
@@ -154,6 +161,7 @@
     <div class="sidebar-user">
       <div class="sidebar-user-name" id="sidebarName"></div>
       <div class="sidebar-user-email" id="sidebarEmail"></div>
+      <button class="btn ghost small" id="darkModeToggleBtn" style="width:100%;justify-content:center;margin-bottom:6px;" onclick="toggleDarkMode()">🌙 Dark mode</button>
       <button class="btn ghost small" style="width:100%;justify-content:center;margin-bottom:6px;" onclick="openChangePassword()">Change password</button>
       <button class="btn ghost small" id="sidebarLogoutBtn" style="width:100%;justify-content:center;">Log out</button>
     </div>
@@ -522,8 +530,19 @@ GED,Mathematical Reasoning,What is 7 x 8?,54,56,58,60,B"></textarea>
         <p id="cal_error" class="muted error-text"></p>
       </div>
       <div class="card">
-        <h2>Upcoming</h2>
-        <div id="cal_list"></div>
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;">
+          <button class="btn ghost small no-print" onclick="changeCalendarMonth(-1)">&larr; Prev</button>
+          <h2 id="cal_monthLabel" style="margin:0;border:none;padding:0;"></h2>
+          <button class="btn ghost small no-print" onclick="changeCalendarMonth(1)">Next &rarr;</button>
+        </div>
+        <div id="cal_grid"></div>
+      </div>
+      <div class="card">
+        <div style="display:flex;justify-content:space-between;align-items:center;">
+          <h2 id="cal_listTitle" style="margin:0;border:none;padding:0;">Upcoming</h2>
+          <button class="btn ghost small no-print hidden" id="cal_clearFilter" onclick="clearCalendarDayFilter()">Show all</button>
+        </div>
+        <div id="cal_list" style="margin-top:14px;"></div>
         <div id="cal_listEmpty" class="empty hidden">No events scheduled.</div>
       </div>
     </div>
