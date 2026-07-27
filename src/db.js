@@ -17,6 +17,24 @@ export async function loadCatalog() {
     .order('name');
   if (error) throw error;
 
+  // Duration/package pricing tiers (e.g. IELTS: 2/3/4/6/12-month options)
+  // are a separate query, not embedded in the select above — the table is
+  // optional (added by extra_schema_27.sql) and embedding a relation that
+  // doesn't exist yet would fail the whole catalog load.
+  const packagesByTestId = {};
+  try {
+    const { data: pkgs, error: pkgErr } = await supabase
+      .from('test_duration_packages')
+      .select('test_id, months, price, sort_order')
+      .order('sort_order');
+    if (pkgErr) throw pkgErr;
+    pkgs.forEach((p) => {
+      (packagesByTestId[p.test_id] = packagesByTestId[p.test_id] || []).push({ months: Number(p.months), price: Number(p.price) });
+    });
+  } catch (e) {
+    console.error('test_duration_packages not available yet (has extra_schema_27.sql been run?):', e);
+  }
+
   const catalog = {};
   for (const t of data) {
     let subjects = (t.subjects || []).slice().sort((a, b) => a.sort_order - b.sort_order);
@@ -29,6 +47,7 @@ export async function loadCatalog() {
       duration: t.default_duration_label,
       regOnlyPrice: Number(t.registration_only_price),
       subjects,
+      durationPackages: packagesByTestId[t.id] || [],
     };
   }
   return catalog;

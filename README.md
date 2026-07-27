@@ -52,6 +52,7 @@ Requirements: [Node.js](https://nodejs.org/) (LTS) and a Supabase project.
    - `extra_schema_24.sql` — Adds a `score` column to `speaking_submissions` so a reviewed recording can be graded, not just marked reviewed
    - `extra_schema_25.sql` — Lets a teacher/admin attach a document to an assignment (`attachment_url`/`attachment_name` on `assignments`, plus the `assignment-attachments` storage bucket)
    - `extra_schema_26.sql` — Classroom-style assignment upgrades: topics/units (`assignment_topics`), multiple attachments per assignment (`assignment_attachments`, replacing the single-attachment columns from extra_schema_25), a due date that carries a time (not just a date), and points-based grading + private per-student feedback (`assignment_grades`)
+   - `extra_schema_27.sql` — Duration/package pricing tiers per test (`test_duration_packages`), seeded with IELTS (Academic)'s real pricing (450k/2mo, 550k/3mo, 650k/4mo, 800k/6mo, 1.5M/1yr); registering a student can pick a package and the price + end date fill in automatically
 4. In Supabase **Authentication → Providers → Email**, turn off "Confirm email" (so a student's, teacher's, or parent's first-login signup works immediately).
 5. Create your admin account: **Authentication → Users → Add user** (check "Auto Confirm User"), then in the SQL Editor:
    ```sql

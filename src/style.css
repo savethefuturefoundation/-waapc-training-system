@@ -106,7 +106,7 @@
   .btn.small { padding: 6px 12px; font-size: 12px; }
   .checkbox-list { max-height: 200px; overflow-y: auto; border: 1.5px solid var(--gray-300); border-radius: 8px; padding: 8px; }
   .program-row, .installment-row {
-    display: grid; grid-template-columns: 1.4fr 1fr 0.9fr 0.9fr 0.7fr 0.9fr auto;
+    display: grid; grid-template-columns: 1.2fr 0.8fr 1fr 0.9fr 0.9fr 0.6fr 0.8fr auto;
     gap: 8px; align-items: center; margin-bottom: 8px; background: var(--bg); padding: 8px; border-radius: 8px;
   }
   .installment-row { grid-template-columns: 1fr 1fr 1fr 0.6fr auto; }

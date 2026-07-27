@@ -939,7 +939,8 @@ function addProgramRow() {
     <div class="program-row">
       <select class="p-test" onchange="onProgramChange(this)">${testOptions}</select>
       <select class="p-level"><option>Beginner</option><option>Intermediate</option><option>Advanced</option></select>
-      <input type="date" class="p-start" title="Start date">
+      <select class="p-duration" title="Package" onchange="onDurationPackageChange(this)"><option value="">Custom</option></select>
+      <input type="date" class="p-start" title="Start date" onchange="onProgramStartDateChange(this)">
       <input type="date" class="p-end" title="End date">
       <input type="number" class="p-sessions" placeholder="Sessions/wk" value="2">
       <input type="number" class="p-price" placeholder="Price CFA">
@@ -956,6 +957,15 @@ function addProgramRow() {
   onProgramChange(div.querySelector('.p-test'));
 }
 
+// YYYY-MM-DD + N months, calendar-correct (handles month-length/leap-year
+// rollover via the Date object rather than naive day arithmetic).
+function addMonthsToDateStr(dateStr, months) {
+  if (!dateStr) return '';
+  const d = new Date(dateStr + 'T00:00:00');
+  d.setMonth(d.getMonth() + Number(months));
+  return d.toISOString().slice(0, 10);
+}
+
 function onProgramChange(selectEl) {
   const test = selectEl.value;
   const row = selectEl.closest('.program-row-wrap');
@@ -965,7 +975,20 @@ function onProgramChange(selectEl) {
   const startInput = row.querySelector('.p-start');
   const endInput = row.querySelector('.p-end');
   const levelSelect = row.querySelector('.p-level');
+  const durationSelect = row.querySelector('.p-duration');
   const cat = CATALOG[test];
+
+  const packages = cat.durationPackages || [];
+  durationSelect.innerHTML =
+    '<option value="">Custom</option>' +
+    packages
+      .map(
+        (p, i) =>
+          `<option value="${i}" data-months="${p.months}" data-price="${p.price}">${p.months} month${p.months == 1 ? '' : 's'} — ${p.price.toLocaleString()} CFA</option>`
+      )
+      .join('');
+  durationSelect.disabled = packages.length === 0 || regOnly;
+
   if (regOnly) {
     priceInput.value = cat.regOnlyPrice;
     sessionsInput.value = '';
@@ -982,6 +1005,32 @@ function onProgramChange(selectEl) {
     if (!sessionsInput.value) sessionsInput.value = 2;
   }
   recalcTotals();
+}
+
+// A duration package auto-fills the real tiered price and, if a start
+// date is already set, computes the matching end date — e.g. IELTS's
+// 450,000/2mo, 550,000/3mo, 650,000/4mo, 800,000/6mo, 1,500,000/1yr.
+function onDurationPackageChange(selectEl) {
+  const opt = selectEl.selectedOptions[0];
+  const row = selectEl.closest('.program-row-wrap');
+  const priceInput = row.querySelector('.p-price');
+  const startInput = row.querySelector('.p-start');
+  const endInput = row.querySelector('.p-end');
+  if (opt && opt.dataset.price) {
+    priceInput.value = opt.dataset.price;
+    if (startInput.value) endInput.value = addMonthsToDateStr(startInput.value, opt.dataset.months);
+  }
+  recalcTotals();
+}
+
+// Keeps the end date in sync with the chosen package if the start date
+// changes afterward.
+function onProgramStartDateChange(inputEl) {
+  const row = inputEl.closest('.program-row-wrap');
+  const opt = row.querySelector('.p-duration')?.selectedOptions[0];
+  if (opt && opt.dataset.months) {
+    row.querySelector('.p-end').value = addMonthsToDateStr(inputEl.value, opt.dataset.months);
+  }
 }
 
 function recalcTotals() {
@@ -4521,6 +4570,8 @@ Object.assign(window, {
   handlePhoto,
   addProgramRow,
   onProgramChange,
+  onDurationPackageChange,
+  onProgramStartDateChange,
   recalcTotals,
   addInstallmentRow,
   recalcInstallments,
