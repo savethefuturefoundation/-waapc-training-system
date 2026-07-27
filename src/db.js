@@ -732,24 +732,72 @@ export async function listSpeakingSubmissions(studentId) {
 }
 
 // ---------------------------------------------------------------------
-// Assignments — teacher/admin assign work (optionally linking out to
-// another practice site) to specific students; students mark it done,
-// optionally with a text response and/or an uploaded file.
+// Assignments — teacher/admin assign work (optionally grouped into a
+// topic/unit, with one or more file/link attachments and a due date+time)
+// to specific students; students mark it done, optionally with a text
+// response and/or an uploaded file. Grading (points + private feedback)
+// lives in assignment_grades, a staff-write-only table, so a student can
+// never write their own grade even via a direct API call.
 // ---------------------------------------------------------------------
-export async function createAssignment({ title, description, linkUrl, dueDate, studentIds, attachmentFile }) {
+function assignmentAttachmentPublicUrl(path) {
+  return supabase.storage.from('assignment-attachments').getPublicUrl(path).data.publicUrl;
+}
+
+function mapAssignmentAttachment(x) {
+  return {
+    id: x.id,
+    kind: x.kind,
+    url: x.kind === 'file' ? assignmentAttachmentPublicUrl(x.url) : x.url,
+    name: x.name,
+  };
+}
+
+export async function listAssignmentTopics() {
+  const { data, error } = await supabase.from('assignment_topics').select('id, title, sort_order').order('sort_order').order('title');
+  if (error) throw error;
+  return data.map((t) => ({ id: t.id, title: t.title }));
+}
+
+export async function createAssignmentTopic(title) {
+  const { error } = await supabase.from('assignment_topics').insert({ title });
+  if (error) throw error;
+}
+
+export async function deleteAssignmentTopic(id) {
+  const { error } = await supabase.from('assignment_topics').delete().eq('id', id);
+  if (error) throw error;
+}
+
+// attachments: array of { kind: 'file', file: File } | { kind: 'link', url, name }
+export async function createAssignment({ title, description, dueDateTime, studentIds, topicId, pointsPossible, attachments }) {
   const { data: a, error } = await supabase
     .from('assignments')
-    .insert({ title, description: description || null, link_url: linkUrl || null, due_date: dueDate || null })
+    .insert({
+      title,
+      description: description || null,
+      due_date: dueDateTime || null,
+      topic_id: topicId || null,
+      points_possible: pointsPossible === '' || pointsPossible === null || pointsPossible === undefined ? null : Number(pointsPossible),
+    })
     .select('id')
     .single();
   if (error) throw error;
 
-  if (attachmentFile) {
-    const path = `${a.id}/${attachmentFile.name}`;
-    const { error: upErr } = await supabase.storage.from('assignment-attachments').upload(path, attachmentFile, { upsert: true });
-    if (upErr) throw upErr;
-    const { error: updErr } = await supabase.from('assignments').update({ attachment_url: path, attachment_name: attachmentFile.name }).eq('id', a.id);
-    if (updErr) throw updErr;
+  for (const [i, att] of (attachments || []).entries()) {
+    if (att.kind === 'file' && att.file) {
+      const path = `${a.id}/${Date.now()}_${att.file.name}`;
+      const { error: upErr } = await supabase.storage.from('assignment-attachments').upload(path, att.file, { upsert: true });
+      if (upErr) throw upErr;
+      const { error: attErr } = await supabase
+        .from('assignment_attachments')
+        .insert({ assignment_id: a.id, kind: 'file', url: path, name: att.file.name, sort_order: i });
+      if (attErr) throw attErr;
+    } else if (att.kind === 'link' && att.url) {
+      const { error: attErr } = await supabase
+        .from('assignment_attachments')
+        .insert({ assignment_id: a.id, kind: 'link', url: att.url, name: att.name || null, sort_order: i });
+      if (attErr) throw attErr;
+    }
   }
 
   if (studentIds.length > 0) {
@@ -766,11 +814,30 @@ export async function deleteAssignment(id) {
   if (error) throw error;
 }
 
+export async function saveAssignmentGrade({ assignmentId, studentId, pointsEarned, teacherFeedback }) {
+  const { error } = await supabase.from('assignment_grades').upsert(
+    {
+      assignment_id: assignmentId,
+      student_id: studentId,
+      points_earned: pointsEarned === '' || pointsEarned === null || pointsEarned === undefined ? null : Number(pointsEarned),
+      teacher_feedback: teacherFeedback || null,
+      graded_at: new Date().toISOString(),
+    },
+    { onConflict: 'assignment_id,student_id' }
+  );
+  if (error) throw error;
+}
+
 export async function listAssignments() {
   const { data, error } = await supabase
     .from('assignments')
     .select(
-      'id, title, description, link_url, due_date, attachment_url, attachment_name, created_at, assignment_targets(student_id, students(full_name)), assignment_submissions(student_id, status, response_text, file_url, submitted_at)'
+      `id, title, description, due_date, points_possible, created_at,
+       assignment_topics(id, title),
+       assignment_attachments(id, kind, url, name, sort_order),
+       assignment_targets(student_id, students(full_name)),
+       assignment_submissions(student_id, status, response_text, file_url, submitted_at),
+       assignment_grades(student_id, points_earned, teacher_feedback)`
     )
     .order('created_at', { ascending: false });
   if (error) throw error;
@@ -778,12 +845,14 @@ export async function listAssignments() {
     id: a.id,
     title: a.title,
     description: a.description,
-    linkUrl: a.link_url,
     dueDate: a.due_date,
-    attachmentUrl: a.attachment_url ? supabase.storage.from('assignment-attachments').getPublicUrl(a.attachment_url).data.publicUrl : null,
-    attachmentName: a.attachment_name,
+    pointsPossible: a.points_possible === null ? null : Number(a.points_possible),
+    topicId: a.assignment_topics?.id || null,
+    topicTitle: a.assignment_topics?.title || null,
+    attachments: (a.assignment_attachments || []).sort((x, y) => x.sort_order - y.sort_order).map(mapAssignmentAttachment),
     targets: (a.assignment_targets || []).map((t) => {
       const submission = (a.assignment_submissions || []).find((s) => s.student_id === t.student_id) || null;
+      const grade = (a.assignment_grades || []).find((g) => g.student_id === t.student_id) || null;
       return {
         studentId: t.student_id,
         fullName: t.students?.full_name,
@@ -795,6 +864,8 @@ export async function listAssignments() {
               submittedAt: submission.submitted_at,
             }
           : null,
+        pointsEarned: grade?.points_earned === null || grade?.points_earned === undefined ? null : Number(grade.points_earned),
+        teacherFeedback: grade?.teacher_feedback || null,
       };
     }),
   }));
@@ -806,21 +877,32 @@ export async function listAssignmentsForStudent(studentId) {
   const { data, error } = await supabase
     .from('assignments')
     .select(
-      'id, title, description, link_url, due_date, attachment_url, attachment_name, created_at, assignment_targets!inner(student_id), assignment_submissions(status, response_text, file_url, submitted_at, student_id)'
+      `id, title, description, due_date, points_possible, created_at,
+       assignment_topics(id, title),
+       assignment_attachments(id, kind, url, name, sort_order),
+       assignment_targets!inner(student_id),
+       assignment_submissions(status, response_text, file_url, submitted_at, student_id),
+       assignment_grades(points_earned, teacher_feedback, student_id)`
     )
     .eq('assignment_targets.student_id', studentId)
     .order('created_at', { ascending: false });
   if (error) throw error;
-  return data.map((a) => ({
-    id: a.id,
-    title: a.title,
-    description: a.description,
-    linkUrl: a.link_url,
-    dueDate: a.due_date,
-    attachmentUrl: a.attachment_url ? supabase.storage.from('assignment-attachments').getPublicUrl(a.attachment_url).data.publicUrl : null,
-    attachmentName: a.attachment_name,
-    submission: (a.assignment_submissions || []).find((s) => s.student_id === studentId) || null,
-  }));
+  return data.map((a) => {
+    const grade = (a.assignment_grades || []).find((g) => g.student_id === studentId) || null;
+    return {
+      id: a.id,
+      title: a.title,
+      description: a.description,
+      dueDate: a.due_date,
+      pointsPossible: a.points_possible === null ? null : Number(a.points_possible),
+      topicId: a.assignment_topics?.id || null,
+      topicTitle: a.assignment_topics?.title || null,
+      attachments: (a.assignment_attachments || []).sort((x, y) => x.sort_order - y.sort_order).map(mapAssignmentAttachment),
+      submission: (a.assignment_submissions || []).find((s) => s.student_id === studentId) || null,
+      pointsEarned: grade?.points_earned === null || grade?.points_earned === undefined ? null : Number(grade.points_earned),
+      teacherFeedback: grade?.teacher_feedback || null,
+    };
+  });
 }
 
 export async function submitAssignment({ assignmentId, studentId, status, responseText, file }) {

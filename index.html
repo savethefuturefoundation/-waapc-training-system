@@ -447,17 +447,33 @@ GED,Mathematical Reasoning,What is 7 x 8?,54,56,58,60,B"></textarea>
 
     <div id="tab-assignments" class="page tab-panel hidden">
       <div class="card">
+        <h2>Topics</h2>
+        <p class="muted">Group assignments into units (e.g. "Week 3 — Algebra") so the list below isn't one long feed.</p>
+        <div style="display:flex;gap:8px;align-items:end;">
+          <div style="flex:1;"><label>New topic</label><input id="as_topic_title" placeholder="e.g. Week 3 — Algebra" style="margin-bottom:0;"></div>
+          <button class="btn ghost small" onclick="createAssignmentTopicClick('as')">Add topic</button>
+        </div>
+        <div id="as_topicsList" style="margin-top:10px;"></div>
+      </div>
+
+      <div class="card">
         <h2>New assignment</h2>
         <div class="grid2">
           <div><label>Title</label><input id="as_title" placeholder="e.g. Complete GED Math practice set"></div>
-          <div><label>Due date (optional)</label><input id="as_due" type="date"></div>
+          <div><label>Due date &amp; time (optional)</label><input id="as_due" type="datetime-local"></div>
+        </div>
+        <div class="grid2">
+          <div><label>Topic (optional)</label><select id="as_topic"><option value="">No topic</option></select></div>
+          <div><label>Points possible (optional)</label><input id="as_points" type="number" placeholder="e.g. 10"></div>
         </div>
         <label>Description (optional)</label>
         <textarea id="as_desc" rows="2"></textarea>
-        <label>Link (optional) — e.g. a practice site the student should visit</label>
-        <input id="as_link" type="url" placeholder="https://...">
-        <label>Attach a document (optional) — worksheet, reading material, etc.</label>
-        <input id="as_file" type="file">
+        <label>Attachments (optional) — links and/or documents</label>
+        <div id="as_attachments"></div>
+        <div style="margin-bottom:10px;">
+          <button class="btn ghost small" onclick="addAssignmentLinkRow('as')">+ Add link</button>
+          <button class="btn ghost small" onclick="addAssignmentFileRow('as')">+ Add document</button>
+        </div>
         <label>Assign to</label>
         <div style="margin-bottom:6px;">
           <button class="btn ghost small" onclick="toggleAllAssignTargets('as_targets', true)">Select all</button>
@@ -729,17 +745,33 @@ GED,Mathematical Reasoning,What is 7 x 8?,54,56,58,60,B"></textarea>
 
     <div id="page-teacher-assignments" class="page hidden">
       <div class="card">
+        <h2>Topics</h2>
+        <p class="muted">Group assignments into units (e.g. "Week 3 — Algebra") so the list below isn't one long feed.</p>
+        <div style="display:flex;gap:8px;align-items:end;">
+          <div style="flex:1;"><label>New topic</label><input id="tas_topic_title" placeholder="e.g. Week 3 — Algebra" style="margin-bottom:0;"></div>
+          <button class="btn ghost small" onclick="createAssignmentTopicClick('tas')">Add topic</button>
+        </div>
+        <div id="tas_topicsList" style="margin-top:10px;"></div>
+      </div>
+
+      <div class="card">
         <h2>New assignment</h2>
         <div class="grid2">
           <div><label>Title</label><input id="tas_title" placeholder="e.g. Complete GED Math practice set"></div>
-          <div><label>Due date (optional)</label><input id="tas_due" type="date"></div>
+          <div><label>Due date &amp; time (optional)</label><input id="tas_due" type="datetime-local"></div>
+        </div>
+        <div class="grid2">
+          <div><label>Topic (optional)</label><select id="tas_topic"><option value="">No topic</option></select></div>
+          <div><label>Points possible (optional)</label><input id="tas_points" type="number" placeholder="e.g. 10"></div>
         </div>
         <label>Description (optional)</label>
         <textarea id="tas_desc" rows="2"></textarea>
-        <label>Link (optional) — e.g. a practice site the student should visit</label>
-        <input id="tas_link" type="url" placeholder="https://...">
-        <label>Attach a document (optional) — worksheet, reading material, etc.</label>
-        <input id="tas_file" type="file">
+        <label>Attachments (optional) — links and/or documents</label>
+        <div id="tas_attachments"></div>
+        <div style="margin-bottom:10px;">
+          <button class="btn ghost small" onclick="addAssignmentLinkRow('tas')">+ Add link</button>
+          <button class="btn ghost small" onclick="addAssignmentFileRow('tas')">+ Add document</button>
+        </div>
         <label>Assign to</label>
         <div style="margin-bottom:6px;">
           <button class="btn ghost small" onclick="toggleAllAssignTargets('tas_targets', true)">Select all</button>

@@ -133,6 +133,7 @@ async function showTeacherDashboard() {
   await ensureCatalog();
   renderTeacherStudentsTable();
   renderAssignTargets('tas');
+  renderAssignmentTopics('tas');
   renderAssignmentsList('tas');
 }
 
@@ -563,13 +564,83 @@ function toggleAllAssignTargets(containerId, select) {
   document.querySelectorAll(`#${containerId} input[type=checkbox]`).forEach((cb) => (cb.checked = select));
 }
 
+// Topics/units group assignments (like Classroom's Classwork page). Shared
+// globally across admin/teacher — reused for both the management chips and
+// the "Topic" select on the assignment form.
+async function renderAssignmentTopics(prefix) {
+  const topics = await db.listAssignmentTopics();
+  const listEl = document.getElementById(`${prefix}_topicsList`);
+  if (listEl) {
+    listEl.innerHTML =
+      topics
+        .map(
+          (t) =>
+            `<span class="badge neutral" style="margin:0 6px 6px 0;display:inline-flex;align-items:center;gap:6px;">${t.title}<button class="field-remove" style="width:16px;height:16px;font-size:11px;line-height:1;" onclick="deleteAssignmentTopicClick('${t.id}','${prefix}')">×</button></span>`
+        )
+        .join('') || '<p class="muted">No topics yet.</p>';
+  }
+  const selectEl = document.getElementById(`${prefix}_topic`);
+  if (selectEl) {
+    const current = selectEl.value;
+    selectEl.innerHTML = '<option value="">No topic</option>' + topics.map((t) => `<option value="${t.id}">${t.title}</option>`).join('');
+    selectEl.value = topics.some((t) => t.id === current) ? current : '';
+  }
+}
+
+async function createAssignmentTopicClick(prefix) {
+  const input = document.getElementById(`${prefix}_topic_title`);
+  const title = input.value.trim();
+  if (!title) return;
+  try {
+    await db.createAssignmentTopic(title);
+    input.value = '';
+    await renderAssignmentTopics(prefix);
+  } catch (e) {
+    alert('Could not add topic: ' + (e.message || e));
+  }
+}
+
+async function deleteAssignmentTopicClick(id, prefix) {
+  if (!confirm('Delete this topic? Assignments already in it will move to "No topic", not be deleted.')) return;
+  try {
+    await db.deleteAssignmentTopic(id);
+  } catch (e) {
+    alert('Could not delete topic: ' + (e.message || e));
+    return;
+  }
+  await renderAssignmentTopics(prefix);
+  await renderAssignmentsList(prefix);
+}
+
+function addAssignmentLinkRow(prefix) {
+  const div = document.createElement('div');
+  div.className = 'att-row';
+  div.style.cssText = 'display:flex;gap:8px;margin-bottom:6px;align-items:center;';
+  div.innerHTML = `
+    <input type="url" class="att-link-url" placeholder="https://..." style="margin-bottom:0;flex:2;">
+    <input type="text" class="att-link-name" placeholder="Label (optional)" style="margin-bottom:0;flex:1;">
+    <button class="field-remove" onclick="this.closest('.att-row').remove();">×</button>
+  `;
+  document.getElementById(`${prefix}_attachments`).appendChild(div);
+}
+
+function addAssignmentFileRow(prefix) {
+  const div = document.createElement('div');
+  div.className = 'att-row';
+  div.style.cssText = 'display:flex;gap:8px;margin-bottom:6px;align-items:center;';
+  div.innerHTML = `
+    <input type="file" class="att-file" style="margin-bottom:0;flex:1;">
+    <button class="field-remove" onclick="this.closest('.att-row').remove();">×</button>
+  `;
+  document.getElementById(`${prefix}_attachments`).appendChild(div);
+}
+
 async function createAssignment(prefix) {
   const title = document.getElementById(`${prefix}_title`).value.trim();
   const description = document.getElementById(`${prefix}_desc`).value.trim();
-  const linkUrl = document.getElementById(`${prefix}_link`).value.trim();
-  const dueDate = document.getElementById(`${prefix}_due`).value;
-  const fileInput = document.getElementById(`${prefix}_file`);
-  const attachmentFile = fileInput?.files?.[0] || null;
+  const dueDateTime = document.getElementById(`${prefix}_due`).value;
+  const topicId = document.getElementById(`${prefix}_topic`).value;
+  const pointsPossible = document.getElementById(`${prefix}_points`).value;
   const studentIds = Array.from(document.querySelectorAll(`#${prefix}_targets input[type=checkbox]:checked`)).map((cb) => cb.value);
   const errEl = document.getElementById(`${prefix}_error`);
   errEl.textContent = '';
@@ -581,13 +652,24 @@ async function createAssignment(prefix) {
     errEl.textContent = 'Select at least one student.';
     return;
   }
+  const attachments = [];
+  document.querySelectorAll(`#${prefix}_attachments .att-row`).forEach((row) => {
+    const linkInput = row.querySelector('.att-link-url');
+    const fileInput = row.querySelector('.att-file');
+    if (linkInput && linkInput.value.trim()) {
+      attachments.push({ kind: 'link', url: linkInput.value.trim(), name: row.querySelector('.att-link-name')?.value.trim() || null });
+    } else if (fileInput && fileInput.files[0]) {
+      attachments.push({ kind: 'file', file: fileInput.files[0] });
+    }
+  });
   try {
-    await db.createAssignment({ title, description, linkUrl, dueDate, studentIds, attachmentFile });
+    await db.createAssignment({ title, description, dueDateTime, studentIds, topicId, pointsPossible, attachments });
     document.getElementById(`${prefix}_title`).value = '';
     document.getElementById(`${prefix}_desc`).value = '';
-    document.getElementById(`${prefix}_link`).value = '';
     document.getElementById(`${prefix}_due`).value = '';
-    if (fileInput) fileInput.value = '';
+    document.getElementById(`${prefix}_topic`).value = '';
+    document.getElementById(`${prefix}_points`).value = '';
+    document.getElementById(`${prefix}_attachments`).innerHTML = '';
     toggleAllAssignTargets(`${prefix}_targets`, false);
     await renderAssignmentsList(prefix);
   } catch (e) {
@@ -602,34 +684,51 @@ const ASSIGNMENT_STATUS_BADGE = { turned_in: 'paid', late: 'partial', missing: '
 
 function assignmentSubmissionStatus(target, dueDate) {
   const sub = target.submission;
-  const dueEndOfDay = dueDate ? new Date(dueDate + 'T23:59:59') : null;
+  const due = dueDate ? new Date(dueDate) : null;
   if (sub?.status === 'done') {
-    return dueEndOfDay && sub.submittedAt && new Date(sub.submittedAt) > dueEndOfDay ? 'late' : 'turned_in';
+    return due && sub.submittedAt && new Date(sub.submittedAt) > due ? 'late' : 'turned_in';
   }
-  return dueEndOfDay && new Date() > dueEndOfDay ? 'missing' : 'assigned';
+  return due && new Date() > due ? 'missing' : 'assigned';
+}
+
+function assignmentAttachmentLinksHtml(attachments) {
+  return (attachments || [])
+    .map((att) => ` &middot; <a href="${att.url}" target="_blank" rel="noopener">${att.kind === 'file' ? '📎 ' : '🔗 '}${att.name || (att.kind === 'file' ? 'Attachment' : 'Link')}</a>`)
+    .join('');
 }
 
 async function renderAssignmentsList(prefix) {
   const assignments = await db.listAssignments();
   const listEl = document.getElementById(`${prefix}_list`);
   document.getElementById(`${prefix}_listEmpty`).classList.toggle('hidden', assignments.length > 0);
-  listEl.innerHTML = assignments
-    .map((a) => {
-      const statusCounts = { turned_in: 0, late: 0, missing: 0, assigned: 0 };
-      a.targets.forEach((t) => statusCounts[assignmentSubmissionStatus(t, a.dueDate)]++);
-      const chips = Object.entries(statusCounts)
-        .filter(([, count]) => count > 0)
-        .map(([key, count]) => `<span class="badge ${ASSIGNMENT_STATUS_BADGE[key]}" style="margin-right:4px;">${count} ${ASSIGNMENT_STATUS_LABEL[key]}</span>`)
-        .join('');
-      return `<div class="subject-card" style="display:block;">
+
+  const groups = [];
+  const groupIndex = {};
+  assignments.forEach((a) => {
+    const key = a.topicTitle || 'No topic';
+    if (!(key in groupIndex)) {
+      groupIndex[key] = groups.length;
+      groups.push({ title: key, assignments: [] });
+    }
+    groups[groupIndex[key]].assignments.push(a);
+  });
+
+  const cardHtml = (a) => {
+    const statusCounts = { turned_in: 0, late: 0, missing: 0, assigned: 0 };
+    a.targets.forEach((t) => statusCounts[assignmentSubmissionStatus(t, a.dueDate)]++);
+    const chips = Object.entries(statusCounts)
+      .filter(([, count]) => count > 0)
+      .map(([key, count]) => `<span class="badge ${ASSIGNMENT_STATUS_BADGE[key]}" style="margin-right:4px;">${count} ${ASSIGNMENT_STATUS_LABEL[key]}</span>`)
+      .join('');
+    return `<div class="subject-card" style="display:block;">
         <div style="display:flex;justify-content:space-between;align-items:start;">
           <div>
             <div class="name">${a.title}</div>
-            <div class="stats">${a.dueDate ? 'Due ' + a.dueDate + ' &middot; ' : ''}${a.targets.length} student${a.targets.length === 1 ? '' : 's'}${
-        a.linkUrl ? ' &middot; <a href="' + a.linkUrl + '" target="_blank" rel="noopener">Link</a>' : ''
-      }${
-        a.attachmentUrl ? ' &middot; <a href="' + a.attachmentUrl + '" target="_blank" rel="noopener">📎 ' + (a.attachmentName || 'Attachment') + '</a>' : ''
-      }</div>
+            <div class="stats">${a.dueDate ? 'Due ' + new Date(a.dueDate).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' }) + ' &middot; ' : ''}${
+      a.targets.length
+    } student${a.targets.length === 1 ? '' : 's'}${a.pointsPossible !== null ? ' &middot; ' + a.pointsPossible + ' points' : ''}${assignmentAttachmentLinksHtml(
+      a.attachments
+    )}</div>
             ${a.description ? `<p class="muted" style="margin:6px 0 0 0;">${a.description}</p>` : ''}
             <div style="margin-top:8px;">${chips}</div>
           </div>
@@ -639,12 +738,21 @@ async function renderAssignmentsList(prefix) {
           </div>
         </div>
       </div>`;
-    })
+  };
+
+  listEl.innerHTML = groups
+    .map(
+      (g) => `
+      <div style="margin-bottom:6px;">
+        <h3 style="color:var(--navy);margin:14px 0 8px;">${g.title}</h3>
+        ${g.assignments.map(cardHtml).join('')}
+      </div>`
+    )
     .join('');
 }
 
 // One grading screen per assignment — every student's submission (text
-// and/or file) in one place, Classroom-style, instead of a bare status table.
+// and/or file), plus points and private feedback, Classroom-style.
 async function openAssignmentSubmissions(assignmentId) {
   const assignments = await db.listAssignments();
   const a = assignments.find((x) => x.id === assignmentId);
@@ -658,6 +766,7 @@ async function openAssignmentSubmissions(assignmentId) {
             sub.fileUrl ? `<button class="btn ghost small" onclick="viewAssignmentSubmissionFile('${sub.fileUrl}')">📎 Download submitted file</button>` : ''
           }${!sub.responseText && !sub.fileUrl ? '<p class="muted">Marked done, no notes or file attached.</p>' : ''}`
         : '<p class="muted">No submission yet.</p>';
+      const gradeId = `grade_${a.id}_${t.studentId}`;
       return `<div class="q-block">
         <div style="display:flex;justify-content:space-between;align-items:center;">
           <strong>${t.fullName || 'Unknown'}</strong>
@@ -665,10 +774,31 @@ async function openAssignmentSubmissions(assignmentId) {
         </div>
         ${content}
         ${sub?.submittedAt ? `<p class="muted" style="margin-top:4px;">Submitted ${new Date(sub.submittedAt).toLocaleString()}</p>` : ''}
+        <div style="display:flex;gap:8px;align-items:center;margin-top:8px;flex-wrap:wrap;">
+          <input type="number" id="${gradeId}_points" placeholder="${a.pointsPossible !== null ? 'Points / ' + a.pointsPossible : 'Points'}" value="${
+        t.pointsEarned !== null ? t.pointsEarned : ''
+      }" style="margin-bottom:0;width:140px;">
+          <input type="text" id="${gradeId}_feedback" placeholder="Private feedback (only this student sees it)" value="${
+        t.teacherFeedback ? t.teacherFeedback.replace(/"/g, '&quot;') : ''
+      }" style="margin-bottom:0;flex:1;min-width:200px;">
+          <button class="btn ghost small" onclick="saveAssignmentGradeClick('${a.id}','${t.studentId}')">Save</button>
+        </div>
       </div>`;
     })
     .join('');
-  renderDoc(`<h3 style="color:#1a2b6b;">${a.title} — Submissions</h3>${rows}`);
+  renderDoc(`<h3 style="color:#1a2b6b;">${a.title} — Submissions${a.pointsPossible !== null ? ' (out of ' + a.pointsPossible + ')' : ''}</h3>${rows}`);
+}
+
+async function saveAssignmentGradeClick(assignmentId, studentId) {
+  const gradeId = `grade_${assignmentId}_${studentId}`;
+  const pointsEarned = document.getElementById(`${gradeId}_points`).value;
+  const teacherFeedback = document.getElementById(`${gradeId}_feedback`).value.trim();
+  try {
+    await db.saveAssignmentGrade({ assignmentId, studentId, pointsEarned, teacherFeedback });
+    await openAssignmentSubmissions(assignmentId);
+  } catch (e) {
+    alert('Could not save grade: ' + (e.message || e));
+  }
 }
 
 async function viewAssignmentSubmissionFile(path) {
@@ -772,6 +902,7 @@ function showTab(name) {
   if (name === 'staff') renderTeacherInvites();
   if (name === 'assignments') {
     renderAssignTargets('as');
+    renderAssignmentTopics('as');
     renderAssignmentsList('as');
   }
   if (name === 'messages') renderMessagesPage();
@@ -2777,15 +2908,20 @@ function renderAssignmentCard(a, { editable }) {
   return `<div class="subject-card" style="display:block;">
     <div style="display:flex;justify-content:space-between;align-items:start;">
       <div>
+        ${a.topicTitle ? `<div class="muted" style="font-size:11px;text-transform:uppercase;letter-spacing:0.5px;">${a.topicTitle}</div>` : ''}
         <div class="name">${a.title} <span class="badge ${ASSIGNMENT_STATUS_BADGE[status]}">${ASSIGNMENT_STATUS_LABEL[status]}</span></div>
-        <div class="stats">${a.dueDate ? 'Due ' + a.dueDate : 'No due date'}${
-    a.linkUrl ? ' &middot; <a href="' + a.linkUrl + '" target="_blank" rel="noopener">Open link</a>' : ''
-  }${
-    a.attachmentUrl ? ' &middot; <a href="' + a.attachmentUrl + '" target="_blank" rel="noopener">📎 ' + (a.attachmentName || 'Attachment') + '</a>' : ''
-  }</div>
+        <div class="stats">${a.dueDate ? 'Due ' + new Date(a.dueDate).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' }) : 'No due date'}${
+    a.pointsPossible !== null ? ' &middot; ' + a.pointsPossible + ' points' : ''
+  }${assignmentAttachmentLinksHtml(a.attachments)}</div>
         ${a.description ? `<p class="muted" style="margin:6px 0 0 0;">${a.description}</p>` : ''}
       </div>
     </div>
+    ${
+      a.pointsEarned !== null
+        ? `<p style="margin-top:8px;"><strong>Grade:</strong> ${a.pointsEarned}${a.pointsPossible !== null ? ' / ' + a.pointsPossible : ''}</p>`
+        : ''
+    }
+    ${a.teacherFeedback ? `<p class="muted" style="margin-top:4px;"><strong>Feedback:</strong> ${a.teacherFeedback}</p>` : ''}
     ${
       editable
         ? `<div id="${bodyId}" style="margin-top:10px;">
@@ -4350,6 +4486,11 @@ Object.assign(window, {
   createAssignment,
   deleteAssignment,
   openAssignmentSubmissions,
+  createAssignmentTopicClick,
+  deleteAssignmentTopicClick,
+  addAssignmentLinkRow,
+  addAssignmentFileRow,
+  saveAssignmentGradeClick,
   viewAssignmentSubmissionFile,
   createAnnouncementClick,
   deleteAnnouncementClick,
