@@ -736,13 +736,21 @@ export async function listSpeakingSubmissions(studentId) {
 // another practice site) to specific students; students mark it done,
 // optionally with a text response and/or an uploaded file.
 // ---------------------------------------------------------------------
-export async function createAssignment({ title, description, linkUrl, dueDate, studentIds }) {
+export async function createAssignment({ title, description, linkUrl, dueDate, studentIds, attachmentFile }) {
   const { data: a, error } = await supabase
     .from('assignments')
     .insert({ title, description: description || null, link_url: linkUrl || null, due_date: dueDate || null })
     .select('id')
     .single();
   if (error) throw error;
+
+  if (attachmentFile) {
+    const path = `${a.id}/${attachmentFile.name}`;
+    const { error: upErr } = await supabase.storage.from('assignment-attachments').upload(path, attachmentFile, { upsert: true });
+    if (upErr) throw upErr;
+    const { error: updErr } = await supabase.from('assignments').update({ attachment_url: path, attachment_name: attachmentFile.name }).eq('id', a.id);
+    if (updErr) throw updErr;
+  }
 
   if (studentIds.length > 0) {
     const { error: tErr } = await supabase
@@ -762,7 +770,7 @@ export async function listAssignments() {
   const { data, error } = await supabase
     .from('assignments')
     .select(
-      'id, title, description, link_url, due_date, created_at, assignment_targets(student_id, students(full_name)), assignment_submissions(student_id, status, submitted_at)'
+      'id, title, description, link_url, due_date, attachment_url, attachment_name, created_at, assignment_targets(student_id, students(full_name)), assignment_submissions(student_id, status, response_text, file_url, submitted_at)'
     )
     .order('created_at', { ascending: false });
   if (error) throw error;
@@ -772,11 +780,23 @@ export async function listAssignments() {
     description: a.description,
     linkUrl: a.link_url,
     dueDate: a.due_date,
-    targets: (a.assignment_targets || []).map((t) => ({
-      studentId: t.student_id,
-      fullName: t.students?.full_name,
-      submission: (a.assignment_submissions || []).find((s) => s.student_id === t.student_id) || null,
-    })),
+    attachmentUrl: a.attachment_url ? supabase.storage.from('assignment-attachments').getPublicUrl(a.attachment_url).data.publicUrl : null,
+    attachmentName: a.attachment_name,
+    targets: (a.assignment_targets || []).map((t) => {
+      const submission = (a.assignment_submissions || []).find((s) => s.student_id === t.student_id) || null;
+      return {
+        studentId: t.student_id,
+        fullName: t.students?.full_name,
+        submission: submission
+          ? {
+              status: submission.status,
+              responseText: submission.response_text,
+              fileUrl: submission.file_url,
+              submittedAt: submission.submitted_at,
+            }
+          : null,
+      };
+    }),
   }));
 }
 
@@ -786,7 +806,7 @@ export async function listAssignmentsForStudent(studentId) {
   const { data, error } = await supabase
     .from('assignments')
     .select(
-      'id, title, description, link_url, due_date, created_at, assignment_targets!inner(student_id), assignment_submissions(status, response_text, file_url, submitted_at, student_id)'
+      'id, title, description, link_url, due_date, attachment_url, attachment_name, created_at, assignment_targets!inner(student_id), assignment_submissions(status, response_text, file_url, submitted_at, student_id)'
     )
     .eq('assignment_targets.student_id', studentId)
     .order('created_at', { ascending: false });
@@ -797,6 +817,8 @@ export async function listAssignmentsForStudent(studentId) {
     description: a.description,
     linkUrl: a.link_url,
     dueDate: a.due_date,
+    attachmentUrl: a.attachment_url ? supabase.storage.from('assignment-attachments').getPublicUrl(a.attachment_url).data.publicUrl : null,
+    attachmentName: a.attachment_name,
     submission: (a.assignment_submissions || []).find((s) => s.student_id === studentId) || null,
   }));
 }

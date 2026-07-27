@@ -50,6 +50,7 @@ Requirements: [Node.js](https://nodejs.org/) (LTS) and a Supabase project.
    - `extra_schema_22.sql` — Fixes a "column reference email is ambiguous" bug in `list_message_contacts()`
    - `extra_schema_23.sql` — Graduation status per enrollment (`status`, `graduated_date` on `enrollments`)
    - `extra_schema_24.sql` — Adds a `score` column to `speaking_submissions` so a reviewed recording can be graded, not just marked reviewed
+   - `extra_schema_25.sql` — Lets a teacher/admin attach a document to an assignment (`attachment_url`/`attachment_name` on `assignments`, plus the `assignment-attachments` storage bucket)
 4. In Supabase **Authentication → Providers → Email**, turn off "Confirm email" (so a student's, teacher's, or parent's first-login signup works immediately).
 5. Create your admin account: **Authentication → Users → Add user** (check "Auto Confirm User"), then in the SQL Editor:
    ```sql

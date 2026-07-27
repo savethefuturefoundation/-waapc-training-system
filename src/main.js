@@ -568,6 +568,8 @@ async function createAssignment(prefix) {
   const description = document.getElementById(`${prefix}_desc`).value.trim();
   const linkUrl = document.getElementById(`${prefix}_link`).value.trim();
   const dueDate = document.getElementById(`${prefix}_due`).value;
+  const fileInput = document.getElementById(`${prefix}_file`);
+  const attachmentFile = fileInput?.files?.[0] || null;
   const studentIds = Array.from(document.querySelectorAll(`#${prefix}_targets input[type=checkbox]:checked`)).map((cb) => cb.value);
   const errEl = document.getElementById(`${prefix}_error`);
   errEl.textContent = '';
@@ -580,16 +582,31 @@ async function createAssignment(prefix) {
     return;
   }
   try {
-    await db.createAssignment({ title, description, linkUrl, dueDate, studentIds });
+    await db.createAssignment({ title, description, linkUrl, dueDate, studentIds, attachmentFile });
     document.getElementById(`${prefix}_title`).value = '';
     document.getElementById(`${prefix}_desc`).value = '';
     document.getElementById(`${prefix}_link`).value = '';
     document.getElementById(`${prefix}_due`).value = '';
+    if (fileInput) fileInput.value = '';
     toggleAllAssignTargets(`${prefix}_targets`, false);
     await renderAssignmentsList(prefix);
   } catch (e) {
     errEl.textContent = e.message || 'Could not create assignment.';
   }
+}
+
+// Classroom-style turn-in status, derived from submission + due date
+// rather than stored — "late"/"missing" only make sense relative to now.
+const ASSIGNMENT_STATUS_LABEL = { turned_in: 'Turned In', late: 'Late', missing: 'Missing', assigned: 'Assigned' };
+const ASSIGNMENT_STATUS_BADGE = { turned_in: 'paid', late: 'partial', missing: 'unpaid', assigned: 'neutral' };
+
+function assignmentSubmissionStatus(target, dueDate) {
+  const sub = target.submission;
+  const dueEndOfDay = dueDate ? new Date(dueDate + 'T23:59:59') : null;
+  if (sub?.status === 'done') {
+    return dueEndOfDay && sub.submittedAt && new Date(sub.submittedAt) > dueEndOfDay ? 'late' : 'turned_in';
+  }
+  return dueEndOfDay && new Date() > dueEndOfDay ? 'missing' : 'assigned';
 }
 
 async function renderAssignmentsList(prefix) {
@@ -598,31 +615,66 @@ async function renderAssignmentsList(prefix) {
   document.getElementById(`${prefix}_listEmpty`).classList.toggle('hidden', assignments.length > 0);
   listEl.innerHTML = assignments
     .map((a) => {
-      const doneCount = a.targets.filter((t) => t.submission?.status === 'done').length;
-      const rows = a.targets
-        .map(
-          (t) => `<tr>
-        <td>${t.fullName || 'Unknown'}</td>
-        <td>${t.submission?.status === 'done' ? 'Done' : 'Not started'}</td>
-        <td>${t.submission?.submitted_at ? new Date(t.submission.submitted_at).toLocaleDateString() : '—'}</td>
-      </tr>`
-        )
+      const statusCounts = { turned_in: 0, late: 0, missing: 0, assigned: 0 };
+      a.targets.forEach((t) => statusCounts[assignmentSubmissionStatus(t, a.dueDate)]++);
+      const chips = Object.entries(statusCounts)
+        .filter(([, count]) => count > 0)
+        .map(([key, count]) => `<span class="badge ${ASSIGNMENT_STATUS_BADGE[key]}" style="margin-right:4px;">${count} ${ASSIGNMENT_STATUS_LABEL[key]}</span>`)
         .join('');
       return `<div class="subject-card" style="display:block;">
         <div style="display:flex;justify-content:space-between;align-items:start;">
           <div>
             <div class="name">${a.title}</div>
-            <div class="stats">${a.dueDate ? 'Due ' + a.dueDate + ' &middot; ' : ''}${doneCount}/${a.targets.length} done${
+            <div class="stats">${a.dueDate ? 'Due ' + a.dueDate + ' &middot; ' : ''}${a.targets.length} student${a.targets.length === 1 ? '' : 's'}${
         a.linkUrl ? ' &middot; <a href="' + a.linkUrl + '" target="_blank" rel="noopener">Link</a>' : ''
+      }${
+        a.attachmentUrl ? ' &middot; <a href="' + a.attachmentUrl + '" target="_blank" rel="noopener">📎 ' + (a.attachmentName || 'Attachment') + '</a>' : ''
       }</div>
             ${a.description ? `<p class="muted" style="margin:6px 0 0 0;">${a.description}</p>` : ''}
+            <div style="margin-top:8px;">${chips}</div>
           </div>
-          <button class="btn ghost small" onclick="deleteAssignment('${a.id}','${prefix}')">Delete</button>
+          <div style="display:flex;gap:6px;flex-shrink:0;">
+            <button class="btn ghost small" onclick="openAssignmentSubmissions('${a.id}')">View submissions</button>
+            <button class="btn ghost small" onclick="deleteAssignment('${a.id}','${prefix}')">Delete</button>
+          </div>
         </div>
-        <table style="margin-top:8px;"><thead><tr><th>Student</th><th>Status</th><th>Submitted</th></tr></thead><tbody>${rows}</tbody></table>
       </div>`;
     })
     .join('');
+}
+
+// One grading screen per assignment — every student's submission (text
+// and/or file) in one place, Classroom-style, instead of a bare status table.
+async function openAssignmentSubmissions(assignmentId) {
+  const assignments = await db.listAssignments();
+  const a = assignments.find((x) => x.id === assignmentId);
+  if (!a) return;
+  const rows = a.targets
+    .map((t) => {
+      const status = assignmentSubmissionStatus(t, a.dueDate);
+      const sub = t.submission;
+      const content = sub
+        ? `${sub.responseText ? `<p style="white-space:pre-wrap;margin:6px 0;">${sub.responseText}</p>` : ''}${
+            sub.fileUrl ? `<button class="btn ghost small" onclick="viewAssignmentSubmissionFile('${sub.fileUrl}')">📎 Download submitted file</button>` : ''
+          }${!sub.responseText && !sub.fileUrl ? '<p class="muted">Marked done, no notes or file attached.</p>' : ''}`
+        : '<p class="muted">No submission yet.</p>';
+      return `<div class="q-block">
+        <div style="display:flex;justify-content:space-between;align-items:center;">
+          <strong>${t.fullName || 'Unknown'}</strong>
+          <span class="badge ${ASSIGNMENT_STATUS_BADGE[status]}">${ASSIGNMENT_STATUS_LABEL[status]}</span>
+        </div>
+        ${content}
+        ${sub?.submittedAt ? `<p class="muted" style="margin-top:4px;">Submitted ${new Date(sub.submittedAt).toLocaleString()}</p>` : ''}
+      </div>`;
+    })
+    .join('');
+  renderDoc(`<h3 style="color:#1a2b6b;">${a.title} — Submissions</h3>${rows}`);
+}
+
+async function viewAssignmentSubmissionFile(path) {
+  const url = await db.getAssignmentFileUrl(path);
+  if (url) window.open(url, '_blank');
+  else alert('Could not open that file.');
 }
 
 async function deleteAssignment(id, prefix) {
@@ -2717,13 +2769,19 @@ async function openPlacementResults(studentId) {
 // =====================================================================
 function renderAssignmentCard(a, { editable }) {
   const done = a.submission?.status === 'done';
+  const status = assignmentSubmissionStatus(
+    { submission: a.submission ? { status: a.submission.status, submittedAt: a.submission.submitted_at } : null },
+    a.dueDate
+  );
   const bodyId = `assign_${a.id}`;
   return `<div class="subject-card" style="display:block;">
     <div style="display:flex;justify-content:space-between;align-items:start;">
       <div>
-        <div class="name">${a.title} ${done ? '<span class="badge paid">Done</span>' : '<span class="badge unpaid">Not started</span>'}</div>
+        <div class="name">${a.title} <span class="badge ${ASSIGNMENT_STATUS_BADGE[status]}">${ASSIGNMENT_STATUS_LABEL[status]}</span></div>
         <div class="stats">${a.dueDate ? 'Due ' + a.dueDate : 'No due date'}${
     a.linkUrl ? ' &middot; <a href="' + a.linkUrl + '" target="_blank" rel="noopener">Open link</a>' : ''
+  }${
+    a.attachmentUrl ? ' &middot; <a href="' + a.attachmentUrl + '" target="_blank" rel="noopener">📎 ' + (a.attachmentName || 'Attachment') + '</a>' : ''
   }</div>
         ${a.description ? `<p class="muted" style="margin:6px 0 0 0;">${a.description}</p>` : ''}
       </div>
@@ -2735,6 +2793,11 @@ function renderAssignmentCard(a, { editable }) {
       <textarea id="${bodyId}_text" rows="2">${a.submission?.response_text || ''}</textarea>
       <label>Attach a file (optional)</label>
       <input type="file" id="${bodyId}_file">
+      ${
+        a.submission?.file_url
+          ? `<p class="muted" style="margin:4px 0;"><button class="btn ghost small" onclick="viewAssignmentSubmissionFile('${a.submission.file_url}')">📎 View your submitted file</button></p>`
+          : ''
+      }
       <button class="btn small" onclick="submitMyAssignment('${a.id}')">${done ? 'Update' : 'Mark as done'}</button>
       <p id="${bodyId}_error" class="muted" style="color:#b81f2c;"></p>
     </div>`
@@ -4286,6 +4349,8 @@ Object.assign(window, {
   toggleAllAssignTargets,
   createAssignment,
   deleteAssignment,
+  openAssignmentSubmissions,
+  viewAssignmentSubmissionFile,
   createAnnouncementClick,
   deleteAnnouncementClick,
   createCalendarEventClick,
