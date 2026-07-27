@@ -9,6 +9,34 @@ let loginMode = null; // 'signup' | 'signin'
 let pendingLoginEmail = null;
 
 // =====================================================================
+// Idle timeout — Supabase sessions persist indefinitely by default, so
+// on a shared/school computer, an admin (or anyone) who forgets to
+// explicitly log out leaves the account silently accessible to whoever
+// opens the browser next, no password needed. This bounds that exposure:
+// 30 minutes of no clicks/keys/scrolling signs the session out.
+// =====================================================================
+const IDLE_TIMEOUT_MS = 30 * 60 * 1000;
+let idleTimer = null;
+
+function resetIdleTimer() {
+  if (!currentSession) return;
+  clearTimeout(idleTimer);
+  idleTimer = setTimeout(handleIdleTimeout, IDLE_TIMEOUT_MS);
+}
+
+async function handleIdleTimeout() {
+  if (!currentSession) return;
+  const role = currentSession.role;
+  await db.signOut();
+  currentSession = null;
+  currentStudentRecord = null;
+  showAuthScreen(role);
+  alert('You were signed out after 30 minutes of inactivity. Please log in again.');
+}
+
+['click', 'keydown', 'mousemove', 'scroll'].forEach((evt) => document.addEventListener(evt, resetIdleTimer, { passive: true }));
+
+// =====================================================================
 // Portal switching. Before login: the auth screen shows a role-pill
 // switcher (setRole) so the right login form is visible. After login:
 // the app shell (sidebar + pages) takes over via showAppShell/showAuthScreen.
@@ -58,6 +86,7 @@ function showAppShell(role) {
   document.getElementById('authScreen').classList.add('hidden');
   document.getElementById('appShell').classList.remove('hidden');
   updateDarkModeButtonLabel();
+  resetIdleTimer();
   document.getElementById('sidebarRoleBadge').textContent = ROLE_LABELS[role];
   document.getElementById('sidebarEmail').textContent = currentSession ? currentSession.email : '';
   const displayName = role === 'student' && currentStudentRecord ? currentStudentRecord.fullName : currentSession?.fullName;
