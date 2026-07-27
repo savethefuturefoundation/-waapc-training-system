@@ -807,7 +807,7 @@ async function uploadAssignmentAttachments(assignmentId, attachments, startSortO
   }
 }
 
-export async function createAssignment({ title, description, dueDateTime, studentIds, topicId, pointsPossible, attachments }) {
+export async function createAssignment({ title, description, dueDateTime, studentIds, topicId, pointsPossible, attachments, publishAt }) {
   const { data: a, error } = await supabase
     .from('assignments')
     .insert({
@@ -816,6 +816,7 @@ export async function createAssignment({ title, description, dueDateTime, studen
       due_date: dueDateTime || null,
       topic_id: topicId || null,
       points_possible: pointsPossible === '' || pointsPossible === null || pointsPossible === undefined ? null : Number(pointsPossible),
+      publish_at: publishAt || null,
     })
     .select('id')
     .single();
@@ -837,7 +838,7 @@ export async function createAssignment({ title, description, dueDateTime, studen
 // past submissions/grades intact as a historical record), and uploads any
 // newly-added attachments. Existing attachments are removed individually
 // via deleteAssignmentAttachment.
-export async function updateAssignment(id, { title, description, dueDateTime, topicId, pointsPossible, studentIds, newAttachments }) {
+export async function updateAssignment(id, { title, description, dueDateTime, topicId, pointsPossible, studentIds, newAttachments, publishAt }) {
   const { error } = await supabase
     .from('assignments')
     .update({
@@ -846,6 +847,7 @@ export async function updateAssignment(id, { title, description, dueDateTime, to
       due_date: dueDateTime || null,
       topic_id: topicId || null,
       points_possible: pointsPossible === '' || pointsPossible === null || pointsPossible === undefined ? null : Number(pointsPossible),
+      publish_at: publishAt || null,
     })
     .eq('id', id);
   if (error) throw error;
@@ -897,7 +899,7 @@ export async function listAssignments() {
   const { data, error } = await supabase
     .from('assignments')
     .select(
-      `id, title, description, due_date, points_possible, created_at,
+      `id, title, description, due_date, points_possible, created_at, publish_at,
        assignment_topics(id, title),
        assignment_attachments(id, kind, url, name, sort_order),
        assignment_targets(student_id, students(full_name)),
@@ -911,6 +913,8 @@ export async function listAssignments() {
     title: a.title,
     description: a.description,
     dueDate: a.due_date,
+    createdAt: a.created_at,
+    publishAt: a.publish_at,
     pointsPossible: a.points_possible === null ? null : Number(a.points_possible),
     topicId: a.assignment_topics?.id || null,
     topicTitle: a.assignment_topics?.title || null,
@@ -942,7 +946,7 @@ export async function listAssignmentsForStudent(studentId) {
   const { data, error } = await supabase
     .from('assignments')
     .select(
-      `id, title, description, due_date, points_possible, created_at,
+      `id, title, description, due_date, points_possible, created_at, publish_at,
        assignment_topics(id, title),
        assignment_attachments(id, kind, url, name, sort_order),
        assignment_targets!inner(student_id),
@@ -959,6 +963,8 @@ export async function listAssignmentsForStudent(studentId) {
       title: a.title,
       description: a.description,
       dueDate: a.due_date,
+      createdAt: a.created_at,
+      publishAt: a.publish_at,
       pointsPossible: a.points_possible === null ? null : Number(a.points_possible),
       topicId: a.assignment_topics?.id || null,
       topicTitle: a.assignment_topics?.title || null,
@@ -1042,11 +1048,13 @@ export async function listAnnouncements() {
     .select('*, tests(name)')
     .order('created_at', { ascending: false });
   if (error) throw error;
-  return data.map((a) => ({ ...a, targetTestName: a.tests?.name || null }));
+  return data.map((a) => ({ ...a, targetTestName: a.tests?.name || null, publishAt: a.publish_at }));
 }
 
-export async function createAnnouncement(title, body, targetTestId) {
-  const { error } = await supabase.from('announcements').insert({ title, body: body || null, target_test_id: targetTestId || null });
+export async function createAnnouncement(title, body, targetTestId, publishAt) {
+  const { error } = await supabase
+    .from('announcements')
+    .insert({ title, body: body || null, target_test_id: targetTestId || null, publish_at: publishAt || null });
   if (error) throw error;
 }
 

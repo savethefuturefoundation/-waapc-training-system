@@ -690,6 +690,7 @@ async function createAssignment(prefix) {
   const dueDateTime = document.getElementById(`${prefix}_due`).value;
   const topicId = document.getElementById(`${prefix}_topic`).value;
   const pointsPossible = document.getElementById(`${prefix}_points`).value;
+  const publishAt = document.getElementById(`${prefix}_publishAt`).value;
   const studentIds = Array.from(document.querySelectorAll(`#${prefix}_targets input[type=checkbox]:checked`)).map((cb) => cb.value);
   const errEl = document.getElementById(`${prefix}_error`);
   errEl.textContent = '';
@@ -712,12 +713,13 @@ async function createAssignment(prefix) {
     }
   });
   try {
-    await db.createAssignment({ title, description, dueDateTime, studentIds, topicId, pointsPossible, attachments });
+    await db.createAssignment({ title, description, dueDateTime, studentIds, topicId, pointsPossible, attachments, publishAt });
     document.getElementById(`${prefix}_title`).value = '';
     document.getElementById(`${prefix}_desc`).value = '';
     document.getElementById(`${prefix}_due`).value = '';
     document.getElementById(`${prefix}_topic`).value = '';
     document.getElementById(`${prefix}_points`).value = '';
+    document.getElementById(`${prefix}_publishAt`).value = '';
     document.getElementById(`${prefix}_attachments`).innerHTML = '';
     toggleAllAssignTargets(`${prefix}_targets`, false);
     await renderAssignmentsList(prefix);
@@ -763,6 +765,7 @@ async function renderAssignmentsList(prefix) {
   });
 
   const cardHtml = (a) => {
+    const isScheduled = a.publishAt && new Date(a.publishAt) > new Date();
     const statusCounts = { turned_in: 0, late: 0, missing: 0, assigned: 0 };
     a.targets.forEach((t) => statusCounts[assignmentSubmissionStatus(t, a.dueDate)]++);
     const chips = Object.entries(statusCounts)
@@ -772,7 +775,11 @@ async function renderAssignmentsList(prefix) {
     return `<div class="subject-card" style="display:block;">
         <div style="display:flex;justify-content:space-between;align-items:start;">
           <div>
-            <div class="name">${a.title}</div>
+            <div class="name">${a.title} ${
+      isScheduled
+        ? `<span class="badge neutral">🕒 Scheduled for ${new Date(a.publishAt).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' })}</span>`
+        : ''
+    }</div>
             <div class="stats">${a.dueDate ? 'Due ' + new Date(a.dueDate).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' }) + ' &middot; ' : ''}${
       a.targets.length
     } student${a.targets.length === 1 ? '' : 's'}${a.pointsPossible !== null ? ' &middot; ' + a.pointsPossible + ' points' : ''}${assignmentAttachmentLinksHtml(
@@ -893,6 +900,7 @@ async function openEditAssignment(assignmentId, prefix) {
       )
       .join('') || '<p class="muted">None yet.</p>';
   const dueLocal = a.dueDate ? new Date(a.dueDate).toISOString().slice(0, 16) : '';
+  const publishLocal = a.publishAt ? new Date(a.publishAt).toISOString().slice(0, 16) : '';
 
   const html = `
     <h3 style="color:#1a2b6b;">Edit assignment</h3>
@@ -904,6 +912,8 @@ async function openEditAssignment(assignmentId, prefix) {
       <div><label>Topic (optional)</label><select id="ea_topic">${topicOptions}</select></div>
       <div><label>Points possible (optional)</label><input id="ea_points" type="number" value="${a.pointsPossible !== null ? a.pointsPossible : ''}"></div>
     </div>
+    <label>Publish at (optional) — leave blank to keep it posted immediately, or schedule/reschedule it</label>
+    <input id="ea_publishAt" type="datetime-local" value="${publishLocal}">
     <label>Description (optional)</label>
     <textarea id="ea_desc" rows="2">${a.description || ''}</textarea>
     <label>Existing attachments</label>
@@ -942,6 +952,7 @@ async function saveAssignmentEdit(assignmentId, prefix) {
   const dueDateTime = document.getElementById('ea_due').value;
   const topicId = document.getElementById('ea_topic').value;
   const pointsPossible = document.getElementById('ea_points').value;
+  const publishAt = document.getElementById('ea_publishAt').value;
   const studentIds = Array.from(document.querySelectorAll('#ea_targets input[type=checkbox]:checked')).map((cb) => cb.value);
   const errEl = document.getElementById('ea_error');
   errEl.textContent = '';
@@ -964,7 +975,7 @@ async function saveAssignmentEdit(assignmentId, prefix) {
     }
   });
   try {
-    await db.updateAssignment(assignmentId, { title, description, dueDateTime, topicId, pointsPossible, studentIds, newAttachments });
+    await db.updateAssignment(assignmentId, { title, description, dueDateTime, topicId, pointsPossible, studentIds, newAttachments, publishAt });
     await renderAssignmentsList(prefix);
   } catch (e) {
     errEl.textContent = e.message || 'Could not save changes.';
@@ -3996,6 +4007,48 @@ function showPageError(containerId, emptyId, error) {
   }
 }
 
+// A scheduled (future publish_at) item is only ever visible here to the
+// staff member who can manage it — RLS already hides it from students/
+// parents entirely, so this badge only ever shows on the composer's own
+// admin/teacher view.
+function scheduledBadgeHtml(publishAt) {
+  if (!publishAt || new Date(publishAt) <= new Date()) return '';
+  return `<span class="badge neutral">🕒 Scheduled for ${new Date(publishAt).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' })}</span>`;
+}
+
+function announcementFeedCardHtml(a) {
+  return `<div class="card" style="margin-bottom:12px;border-left:4px solid ${a.targetTestName ? 'var(--gold)' : 'var(--navy)'};">
+        <div style="display:flex;justify-content:space-between;align-items:start;">
+          <div>
+            <h2 style="margin-bottom:4px;">📢 ${a.title} ${
+    a.targetTestName ? `<span class="badge neutral">${a.targetTestName} only</span>` : '<span class="badge neutral">Everyone</span>'
+  } ${scheduledBadgeHtml(a.publishAt)}</h2>
+            <p class="muted" style="margin:0 0 8px;">${new Date(a.created_at).toLocaleString()}</p>
+            ${a.body ? `<p style="margin:0;">${a.body}</p>` : ''}
+          </div>
+          ${canPostAsStaff() ? `<button class="btn ghost small no-print" onclick="deleteAnnouncementClick('${a.id}')">Delete</button>` : ''}
+        </div>
+      </div>`;
+}
+
+// A student's own newly-posted assignments show up in their feed
+// alongside announcements, Classroom-Stream style — RLS already keeps
+// this to only what's actually published and assigned to them.
+function assignmentFeedCardHtml(a) {
+  const postedAt = a.publishAt || a.createdAt;
+  return `<div class="card" style="margin-bottom:12px;border-left:4px solid var(--green);">
+        <div style="display:flex;justify-content:space-between;align-items:start;">
+          <div>
+            <h2 style="margin-bottom:4px;">📚 New assignment: ${a.title}${a.topicTitle ? ` <span class="badge neutral">${a.topicTitle}</span>` : ''}</h2>
+            <p class="muted" style="margin:0 0 8px;">${new Date(postedAt).toLocaleString()}${
+    a.dueDate ? ' &middot; Due ' + new Date(a.dueDate).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' }) : ''
+  }</p>
+            ${a.description ? `<p style="margin:0;">${a.description}</p>` : ''}
+          </div>
+        </div>
+      </div>`;
+}
+
 async function renderAnnouncementsPage() {
   document.getElementById('ann_composer').classList.toggle('hidden', !canPostAsStaff());
   try {
@@ -4010,28 +4063,26 @@ async function renderAnnouncementsPage() {
     }
 
     let items = await db.listAnnouncements();
-    if (currentSession?.role === 'student' && currentStudentRecord) {
+    const isStudent = currentSession?.role === 'student' && currentStudentRecord;
+    if (isStudent) {
       const myPrograms = new Set(currentStudentRecord.programs.map((p) => p.test));
       items = items.filter((a) => !a.targetTestName || myPrograms.has(a.targetTestName));
     }
 
+    let feedItems = items.map((a) => ({ kind: 'announcement', date: a.publishAt || a.created_at, data: a }));
+
+    // A student's feed also surfaces their own newly-posted assignments,
+    // like Classroom's Stream — merged in and sorted with announcements.
+    if (isStudent) {
+      const assignments = await db.listAssignmentsForStudent(currentStudentRecord.id);
+      feedItems = feedItems.concat(assignments.map((a) => ({ kind: 'assignment', date: a.publishAt || a.createdAt, data: a })));
+    }
+    feedItems.sort((x, y) => new Date(y.date) - new Date(x.date));
+
     const listEl = document.getElementById('ann_list');
     document.getElementById('ann_listEmpty').textContent = 'No announcements yet.';
-    document.getElementById('ann_listEmpty').classList.toggle('hidden', items.length > 0);
-    listEl.innerHTML = items
-    .map(
-      (a) => `<div class="card" style="margin-bottom:12px;border-left:4px solid ${a.targetTestName ? 'var(--gold)' : 'var(--navy)'};">
-        <div style="display:flex;justify-content:space-between;align-items:start;">
-          <div>
-            <h2 style="margin-bottom:4px;">📢 ${a.title} ${a.targetTestName ? `<span class="badge neutral">${a.targetTestName} only</span>` : '<span class="badge neutral">Everyone</span>'}</h2>
-            <p class="muted" style="margin:0 0 8px;">${new Date(a.created_at).toLocaleString()}</p>
-            ${a.body ? `<p style="margin:0;">${a.body}</p>` : ''}
-          </div>
-          ${canPostAsStaff() ? `<button class="btn ghost small no-print" onclick="deleteAnnouncementClick('${a.id}')">Delete</button>` : ''}
-        </div>
-      </div>`
-    )
-    .join('');
+    document.getElementById('ann_listEmpty').classList.toggle('hidden', feedItems.length > 0);
+    listEl.innerHTML = feedItems.map((item) => (item.kind === 'assignment' ? assignmentFeedCardHtml(item.data) : announcementFeedCardHtml(item.data))).join('');
   } catch (e) {
     console.error('renderAnnouncementsPage failed:', e);
     showPageError('ann_list', 'ann_listEmpty', e);
@@ -4042,6 +4093,7 @@ async function createAnnouncementClick() {
   const title = document.getElementById('ann_title').value.trim();
   const body = document.getElementById('ann_body').value.trim();
   const targetTestId = document.getElementById('ann_audience').value || null;
+  const publishAt = document.getElementById('ann_publishAt').value;
   const errEl = document.getElementById('ann_error');
   errEl.textContent = '';
   if (!title) {
@@ -4049,9 +4101,10 @@ async function createAnnouncementClick() {
     return;
   }
   try {
-    await db.createAnnouncement(title, body, targetTestId);
+    await db.createAnnouncement(title, body, targetTestId, publishAt);
     document.getElementById('ann_title').value = '';
     document.getElementById('ann_body').value = '';
+    document.getElementById('ann_publishAt').value = '';
     await renderAnnouncementsPage();
   } catch (e) {
     errEl.textContent = e.message || 'Could not post announcement.';

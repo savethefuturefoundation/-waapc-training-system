@@ -474,6 +474,8 @@ GED,Mathematical Reasoning,What is 7 x 8?,54,56,58,60,B"></textarea>
           <div><label>Topic (optional)</label><select id="as_topic"><option value="">No topic</option></select></div>
           <div><label>Points possible (optional)</label><input id="as_points" type="number" placeholder="e.g. 10"></div>
         </div>
+        <label>Publish at (optional) — leave blank to post immediately, or schedule it for later</label>
+        <input id="as_publishAt" type="datetime-local">
         <label>Description (optional)</label>
         <textarea id="as_desc" rows="2"></textarea>
         <label>Attachments (optional) — links and/or documents</label>
@@ -509,6 +511,8 @@ GED,Mathematical Reasoning,What is 7 x 8?,54,56,58,60,B"></textarea>
         <select id="ann_audience"><option value="">Everyone</option></select>
         <label>Message (optional)</label>
         <textarea id="ann_body" rows="3"></textarea>
+        <label>Publish at (optional) — leave blank to post immediately, or schedule it for later</label>
+        <input id="ann_publishAt" type="datetime-local">
         <button class="btn red" onclick="createAnnouncementClick()">Post</button>
         <p id="ann_error" class="muted error-text"></p>
       </div>
@@ -783,6 +787,8 @@ GED,Mathematical Reasoning,What is 7 x 8?,54,56,58,60,B"></textarea>
           <div><label>Topic (optional)</label><select id="tas_topic"><option value="">No topic</option></select></div>
           <div><label>Points possible (optional)</label><input id="tas_points" type="number" placeholder="e.g. 10"></div>
         </div>
+        <label>Publish at (optional) — leave blank to post immediately, or schedule it for later</label>
+        <input id="tas_publishAt" type="datetime-local">
         <label>Description (optional)</label>
         <textarea id="tas_desc" rows="2"></textarea>
         <label>Attachments (optional) — links and/or documents</label>
