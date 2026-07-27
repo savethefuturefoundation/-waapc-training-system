@@ -734,6 +734,7 @@ async function renderAssignmentsList(prefix) {
           </div>
           <div style="display:flex;gap:6px;flex-shrink:0;">
             <button class="btn ghost small" onclick="openAssignmentSubmissions('${a.id}')">View submissions</button>
+            <button class="btn ghost small" onclick="openEditAssignment('${a.id}','${prefix}')">Edit</button>
             <button class="btn ghost small" onclick="deleteAssignment('${a.id}','${prefix}')">Delete</button>
           </div>
         </div>
@@ -815,6 +816,110 @@ async function deleteAssignment(id, prefix) {
     return;
   }
   await renderAssignmentsList(prefix);
+}
+
+// Edit an existing assignment — same fields as creation, pre-filled, plus
+// existing attachments (individually removable) and the current target
+// list (pre-checked). Reuses addAssignmentLinkRow/addAssignmentFileRow for
+// adding more attachments.
+async function openEditAssignment(assignmentId, prefix) {
+  const [assignments, allStudents, topics] = await Promise.all([db.listAssignments(), db.loadAllStudents(), db.listAssignmentTopics()]);
+  const a = assignments.find((x) => x.id === assignmentId);
+  if (!a) return;
+  const assignedIds = new Set(a.targets.map((t) => t.studentId));
+  const topicOptions =
+    '<option value="">No topic</option>' + topics.map((t) => `<option value="${t.id}" ${t.id === a.topicId ? 'selected' : ''}>${t.title}</option>`).join('');
+  const studentCheckboxes =
+    allStudents
+      .map((s) => `<label style="display:block;padding:2px 0;"><input type="checkbox" value="${s.id}" ${assignedIds.has(s.id) ? 'checked' : ''}> ${s.fullName}</label>`)
+      .join('') || '<p class="muted">No students registered yet.</p>';
+  const existingAttachmentsHtml =
+    a.attachments
+      .map(
+        (att) => `
+      <div style="display:flex;gap:8px;margin-bottom:6px;align-items:center;">
+        <span style="flex:1;">${att.kind === 'file' ? '📎' : '🔗'} <a href="${att.url}" target="_blank" rel="noopener">${att.name || att.url}</a></span>
+        <button class="field-remove" onclick="deleteAssignmentAttachmentClick('${att.id}','${assignmentId}','${prefix}')">×</button>
+      </div>`
+      )
+      .join('') || '<p class="muted">None yet.</p>';
+  const dueLocal = a.dueDate ? new Date(a.dueDate).toISOString().slice(0, 16) : '';
+
+  const html = `
+    <h3 style="color:#1a2b6b;">Edit assignment</h3>
+    <div class="grid2">
+      <div><label>Title</label><input id="ea_title" value="${(a.title || '').replace(/"/g, '&quot;')}"></div>
+      <div><label>Due date &amp; time (optional)</label><input id="ea_due" type="datetime-local" value="${dueLocal}"></div>
+    </div>
+    <div class="grid2">
+      <div><label>Topic (optional)</label><select id="ea_topic">${topicOptions}</select></div>
+      <div><label>Points possible (optional)</label><input id="ea_points" type="number" value="${a.pointsPossible !== null ? a.pointsPossible : ''}"></div>
+    </div>
+    <label>Description (optional)</label>
+    <textarea id="ea_desc" rows="2">${a.description || ''}</textarea>
+    <label>Existing attachments</label>
+    <div id="ea_existing_attachments">${existingAttachmentsHtml}</div>
+    <label>Add more attachments (optional)</label>
+    <div id="ea_attachments"></div>
+    <div style="margin-bottom:10px;">
+      <button class="btn ghost small" onclick="addAssignmentLinkRow('ea')">+ Add link</button>
+      <button class="btn ghost small" onclick="addAssignmentFileRow('ea')">+ Add document</button>
+    </div>
+    <label>Assigned to</label>
+    <div style="margin-bottom:6px;">
+      <button class="btn ghost small" onclick="toggleAllAssignTargets('ea_targets', true)">Select all</button>
+      <button class="btn ghost small" onclick="toggleAllAssignTargets('ea_targets', false)">Select none</button>
+    </div>
+    <div id="ea_targets" class="checkbox-list">${studentCheckboxes}</div>
+    <button class="btn red" style="margin-top:10px;" onclick="saveAssignmentEdit('${assignmentId}','${prefix}')">Save changes</button>
+    <p id="ea_error" class="muted error-text"></p>
+  `;
+  renderDoc(html);
+}
+
+async function deleteAssignmentAttachmentClick(attachmentId, assignmentId, prefix) {
+  try {
+    await db.deleteAssignmentAttachment(attachmentId);
+  } catch (e) {
+    alert('Could not remove attachment: ' + (e.message || e));
+    return;
+  }
+  await openEditAssignment(assignmentId, prefix);
+}
+
+async function saveAssignmentEdit(assignmentId, prefix) {
+  const title = document.getElementById('ea_title').value.trim();
+  const description = document.getElementById('ea_desc').value.trim();
+  const dueDateTime = document.getElementById('ea_due').value;
+  const topicId = document.getElementById('ea_topic').value;
+  const pointsPossible = document.getElementById('ea_points').value;
+  const studentIds = Array.from(document.querySelectorAll('#ea_targets input[type=checkbox]:checked')).map((cb) => cb.value);
+  const errEl = document.getElementById('ea_error');
+  errEl.textContent = '';
+  if (!title) {
+    errEl.textContent = 'Enter a title.';
+    return;
+  }
+  if (studentIds.length === 0) {
+    errEl.textContent = 'Select at least one student.';
+    return;
+  }
+  const newAttachments = [];
+  document.querySelectorAll('#ea_attachments .att-row').forEach((row) => {
+    const linkInput = row.querySelector('.att-link-url');
+    const fileInput = row.querySelector('.att-file');
+    if (linkInput && linkInput.value.trim()) {
+      newAttachments.push({ kind: 'link', url: linkInput.value.trim(), name: row.querySelector('.att-link-name')?.value.trim() || null });
+    } else if (fileInput && fileInput.files[0]) {
+      newAttachments.push({ kind: 'file', file: fileInput.files[0] });
+    }
+  });
+  try {
+    await db.updateAssignment(assignmentId, { title, description, dueDateTime, topicId, pointsPossible, studentIds, newAttachments });
+    await renderAssignmentsList(prefix);
+  } catch (e) {
+    errEl.textContent = e.message || 'Could not save changes.';
+  }
 }
 
 // Hand-rolled horizontal bar chart: thin bars on a track, rounded ends,
@@ -4535,6 +4640,9 @@ Object.assign(window, {
   createAssignment,
   deleteAssignment,
   openAssignmentSubmissions,
+  openEditAssignment,
+  deleteAssignmentAttachmentClick,
+  saveAssignmentEdit,
   createAssignmentTopicClick,
   deleteAssignmentTopicClick,
   addAssignmentLinkRow,

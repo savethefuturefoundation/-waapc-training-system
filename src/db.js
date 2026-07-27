@@ -788,6 +788,25 @@ export async function deleteAssignmentTopic(id) {
 }
 
 // attachments: array of { kind: 'file', file: File } | { kind: 'link', url, name }
+async function uploadAssignmentAttachments(assignmentId, attachments, startSortOrder = 0) {
+  for (const [i, att] of (attachments || []).entries()) {
+    if (att.kind === 'file' && att.file) {
+      const path = `${assignmentId}/${Date.now()}_${att.file.name}`;
+      const { error: upErr } = await supabase.storage.from('assignment-attachments').upload(path, att.file, { upsert: true });
+      if (upErr) throw upErr;
+      const { error: attErr } = await supabase
+        .from('assignment_attachments')
+        .insert({ assignment_id: assignmentId, kind: 'file', url: path, name: att.file.name, sort_order: startSortOrder + i });
+      if (attErr) throw attErr;
+    } else if (att.kind === 'link' && att.url) {
+      const { error: attErr } = await supabase
+        .from('assignment_attachments')
+        .insert({ assignment_id: assignmentId, kind: 'link', url: att.url, name: att.name || null, sort_order: startSortOrder + i });
+      if (attErr) throw attErr;
+    }
+  }
+}
+
 export async function createAssignment({ title, description, dueDateTime, studentIds, topicId, pointsPossible, attachments }) {
   const { data: a, error } = await supabase
     .from('assignments')
@@ -802,22 +821,7 @@ export async function createAssignment({ title, description, dueDateTime, studen
     .single();
   if (error) throw error;
 
-  for (const [i, att] of (attachments || []).entries()) {
-    if (att.kind === 'file' && att.file) {
-      const path = `${a.id}/${Date.now()}_${att.file.name}`;
-      const { error: upErr } = await supabase.storage.from('assignment-attachments').upload(path, att.file, { upsert: true });
-      if (upErr) throw upErr;
-      const { error: attErr } = await supabase
-        .from('assignment_attachments')
-        .insert({ assignment_id: a.id, kind: 'file', url: path, name: att.file.name, sort_order: i });
-      if (attErr) throw attErr;
-    } else if (att.kind === 'link' && att.url) {
-      const { error: attErr } = await supabase
-        .from('assignment_attachments')
-        .insert({ assignment_id: a.id, kind: 'link', url: att.url, name: att.name || null, sort_order: i });
-      if (attErr) throw attErr;
-    }
-  }
+  await uploadAssignmentAttachments(a.id, attachments);
 
   if (studentIds.length > 0) {
     const { error: tErr } = await supabase
@@ -826,6 +830,48 @@ export async function createAssignment({ title, description, dueDateTime, studen
     if (tErr) throw tErr;
   }
   return a.id;
+}
+
+// Updates an assignment's fields, syncs its target student list (adds
+// newly-checked students, removes unchecked ones — leaving any of their
+// past submissions/grades intact as a historical record), and uploads any
+// newly-added attachments. Existing attachments are removed individually
+// via deleteAssignmentAttachment.
+export async function updateAssignment(id, { title, description, dueDateTime, topicId, pointsPossible, studentIds, newAttachments }) {
+  const { error } = await supabase
+    .from('assignments')
+    .update({
+      title,
+      description: description || null,
+      due_date: dueDateTime || null,
+      topic_id: topicId || null,
+      points_possible: pointsPossible === '' || pointsPossible === null || pointsPossible === undefined ? null : Number(pointsPossible),
+    })
+    .eq('id', id);
+  if (error) throw error;
+
+  const { data: existingTargets, error: tErr } = await supabase.from('assignment_targets').select('student_id').eq('assignment_id', id);
+  if (tErr) throw tErr;
+  const existingIds = new Set((existingTargets || []).map((t) => t.student_id));
+  const wantedIds = new Set(studentIds);
+  const toAdd = studentIds.filter((sid) => !existingIds.has(sid));
+  const toRemove = [...existingIds].filter((sid) => !wantedIds.has(sid));
+
+  if (toAdd.length) {
+    const { error: addErr } = await supabase.from('assignment_targets').insert(toAdd.map((student_id) => ({ assignment_id: id, student_id })));
+    if (addErr) throw addErr;
+  }
+  if (toRemove.length) {
+    const { error: delErr } = await supabase.from('assignment_targets').delete().eq('assignment_id', id).in('student_id', toRemove);
+    if (delErr) throw delErr;
+  }
+
+  await uploadAssignmentAttachments(id, newAttachments);
+}
+
+export async function deleteAssignmentAttachment(id) {
+  const { error } = await supabase.from('assignment_attachments').delete().eq('id', id);
+  if (error) throw error;
 }
 
 export async function deleteAssignment(id) {
