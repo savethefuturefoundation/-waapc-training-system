@@ -200,7 +200,7 @@
         <div class="card">
           <h2>GED Performance Levels</h2>
           <div id="dash_perfChart"></div>
-          <p id="dash_perfEmpty" class="empty hidden">No GED grades recorded yet.</p>
+          <p id="dash_perfEmpty" class="empty hidden" style="--empty-icon:'📊';">No GED grades recorded yet.</p>
         </div>
         <div class="card">
           <h2>Income vs. Expenses</h2>
@@ -268,7 +268,7 @@
           <thead><tr><th>Name</th><th>Program(s)</th><th>Status</th><th></th></tr></thead>
           <tbody></tbody>
         </table>
-        <div id="studentsEmpty" class="empty hidden">No students registered yet.</div>
+        <div id="studentsEmpty" class="empty hidden" style="--empty-icon:'🎓';">No students registered yet.</div>
       </div>
     </div>
 
@@ -282,12 +282,12 @@
         <div class="card">
           <h2>GED Performance at Graduation</h2>
           <div id="grad_gedChart"></div>
-          <p id="grad_gedChartEmpty" class="empty hidden">No GED graduates yet.</p>
+          <p id="grad_gedChartEmpty" class="empty hidden" style="--empty-icon:'📊';">No GED graduates yet.</p>
         </div>
         <div class="card">
           <h2>Graduates by Program</h2>
           <div id="grad_programChart"></div>
-          <p id="grad_programChartEmpty" class="empty hidden">No graduates yet.</p>
+          <p id="grad_programChartEmpty" class="empty hidden" style="--empty-icon:'🎓';">No graduates yet.</p>
         </div>
       </div>
       <div class="card">
@@ -296,7 +296,7 @@
           <thead><tr><th>Student</th><th>Program</th><th>Graduated</th><th>Score</th><th>Attendance</th><th>Certificate</th></tr></thead>
           <tbody></tbody>
         </table>
-        <div id="grad_listEmpty" class="empty hidden">No students have graduated yet — mark a completed program as graduated from the student's profile.</div>
+        <div id="grad_listEmpty" class="empty hidden" style="--empty-icon:'🎓';">No students have graduated yet — mark a completed program as graduated from the student's profile.</div>
       </div>
     </div>
 
@@ -368,7 +368,7 @@ GED,Mathematical Reasoning,What is 7 x 8?,54,56,58,60,B"></textarea>
         <div class="card">
           <h2>Questions in this subject's bank</h2>
           <div id="qb_list"></div>
-          <div id="qb_listEmpty" class="empty hidden">No questions added yet for this subject.</div>
+          <div id="qb_listEmpty" class="empty hidden" style="--empty-icon:'❓';">No questions added yet for this subject.</div>
         </div>
       </div>
 
@@ -378,7 +378,7 @@ GED,Mathematical Reasoning,What is 7 x 8?,54,56,58,60,B"></textarea>
           <label>Filter by group</label>
           <select id="qb_passageGroupFilter" onchange="qbLoadPassages()"></select>
           <div id="qb_passageList"></div>
-          <div id="qb_passageListEmpty" class="empty hidden">No listening passages yet for this subject.</div>
+          <div id="qb_passageListEmpty" class="empty hidden" style="--empty-icon:'🎧';">No listening passages yet for this subject.</div>
         </div>
 
         <div class="card">
@@ -419,7 +419,7 @@ GED,Mathematical Reasoning,What is 7 x 8?,54,56,58,60,B"></textarea>
         <div class="card">
           <h2>Speaking prompts</h2>
           <div id="qb_promptList"></div>
-          <div id="qb_promptListEmpty" class="empty hidden">No speaking prompts yet for this subject.</div>
+          <div id="qb_promptListEmpty" class="empty hidden" style="--empty-icon:'🎤';">No speaking prompts yet for this subject.</div>
         </div>
 
         <div class="card">
@@ -449,7 +449,7 @@ GED,Mathematical Reasoning,What is 7 x 8?,54,56,58,60,B"></textarea>
           <thead><tr><th>Name</th><th>Email</th><th>Invited</th><th>Actions</th></tr></thead>
           <tbody></tbody>
         </table>
-        <div id="teacherInvitesEmpty" class="empty hidden">No pending invites. A teacher disappears from this list once they've logged in.</div>
+        <div id="teacherInvitesEmpty" class="empty hidden" style="--empty-icon:'✉️';">No pending invites. A teacher disappears from this list once they've logged in.</div>
       </div>
     </div>
 
@@ -495,7 +495,7 @@ GED,Mathematical Reasoning,What is 7 x 8?,54,56,58,60,B"></textarea>
       <div class="card">
         <h2>All assignments</h2>
         <div id="as_list"></div>
-        <div id="as_listEmpty" class="empty hidden">No assignments created yet.</div>
+        <div id="as_listEmpty" class="empty hidden" style="--empty-icon:'📚';">No assignments created yet.</div>
       </div>
     </div>
 
@@ -513,7 +513,7 @@ GED,Mathematical Reasoning,What is 7 x 8?,54,56,58,60,B"></textarea>
         <p id="ann_error" class="muted error-text"></p>
       </div>
       <div id="ann_list"></div>
-      <div id="ann_listEmpty" class="empty hidden">No announcements yet.</div>
+      <div id="ann_listEmpty" class="empty hidden" style="--empty-icon:'📢';">No announcements yet.</div>
     </div>
 
     <!-- ================= CALENDAR (shared by all portals) ================= -->
@@ -543,7 +543,7 @@ GED,Mathematical Reasoning,What is 7 x 8?,54,56,58,60,B"></textarea>
           <button class="btn ghost small no-print hidden" id="cal_clearFilter" onclick="clearCalendarDayFilter()">Show all</button>
         </div>
         <div id="cal_list" style="margin-top:14px;"></div>
-        <div id="cal_listEmpty" class="empty hidden">No events scheduled.</div>
+        <div id="cal_listEmpty" class="empty hidden" style="--empty-icon:'📅';">No events scheduled.</div>
       </div>
     </div>
 
@@ -588,7 +588,7 @@ GED,Mathematical Reasoning,What is 7 x 8?,54,56,58,60,B"></textarea>
           <thead><tr><th>Student</th><th>Program(s)</th><th>Total</th><th>Paid</th><th>Balance</th><th></th></tr></thead>
           <tbody></tbody>
         </table>
-        <div id="fin_arrearsEmpty" class="empty hidden">No outstanding balances — everyone is paid up.</div>
+        <div id="fin_arrearsEmpty" class="empty hidden" style="--empty-icon:'✅';">No outstanding balances — everyone is paid up.</div>
       </div>
       <div class="card">
         <h2>Income by fee category</h2>
@@ -600,7 +600,7 @@ GED,Mathematical Reasoning,What is 7 x 8?,54,56,58,60,B"></textarea>
           <thead><tr><th>Date</th><th>Student</th><th>For</th><th>Amount</th><th>Method</th><th>Receipt</th><th></th></tr></thead>
           <tbody></tbody>
         </table>
-        <div id="fin_ledgerEmpty" class="empty hidden">No payments recorded yet.</div>
+        <div id="fin_ledgerEmpty" class="empty hidden" style="--empty-icon:'🧾';">No payments recorded yet.</div>
       </div>
       <div class="card">
         <h2>Add expense</h2>
@@ -629,7 +629,7 @@ GED,Mathematical Reasoning,What is 7 x 8?,54,56,58,60,B"></textarea>
           <thead><tr><th>Date</th><th>Category</th><th>Description</th><th>Amount</th><th></th></tr></thead>
           <tbody></tbody>
         </table>
-        <div id="fin_expenseListEmpty" class="empty hidden">No expenses recorded yet.</div>
+        <div id="fin_expenseListEmpty" class="empty hidden" style="--empty-icon:'🧾';">No expenses recorded yet.</div>
       </div>
     </div>
 
@@ -641,7 +641,7 @@ GED,Mathematical Reasoning,What is 7 x 8?,54,56,58,60,B"></textarea>
           <thead><tr><th>Name</th><th>Relationship</th><th>Phone</th><th>Email</th><th>Children</th></tr></thead>
           <tbody></tbody>
         </table>
-        <div id="parentsEmpty" class="empty hidden">No guardian contact info on file yet.</div>
+        <div id="parentsEmpty" class="empty hidden" style="--empty-icon:'👨‍👩‍👧';">No guardian contact info on file yet.</div>
       </div>
     </div>
 
@@ -653,7 +653,7 @@ GED,Mathematical Reasoning,What is 7 x 8?,54,56,58,60,B"></textarea>
           <thead><tr><th>Name</th><th>Email</th><th>Subjects taught</th><th>Programs</th><th></th></tr></thead>
           <tbody></tbody>
         </table>
-        <div id="teachersEmpty" class="empty hidden">No active teachers yet — invited teachers appear here once they log in for the first time.</div>
+        <div id="teachersEmpty" class="empty hidden" style="--empty-icon:'🧑‍🏫';">No active teachers yet — invited teachers appear here once they log in for the first time.</div>
       </div>
     </div>
 
@@ -669,7 +669,7 @@ GED,Mathematical Reasoning,What is 7 x 8?,54,56,58,60,B"></textarea>
       <div class="card">
         <h2>Roster</h2>
         <div id="att_roster"></div>
-        <div id="att_rosterEmpty" class="empty hidden">No students enrolled in this program.</div>
+        <div id="att_rosterEmpty" class="empty hidden" style="--empty-icon:'✅';">No students enrolled in this program.</div>
       </div>
     </div>
 
@@ -710,7 +710,7 @@ GED,Mathematical Reasoning,What is 7 x 8?,54,56,58,60,B"></textarea>
         <p id="tt_error" class="muted error-text"></p>
       </div>
       <div id="tt_list"></div>
-      <div id="tt_listEmpty" class="empty hidden">No timetable entries yet.</div>
+      <div id="tt_listEmpty" class="empty hidden" style="--empty-icon:'🗓';">No timetable entries yet.</div>
     </div>
 
     <!-- ================= MESSAGES (shared by all portals) ================= -->
@@ -719,7 +719,7 @@ GED,Mathematical Reasoning,What is 7 x 8?,54,56,58,60,B"></textarea>
         <div class="card messages-contacts">
           <h2>Contacts</h2>
           <div id="msg_contacts"></div>
-          <div id="msg_contactsEmpty" class="empty hidden">No one to message yet — contacts appear here once a teacher, parent, or student has logged in at least once.</div>
+          <div id="msg_contactsEmpty" class="empty hidden" style="--empty-icon:'✉️';">No one to message yet — contacts appear here once a teacher, parent, or student has logged in at least once.</div>
         </div>
         <div class="card messages-thread">
           <h2 id="msg_activeContactName">Select a contact to start messaging</h2>
@@ -743,12 +743,12 @@ GED,Mathematical Reasoning,What is 7 x 8?,54,56,58,60,B"></textarea>
         <div class="card">
           <h2>GED Performance Levels</h2>
           <div id="teacherGedChart"></div>
-          <p id="teacherGedChartEmpty" class="empty hidden">No GED grades recorded yet for your students.</p>
+          <p id="teacherGedChartEmpty" class="empty hidden" style="--empty-icon:'📊';">No GED grades recorded yet for your students.</p>
         </div>
         <div class="card">
           <h2>Attendance</h2>
           <div id="teacherAttChart"></div>
-          <p id="teacherAttChartEmpty" class="empty hidden">No attendance recorded yet for your students.</p>
+          <p id="teacherAttChartEmpty" class="empty hidden" style="--empty-icon:'✅';">No attendance recorded yet for your students.</p>
         </div>
       </div>
       <div class="card">
@@ -758,7 +758,7 @@ GED,Mathematical Reasoning,What is 7 x 8?,54,56,58,60,B"></textarea>
           <thead><tr><th>Name</th><th>Program(s)</th><th>Actions</th></tr></thead>
           <tbody></tbody>
         </table>
-        <div id="teacherStudentsEmpty" class="empty hidden">No students registered yet.</div>
+        <div id="teacherStudentsEmpty" class="empty hidden" style="--empty-icon:'👥';">No students registered yet.</div>
       </div>
     </div>
 
@@ -804,14 +804,14 @@ GED,Mathematical Reasoning,What is 7 x 8?,54,56,58,60,B"></textarea>
       <div class="card">
         <h2>Assignments</h2>
         <div id="tas_list"></div>
-        <div id="tas_listEmpty" class="empty hidden">No assignments created yet.</div>
+        <div id="tas_listEmpty" class="empty hidden" style="--empty-icon:'📚';">No assignments created yet.</div>
       </div>
     </div>
 
     <!-- ================= PARENT PAGE ================= -->
     <div id="page-parent-children" class="page hidden">
       <div id="parentChildren"></div>
-      <div id="parentChildrenEmpty" class="empty hidden">No student record lists this email as parent/guardian yet. Contact the school.</div>
+      <div id="parentChildrenEmpty" class="empty hidden" style="--empty-icon:'👨‍👩‍👧';">No student record lists this email as parent/guardian yet. Contact the school.</div>
     </div>
 
     <!-- ================= STUDENT PAGES ================= -->
@@ -840,7 +840,7 @@ GED,Mathematical Reasoning,What is 7 x 8?,54,56,58,60,B"></textarea>
       <div class="card">
         <h2>Assignments</h2>
         <div id="myAssignmentsList"></div>
-        <div id="myAssignmentsEmpty" class="empty hidden">No assignments yet.</div>
+        <div id="myAssignmentsEmpty" class="empty hidden" style="--empty-icon:'📚';">No assignments yet.</div>
       </div>
     </div>
 
@@ -848,13 +848,13 @@ GED,Mathematical Reasoning,What is 7 x 8?,54,56,58,60,B"></textarea>
       <div class="card">
         <h2>Grades</h2>
         <div id="myGradesList"></div>
-        <div id="myGradesEmpty" class="empty hidden">No grades yet.</div>
+        <div id="myGradesEmpty" class="empty hidden" style="--empty-icon:'🎓';">No grades yet.</div>
       </div>
     </div>
 
     <div id="page-student-attendance" class="page hidden">
       <div id="myAttendanceList"></div>
-      <div id="myAttendanceEmpty" class="empty hidden">No attendance recorded yet.</div>
+      <div id="myAttendanceEmpty" class="empty hidden" style="--empty-icon:'✅';">No attendance recorded yet.</div>
     </div>
 
   </main>

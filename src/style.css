@@ -205,7 +205,7 @@
   .score-banner { background: var(--navy); color: var(--white); padding: 16px 20px; border-radius: 10px; text-align: center; margin-bottom: 16px; }
   .score-banner .big { font-size: 32px; font-weight: bold; }
   .empty { text-align: center; color: var(--gray-400); padding: 30px; font-size: 13px; }
-  .empty::before { content: '🗂️'; display: block; font-size: 28px; margin-bottom: 8px; opacity: 0.45; }
+  .empty::before { content: var(--empty-icon, '🗂️'); display: block; font-size: 28px; margin-bottom: 8px; opacity: 0.45; }
   .hidden { display: none !important; }
   .field-remove { background: var(--red-light); color: var(--red); border: none; border-radius: 6px; width: 26px; height: 26px; cursor: pointer; }
 
