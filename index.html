@@ -673,9 +673,11 @@ GED,Mathematical Reasoning,What is 7 x 8?,54,56,58,60,B"></textarea>
       <div class="card">
         <h2>Take attendance</h2>
         <div class="grid2">
-          <div><label>Program</label><select id="att_test" onchange="loadAttendanceRoster()"></select></div>
+          <div><label>Program</label><select id="att_test" onchange="onAttendanceTestChange()"></select></div>
           <div><label>Date</label><input id="att_date" type="date" onchange="loadAttendanceRoster()"></div>
         </div>
+        <label id="att_subject_wrap" class="hidden">Subject</label>
+        <select id="att_subject" class="hidden" onchange="loadAttendanceRoster()"></select>
       </div>
       <div class="card">
         <h2>Roster</h2>

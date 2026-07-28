@@ -67,7 +67,7 @@ const STUDENT_SELECT = `
   enrollments (
     id, test_id, level, sessions_per_week, start_date, end_date, registration_only, price, status, graduated_date,
     tests ( name ),
-    attendance ( id, session_date, present )
+    attendance ( id, session_date, present, subject_id, subjects ( name ) )
   ),
   invoices (
     id, invoice_number, invoice_date, total,
@@ -100,7 +100,7 @@ function mapStudentRow(row) {
   }));
 
   const attendance = (row.enrollments || []).flatMap((e) =>
-    (e.attendance || []).map((a) => ({ programId: e.id, date: a.session_date, present: a.present }))
+    (e.attendance || []).map((a) => ({ programId: e.id, date: a.session_date, present: a.present, subjectId: a.subject_id, subjectName: a.subjects?.name || null }))
   );
 
   const installments = ((invoice && invoice.payment_installments) || []).map((i) => {
@@ -359,10 +359,12 @@ export async function listAllPayments() {
   }));
 }
 
-export async function recordAttendance(enrollmentId, date, present) {
+// subjectId null = general/whole-day attendance (only valid for a teacher
+// with whole-program access — RLS enforces this, see extra_schema_34.sql).
+export async function recordAttendance(enrollmentId, date, present, subjectId) {
   const { error } = await supabase
     .from('attendance')
-    .upsert({ enrollment_id: enrollmentId, session_date: date, present }, { onConflict: 'enrollment_id,session_date' });
+    .upsert({ enrollment_id: enrollmentId, session_date: date, present, subject_id: subjectId || null }, { onConflict: 'enrollment_id,session_date,subject_id' });
   if (error) throw error;
 }
 
@@ -1261,9 +1263,13 @@ export async function listEnrollmentsForTest(testId) {
   return data.map((e) => ({ enrollmentId: e.id, studentId: e.students?.id, studentName: e.students?.full_name })).filter((e) => e.studentName);
 }
 
-export async function listAttendanceForDate(enrollmentIds, date) {
+// subjectId null looks up general (whole-day) records only — pass the
+// exact subject being marked to see that subject's own roster state.
+export async function listAttendanceForDate(enrollmentIds, date, subjectId) {
   if (enrollmentIds.length === 0) return {};
-  const { data, error } = await supabase.from('attendance').select('enrollment_id, present').in('enrollment_id', enrollmentIds).eq('session_date', date);
+  let query = supabase.from('attendance').select('enrollment_id, present').in('enrollment_id', enrollmentIds).eq('session_date', date);
+  query = subjectId ? query.eq('subject_id', subjectId) : query.is('subject_id', null);
+  const { data, error } = await query;
   if (error) throw error;
   const map = {};
   data.forEach((a) => {

@@ -2011,7 +2011,7 @@ function attendanceHeatStrip(student) {
   const cells = recent
     .map(
       (r) =>
-        `<span title="${r.date} — ${r.present ? 'Present' : 'Absent'}" style="display:inline-block;width:10px;height:10px;border-radius:2px;margin:0 2px 2px 0;background:${
+        `<span title="${r.date}${r.subjectName ? ' — ' + r.subjectName : ''} — ${r.present ? 'Present' : 'Absent'}" style="display:inline-block;width:10px;height:10px;border-radius:2px;margin:0 2px 2px 0;background:${
           r.present ? 'var(--green)' : 'var(--red)'
         };"></span>`
     )
@@ -2171,7 +2171,7 @@ async function openGradebook(studentId) {
 // null = unrestricted (admin). Otherwise { wholeTestIds, subjectIds } —
 // a teacher can grade a subject if either their program is whole-scoped
 // or that exact subject is individually assigned to them.
-async function getMyGradeSubjectScope() {
+async function getMyTeacherSubjectScope() {
   if (currentSession?.role !== 'teacher') return null;
   try {
     const assignments = await db.listMyTeacherSubjectAssignments();
@@ -2192,7 +2192,7 @@ function scopeAllowsSubject(scope, testId, subjectId) {
 async function renderGradebook(s) {
   const grades = await db.listGradesForStudent(s.id);
   const gedGrades = grades.filter((g) => g.test === 'GED');
-  const scope = await getMyGradeSubjectScope();
+  const scope = await getMyTeacherSubjectScope();
   const subjectOptions = s.programs
     .flatMap((p) => {
       const subjects = (CATALOG[p.test] && CATALOG[p.test].subjects) || [];
@@ -2304,7 +2304,7 @@ let subjectGradesReportOptions = [];
 
 async function openSubjectGradesReport() {
   await ensureCatalog();
-  const scope = await getMyGradeSubjectScope();
+  const scope = await getMyTeacherSubjectScope();
   subjectGradesReportOptions = [];
   Object.entries(CATALOG).forEach(([testName, cat]) => {
     (cat.subjects || []).forEach((sub) => {
@@ -2897,12 +2897,13 @@ async function emailParentClick(studentId) {
 }
 
 async function openAttendance(studentId) {
+  await ensureCatalog();
   const students = await db.loadAllStudents();
   const s = students.find((x) => x.id === studentId);
   if (!s) return;
   s.attendance = s.attendance || [];
 
-  const programOptions = s.programs.map((p) => `<option value="${p.id}">${p.test} (${p.level})</option>`).join('');
+  const programOptions = s.programs.map((p) => `<option value="${p.id}" data-test-id="${p.testId}">${p.test} (${p.level})</option>`).join('');
   const rows = s.attendance
     .slice()
     .sort((a, b) => (a.date < b.date ? 1 : -1))
@@ -2911,6 +2912,7 @@ async function openAttendance(studentId) {
       return `<tr>
       <td>${rec.date}</td>
       <td>${prog ? prog.test : 'Unknown'}</td>
+      <td>${rec.subjectName || '<span class="muted">General</span>'}</td>
       <td><span class="badge ${rec.present ? 'paid' : 'unpaid'}">${rec.present ? 'Present' : 'Absent'}</span></td>
     </tr>`;
     })
@@ -2919,27 +2921,50 @@ async function openAttendance(studentId) {
   const html = `
     <h3 style="color:#1a2b6b;">${s.fullName} — Attendance</h3>
     <div style="display:flex;gap:8px;align-items:end;margin-bottom:16px;flex-wrap:wrap;">
-      <div><label>Program</label><select id="att_program">${programOptions}</select></div>
+      <div><label>Program</label><select id="att_program" onchange="onProfileAttendanceProgramChange()">${programOptions}</select></div>
+      <div id="att_profileSubject_wrap" class="hidden"><label>Subject</label><select id="att_profileSubject"></select></div>
       <div><label>Date</label><input type="date" id="att_date" value="${new Date().toISOString().slice(0, 10)}"></div>
       <div>
         <button class="btn small" onclick="recordAttendance('${s.id}', true)">Mark present</button>
         <button class="btn ghost small" onclick="recordAttendance('${s.id}', false)">Mark absent</button>
       </div>
     </div>
-    <table><thead><tr><th>Date</th><th>Program</th><th>Status</th></tr></thead><tbody>${rows || '<tr><td colspan="3" class="muted">No attendance recorded yet.</td></tr>'}</tbody></table>
+    <table><thead><tr><th>Date</th><th>Program</th><th>Subject</th><th>Status</th></tr></thead><tbody>${
+      rows || '<tr><td colspan="4" class="muted">No attendance recorded yet.</td></tr>'
+    }</tbody></table>
   `;
   renderDoc(html);
+  await onProfileAttendanceProgramChange();
+}
+
+// Mirrors onAttendanceTestChange for the single-student view reached from
+// a student's profile — same subject scoping, so a subject-scoped teacher
+// can't sidestep it by taking attendance here instead of the bulk roster.
+async function onProfileAttendanceProgramChange() {
+  const select = document.getElementById('att_program');
+  const testId = select?.selectedOptions[0]?.dataset.testId;
+  const wrap = document.getElementById('att_profileSubject_wrap');
+  const subjSelect = document.getElementById('att_profileSubject');
+  if (!testId || !wrap || !subjSelect) return;
+  const testEntry = Object.entries(CATALOG).find(([, cat]) => cat.id === testId);
+  const subjects = testEntry ? testEntry[1].subjects || [] : [];
+  const scope = await getMyTeacherSubjectScope();
+  const visible = subjects.filter((sub) => scopeAllowsSubject(scope, testId, sub.id));
+  wrap.classList.toggle('hidden', visible.length === 0);
+  subjSelect.innerHTML = visible.map((sub) => `<option value="${sub.id}">${sub.name}</option>`).join('');
 }
 
 async function recordAttendance(studentId, present) {
   const programId = document.getElementById('att_program').value;
   const date = document.getElementById('att_date').value;
+  const subjectWrap = document.getElementById('att_profileSubject_wrap');
+  const subjectId = subjectWrap && !subjectWrap.classList.contains('hidden') ? document.getElementById('att_profileSubject').value : null;
   if (!date) {
     alert('Pick a date.');
     return;
   }
   try {
-    await db.recordAttendance(programId, date, present);
+    await db.recordAttendance(programId, date, present, subjectId);
   } catch (e) {
     alert('Could not record attendance: ' + (e.message || e));
     return;
@@ -3222,12 +3247,17 @@ async function renderMyAttendance() {
         .filter((r) => r.programId === p.id)
         .slice()
         .sort((a, b) => (a.date < b.date ? 1 : -1))
-        .map((r) => `<tr><td>${r.date}</td><td><span class="badge ${r.present ? 'paid' : 'unpaid'}">${r.present ? 'Present' : 'Absent'}</span></td></tr>`)
+        .map(
+          (r) =>
+            `<tr><td>${r.date}</td><td>${r.subjectName || '<span class="muted">General</span>'}</td><td><span class="badge ${r.present ? 'paid' : 'unpaid'}">${
+              r.present ? 'Present' : 'Absent'
+            }</span></td></tr>`
+        )
         .join('');
       return `<div class="card">
         <h2>${p.test} <span class="muted">(${p.level})</span></h2>
         <p class="muted">${stats.total > 0 ? stats.present + ' / ' + stats.total + ' sessions (' + stats.pct + '%)' : 'No sessions recorded yet'}</p>
-        <table><thead><tr><th>Date</th><th>Status</th></tr></thead><tbody>${rows || '<tr><td colspan="2" class="muted">No records yet.</td></tr>'}</tbody></table>
+        <table><thead><tr><th>Date</th><th>Subject</th><th>Status</th></tr></thead><tbody>${rows || '<tr><td colspan="3" class="muted">No records yet.</td></tr>'}</tbody></table>
       </div>`;
     })
     .join('');
@@ -4942,6 +4972,34 @@ async function renderAttendancePage() {
   if (!document.getElementById('att_date').value) {
     document.getElementById('att_date').value = new Date().toISOString().slice(0, 10);
   }
+  await onAttendanceTestChange();
+}
+
+// Populates the Subject dropdown for the chosen program, scoped to the
+// teacher's own subject(s) — a teacher assigned to just Social Studies
+// only ever sees "Social Studies" here, not the other GED subjects, so
+// attendance always gets tagged to the actual class period being taken.
+// Programs with no subjects defined fall back to one general record per
+// day, same as before this feature existed.
+async function onAttendanceTestChange() {
+  const testId = document.getElementById('att_test').value;
+  const testEntry = Object.entries(CATALOG).find(([, cat]) => cat.id === testId);
+  const subjects = testEntry ? testEntry[1].subjects || [] : [];
+  const scope = await getMyTeacherSubjectScope();
+  const visibleSubjects = subjects.filter((sub) => scopeAllowsSubject(scope, testId, sub.id));
+
+  const subjectSelect = document.getElementById('att_subject');
+  const subjectWrap = document.getElementById('att_subject_wrap');
+  const hasSubjects = visibleSubjects.length > 0;
+  subjectWrap.classList.toggle('hidden', !hasSubjects);
+  subjectSelect.classList.toggle('hidden', !hasSubjects);
+  if (hasSubjects) {
+    const current = subjectSelect.value;
+    subjectSelect.innerHTML = visibleSubjects.map((sub) => `<option value="${sub.id}">${sub.name}</option>`).join('');
+    subjectSelect.value = visibleSubjects.some((sub) => sub.id === current) ? current : visibleSubjects[0].id;
+  } else {
+    subjectSelect.innerHTML = '';
+  }
   await loadAttendanceRoster();
 }
 
@@ -4950,10 +5008,13 @@ async function loadAttendanceRoster() {
   const date = document.getElementById('att_date').value;
   const listEl = document.getElementById('att_roster');
   if (!testId || !date) return;
+  const subjectSelect = document.getElementById('att_subject');
+  const subjectId = subjectSelect.classList.contains('hidden') ? '' : subjectSelect.value;
   const roster = await db.listEnrollmentsForTest(testId);
   const existing = await db.listAttendanceForDate(
     roster.map((r) => r.enrollmentId),
-    date
+    date,
+    subjectId || null
   );
   document.getElementById('att_rosterEmpty').classList.toggle('hidden', roster.length > 0);
   listEl.innerHTML = roster
@@ -4962,18 +5023,18 @@ async function loadAttendanceRoster() {
       return `<div class="subject-card">
         <div class="name">${r.studentName}</div>
         <div>
-          <button class="btn ${present === true ? '' : 'ghost'} small" onclick="markRosterAttendance('${r.enrollmentId}', true)">Present</button>
-          <button class="btn ${present === false ? 'red' : 'ghost'} small" onclick="markRosterAttendance('${r.enrollmentId}', false)">Absent</button>
+          <button class="btn ${present === true ? '' : 'ghost'} small" onclick="markRosterAttendance('${r.enrollmentId}', true, '${subjectId}')">Present</button>
+          <button class="btn ${present === false ? 'red' : 'ghost'} small" onclick="markRosterAttendance('${r.enrollmentId}', false, '${subjectId}')">Absent</button>
         </div>
       </div>`;
     })
     .join('');
 }
 
-async function markRosterAttendance(enrollmentId, present) {
+async function markRosterAttendance(enrollmentId, present, subjectId) {
   const date = document.getElementById('att_date').value;
   try {
-    await db.recordAttendance(enrollmentId, date, present);
+    await db.recordAttendance(enrollmentId, date, present, subjectId || null);
   } catch (e) {
     alert('Could not record attendance: ' + (e.message || e));
     return;
@@ -5169,6 +5230,7 @@ Object.assign(window, {
   deleteTimetableEntryClick,
   loadAttendanceRoster,
   markRosterAttendance,
+  onAttendanceTestChange,
   renderParentsPage,
   renderTeachersPage,
   sidebarClickById,
@@ -5242,6 +5304,7 @@ Object.assign(window, {
   emailParentClick,
   sendParentEmailClick,
   openAttendance,
+  onProfileAttendanceProgramChange,
   recordAttendance,
   openProgressReport,
   openCertificateForm,
