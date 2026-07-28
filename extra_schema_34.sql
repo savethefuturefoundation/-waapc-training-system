@@ -25,6 +25,7 @@
 alter table attendance add column if not exists subject_id uuid references subjects(id) on delete cascade;
 
 alter table attendance drop constraint if exists attendance_enrollment_id_session_date_key;
+alter table attendance drop constraint if exists attendance_enrollment_id_session_date_subject_id_key;
 alter table attendance add constraint attendance_enrollment_id_session_date_subject_id_key unique (enrollment_id, session_date, subject_id);
 
 create or replace function teacher_scoped_to_enrollment(target_enrollment_id uuid) returns boolean
