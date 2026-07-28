@@ -878,14 +878,15 @@ async function openAssignmentSubmissions(assignmentId) {
         </div>
         ${content}
         ${sub?.submittedAt ? `<p class="muted" style="margin-top:4px;">Submitted ${new Date(sub.submittedAt).toLocaleString()}</p>` : ''}
-        <div style="display:flex;gap:8px;align-items:center;margin-top:8px;flex-wrap:wrap;">
+        <div id="${gradeId}_row" style="display:flex;gap:8px;align-items:center;margin-top:8px;flex-wrap:wrap;">
           <input type="number" id="${gradeId}_points" placeholder="${a.pointsPossible !== null ? 'Points / ' + a.pointsPossible : 'Points'}" value="${
         t.pointsEarned !== null ? t.pointsEarned : ''
       }" style="margin-bottom:0;width:140px;">
           <input type="text" id="${gradeId}_feedback" placeholder="Private feedback (only this student sees it)" value="${
         t.teacherFeedback ? t.teacherFeedback.replace(/"/g, '&quot;') : ''
       }" style="margin-bottom:0;flex:1;min-width:200px;">
-          <button class="btn ghost small" onclick="saveAssignmentGradeClick('${a.id}','${t.studentId}')">Save</button>
+          <button class="btn ghost small" id="${gradeId}_saveBtn" onclick="saveAssignmentGradeClick('${a.id}','${t.studentId}')">Save</button>
+          <span id="${gradeId}_status" class="muted" style="font-size:12px;"></span>
         </div>
       </div>`;
     })
@@ -895,13 +896,46 @@ async function openAssignmentSubmissions(assignmentId) {
 
 async function saveAssignmentGradeClick(assignmentId, studentId) {
   const gradeId = `grade_${assignmentId}_${studentId}`;
-  const pointsEarned = document.getElementById(`${gradeId}_points`).value;
-  const teacherFeedback = document.getElementById(`${gradeId}_feedback`).value.trim();
+  const row = document.getElementById(`${gradeId}_row`);
+  const pointsEl = document.getElementById(`${gradeId}_points`);
+  const feedbackEl = document.getElementById(`${gradeId}_feedback`);
+  const btn = document.getElementById(`${gradeId}_saveBtn`);
+  const statusEl = document.getElementById(`${gradeId}_status`);
+  const pointsEarned = pointsEl.value;
+  const teacherFeedback = feedbackEl.value.trim();
+
+  // Google Classroom-style save: freeze the row so repeat clicks can't
+  // fire duplicate saves, then give an explicit confirmation (or error)
+  // instead of leaving the teacher guessing whether anything happened.
+  row.style.opacity = '0.55';
+  row.style.pointerEvents = 'none';
+  pointsEl.disabled = true;
+  feedbackEl.disabled = true;
+  btn.disabled = true;
+  btn.textContent = 'Saving…';
+  statusEl.textContent = '';
+  statusEl.style.color = '';
+
   try {
     await db.saveAssignmentGrade({ assignmentId, studentId, pointsEarned, teacherFeedback });
-    await openAssignmentSubmissions(assignmentId);
+    btn.textContent = 'Saved ✓';
+    btn.classList.add('saved');
+    statusEl.style.color = 'var(--green)';
+    statusEl.textContent = 'Saved — the student can see this now.';
   } catch (e) {
-    alert('Could not save grade: ' + (e.message || e));
+    btn.textContent = 'Save';
+    statusEl.style.color = 'var(--red)';
+    statusEl.textContent = 'Not saved: ' + (e.message || e);
+  } finally {
+    row.style.opacity = '';
+    row.style.pointerEvents = '';
+    pointsEl.disabled = false;
+    feedbackEl.disabled = false;
+    btn.disabled = false;
+    setTimeout(() => {
+      btn.textContent = 'Save';
+      btn.classList.remove('saved');
+    }, 1800);
   }
 }
 
@@ -3174,7 +3208,9 @@ function renderAssignmentCard(a, { editable }) {
     <div style="display:flex;justify-content:space-between;align-items:start;">
       <div>
         ${a.topicTitle ? `<div class="muted" style="font-size:11px;text-transform:uppercase;letter-spacing:0.5px;">${a.topicTitle}</div>` : ''}
-        <div class="name">${a.title} <span class="badge ${ASSIGNMENT_STATUS_BADGE[status]}">${ASSIGNMENT_STATUS_LABEL[status]}</span></div>
+        <div class="name">${a.title} <span class="badge ${ASSIGNMENT_STATUS_BADGE[status]}">${ASSIGNMENT_STATUS_LABEL[status]}</span>${
+    a.pointsEarned !== null ? ' <span class="badge graded">✓ Graded</span>' : ''
+  }</div>
         <div class="stats">${a.dueDate ? 'Due ' + new Date(a.dueDate).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' }) : 'No due date'}${
     a.pointsPossible !== null ? ' &middot; ' + a.pointsPossible + ' points' : ''
   }${assignmentAttachmentLinksHtml(a.attachments)}</div>
@@ -3182,11 +3218,17 @@ function renderAssignmentCard(a, { editable }) {
       </div>
     </div>
     ${
-      a.pointsEarned !== null
-        ? `<p style="margin-top:8px;"><strong>Grade:</strong> ${a.pointsEarned}${a.pointsPossible !== null ? ' / ' + a.pointsPossible : ''}</p>`
+      a.pointsEarned !== null || a.teacherFeedback
+        ? `<div style="margin-top:10px;padding:8px 12px;background:var(--blue-light);border-radius:8px;">
+      ${
+        a.pointsEarned !== null
+          ? `<p style="margin:0;color:var(--blue);"><strong>Grade: ${a.pointsEarned}${a.pointsPossible !== null ? ' / ' + a.pointsPossible : ''}</strong></p>`
+          : ''
+      }
+      ${a.teacherFeedback ? `<p style="margin:${a.pointsEarned !== null ? '4px' : '0'} 0 0 0;">${a.teacherFeedback}</p>` : ''}
+    </div>`
         : ''
     }
-    ${a.teacherFeedback ? `<p class="muted" style="margin-top:4px;"><strong>Feedback:</strong> ${a.teacherFeedback}</p>` : ''}
     ${
       editable
         ? `<div id="${bodyId}" style="margin-top:10px;">
