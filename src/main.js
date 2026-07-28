@@ -125,6 +125,20 @@ async function ensureCatalog() {
   if (!CATALOG || Object.keys(CATALOG).length === 0) CATALOG = await db.loadCatalog();
 }
 
+// Resolves a subject_id to its name (and program name) from the already-
+// loaded catalog, client-side — used instead of a Supabase embed so an
+// assignment/attendance fetch never depends on PostgREST having picked up
+// a just-added foreign key relationship. Requires ensureCatalog() to have
+// run first (CATALOG is cached app-wide after its first load).
+function subjectInfoById(subjectId) {
+  if (!subjectId) return null;
+  for (const [testName, cat] of Object.entries(CATALOG)) {
+    const sub = (cat.subjects || []).find((s) => s.id === subjectId);
+    if (sub) return { testName, subjectName: sub.name };
+  }
+  return null;
+}
+
 function showAdminLogin() {
   showAuthScreen('admin');
 }
@@ -426,6 +440,7 @@ async function parentLogout() {
 }
 
 async function renderParentChildren() {
+  await ensureCatalog();
   const children = await db.loadAllStudents();
   const container = document.getElementById('parentChildren');
   document.getElementById('parentChildrenEmpty').classList.toggle('hidden', children.length > 0);
@@ -876,6 +891,7 @@ function assignmentAttachmentLinksHtml(attachments) {
 }
 
 async function renderAssignmentsList(prefix) {
+  await ensureCatalog();
   const assignments = await db.listAssignments();
   const listEl = document.getElementById(`${prefix}_list`);
   document.getElementById(`${prefix}_listEmpty`).classList.toggle('hidden', assignments.length > 0);
@@ -892,6 +908,7 @@ async function renderAssignmentsList(prefix) {
   });
 
   const cardHtml = (a) => {
+    const subjInfo = subjectInfoById(a.subjectId);
     const isScheduled = a.publishAt && new Date(a.publishAt) > new Date();
     const statusCounts = { turned_in: 0, late: 0, missing: 0, assigned: 0 };
     a.targets.forEach((t) => statusCounts[assignmentSubmissionStatus(t, a.dueDate)]++);
@@ -904,7 +921,7 @@ async function renderAssignmentsList(prefix) {
     return `<div class="subject-card" style="display:block;">
         <div style="display:flex;justify-content:space-between;align-items:start;">
           <div>
-            <div class="name">${a.title} ${a.subjectName ? `<span class="badge neutral">${a.testName ? a.testName + ' — ' : ''}${a.subjectName}</span>` : ''} ${
+            <div class="name">${a.title} ${subjInfo ? `<span class="badge neutral">${subjInfo.testName} — ${subjInfo.subjectName}</span>` : ''} ${
       isScheduled
         ? `<span class="badge neutral">🕒 Scheduled for ${new Date(a.publishAt).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' })}</span>`
         : ''
@@ -940,6 +957,7 @@ async function renderAssignmentsList(prefix) {
 // One grading screen per assignment — every student's submission (text
 // and/or file), plus points and private feedback, Classroom-style.
 async function openAssignmentSubmissions(assignmentId) {
+  await ensureCatalog();
   const assignments = await db.listAssignments();
   const a = assignments.find((x) => x.id === assignmentId);
   if (!a) return;
@@ -979,9 +997,10 @@ async function openAssignmentSubmissions(assignmentId) {
       </div>`;
     })
     .join('');
+  const subjInfo = subjectInfoById(a.subjectId);
   renderDoc(
     `<h3 style="color:#1a2b6b;">${a.title} — Submissions${a.pointsPossible !== null ? ' (out of ' + a.pointsPossible + ')' : ''}</h3>${
-      a.subjectName ? `<p class="muted" style="margin-top:-8px;">${a.testName ? a.testName + ' — ' : ''}${a.subjectName}</p>` : ''
+      subjInfo ? `<p class="muted" style="margin-top:-8px;">${subjInfo.testName} — ${subjInfo.subjectName}</p>` : ''
     }${summary}${rows}`
   );
 }
@@ -1067,6 +1086,7 @@ async function saveAssignmentGradeClick(assignmentId, studentId) {
 // status and grade, a per-assignment class average, and an overall
 // average across everything that's been graded so far.
 async function openAssignmentGradesTable() {
+  await ensureCatalog();
   const assignments = await db.listAssignments();
   const sorted = [...assignments].sort((x, y) => {
     if (!x.dueDate && !y.dueDate) return 0;
@@ -1081,6 +1101,7 @@ async function openAssignmentGradesTable() {
 
   const groups = sorted
     .map((a) => {
+      const subjInfo = subjectInfoById(a.subjectId);
       const graded = a.targets.filter((t) => t.pointsEarned !== null);
       const avg = graded.length ? graded.reduce((s, t) => s + t.pointsEarned, 0) / graded.length : null;
       if (a.pointsPossible !== null) {
@@ -1108,7 +1129,7 @@ async function openAssignmentGradesTable() {
           <strong>${a.title}</strong>
           <span class="muted" style="font-size:12px;">${a.dueDate ? 'Due ' + new Date(a.dueDate).toLocaleDateString() : 'No due date'}</span>
         </div>
-        ${a.subjectName ? `<p class="muted" style="margin:2px 0;font-size:12px;">${a.testName ? a.testName + ' — ' : ''}${a.subjectName}</p>` : ''}
+        ${subjInfo ? `<p class="muted" style="margin:2px 0;font-size:12px;">${subjInfo.testName} — ${subjInfo.subjectName}</p>` : ''}
         <p class="muted" style="margin:4px 0 8px;font-size:12px;">${assignmentGradeSummaryHtml(graded.length, a.targets.length, avg, a.pointsPossible)}</p>
         <table><thead><tr><th>Student</th><th>Status</th><th>Grade</th></tr></thead><tbody>${rows}</tbody></table>
       </div>`;
@@ -1306,12 +1327,20 @@ async function renderAdminDashboardStats() {
     day: 'numeric',
   });
   await ensureCatalog();
+  // Each stat is fetched independently — one failing query (e.g. a table
+  // that isn't set up yet) must never blank out the rest of the
+  // dashboard, which is what a bare Promise.all would do.
+  const safe = (promise, fallback) =>
+    promise.catch((e) => {
+      console.error('Dashboard stat failed:', e);
+      return fallback;
+    });
   const [students, teacherCount, assignments, gedScores, expenses] = await Promise.all([
-    db.loadAllStudents(),
-    db.countTeachers(),
-    db.listAssignments(),
-    db.listAllGedScores(),
-    db.listExpenses(),
+    safe(db.loadAllStudents(), []),
+    safe(db.countTeachers(), 0),
+    safe(db.listAssignments(), []),
+    safe(db.listAllGedScores(), []),
+    safe(db.listExpenses(), []),
   ]);
   document.getElementById('dash_students').textContent = students.length;
   document.getElementById('dash_teachers').textContent = teacherCount;
@@ -2080,12 +2109,12 @@ function attendanceHeatStrip(student) {
   if (!records.length) return '';
   const recent = records.slice(-30);
   const cells = recent
-    .map(
-      (r) =>
-        `<span title="${r.date}${r.subjectName ? ' — ' + r.subjectName : ''} — ${r.present ? 'Present' : 'Absent'}" style="display:inline-block;width:10px;height:10px;border-radius:2px;margin:0 2px 2px 0;background:${
-          r.present ? 'var(--green)' : 'var(--red)'
-        };"></span>`
-    )
+    .map((r) => {
+      const subjInfo = subjectInfoById(r.subjectId);
+      return `<span title="${r.date}${subjInfo ? ' — ' + subjInfo.subjectName : ''} — ${r.present ? 'Present' : 'Absent'}" style="display:inline-block;width:10px;height:10px;border-radius:2px;margin:0 2px 2px 0;background:${
+        r.present ? 'var(--green)' : 'var(--red)'
+      };"></span>`;
+    })
     .join('');
   return `
     <div class="card" style="margin-top:16px;">
@@ -2980,10 +3009,11 @@ async function openAttendance(studentId) {
     .sort((a, b) => (a.date < b.date ? 1 : -1))
     .map((rec) => {
       const prog = s.programs.find((p) => p.id === rec.programId);
+      const subjInfo = subjectInfoById(rec.subjectId);
       return `<tr>
       <td>${rec.date}</td>
       <td>${prog ? prog.test : 'Unknown'}</td>
-      <td>${rec.subjectName || '<span class="muted">General</span>'}</td>
+      <td>${subjInfo ? subjInfo.subjectName : '<span class="muted">General</span>'}</td>
       <td><span class="badge ${rec.present ? 'paid' : 'unpaid'}">${rec.present ? 'Present' : 'Absent'}</span></td>
     </tr>`;
     })
@@ -3305,6 +3335,7 @@ async function renderMyCoursesPage() {
 
 async function renderMyAttendance() {
   if (!currentStudentRecord) return;
+  await ensureCatalog();
   const students = await db.loadAllStudents();
   const s = students.find((x) => x.id === currentStudentRecord.id);
   if (!s) return;
@@ -3318,12 +3349,12 @@ async function renderMyAttendance() {
         .filter((r) => r.programId === p.id)
         .slice()
         .sort((a, b) => (a.date < b.date ? 1 : -1))
-        .map(
-          (r) =>
-            `<tr><td>${r.date}</td><td>${r.subjectName || '<span class="muted">General</span>'}</td><td><span class="badge ${r.present ? 'paid' : 'unpaid'}">${
-              r.present ? 'Present' : 'Absent'
-            }</span></td></tr>`
-        )
+        .map((r) => {
+          const subjInfo = subjectInfoById(r.subjectId);
+          return `<tr><td>${r.date}</td><td>${subjInfo ? subjInfo.subjectName : '<span class="muted">General</span>'}</td><td><span class="badge ${
+            r.present ? 'paid' : 'unpaid'
+          }">${r.present ? 'Present' : 'Absent'}</span></td></tr>`;
+        })
         .join('');
       return `<div class="card">
         <h2>${p.test} <span class="muted">(${p.level})</span></h2>
@@ -3545,12 +3576,13 @@ function renderAssignmentCard(a, { editable }) {
     { submission: a.submission ? { status: a.submission.status, submittedAt: a.submission.submitted_at } : null },
     a.dueDate
   );
+  const subjInfo = subjectInfoById(a.subjectId);
   const bodyId = `assign_${a.id}`;
   return `<div class="subject-card" style="display:block;">
     <div style="display:flex;justify-content:space-between;align-items:start;">
       <div>
         ${a.topicTitle ? `<div class="muted" style="font-size:11px;text-transform:uppercase;letter-spacing:0.5px;">${a.topicTitle}</div>` : ''}
-        <div class="name">${a.title} ${a.subjectName ? `<span class="badge neutral">${a.subjectName}</span>` : ''} <span class="badge ${ASSIGNMENT_STATUS_BADGE[status]}">${ASSIGNMENT_STATUS_LABEL[status]}</span>${
+        <div class="name">${a.title} ${subjInfo ? `<span class="badge neutral">${subjInfo.subjectName}</span>` : ''} <span class="badge ${ASSIGNMENT_STATUS_BADGE[status]}">${ASSIGNMENT_STATUS_LABEL[status]}</span>${
     a.pointsEarned !== null ? ' <span class="badge graded">✓ Graded</span>' : ''
   }</div>
         <div class="stats">${a.dueDate ? 'Due ' + new Date(a.dueDate).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' }) : 'No due date'}${
@@ -3595,6 +3627,7 @@ function renderAssignmentCard(a, { editable }) {
 
 async function renderMyAssignments() {
   if (!currentStudentRecord) return;
+  await ensureCatalog();
   const assignments = await db.listAssignmentsForStudent(currentStudentRecord.id);
   const listEl = document.getElementById('myAssignmentsList');
   document.getElementById('myAssignmentsEmpty').classList.toggle('hidden', assignments.length > 0);
@@ -4809,7 +4842,14 @@ async function deleteTimetableEntryClick(id) {
 let financeStudents = [];
 
 async function renderFinancePage() {
-  const [students, expenses, payments] = await Promise.all([db.loadAllStudents(), db.listExpenses(), db.listAllPayments()]);
+  let students, expenses, payments;
+  try {
+    [students, expenses, payments] = await Promise.all([db.loadAllStudents(), db.listExpenses(), db.listAllPayments()]);
+  } catch (e) {
+    console.error('renderFinancePage failed:', e);
+    alert('Could not load finance data: ' + (e.message || e));
+    return;
+  }
   financeStudents = students;
 
   const incomeByCategory = {};

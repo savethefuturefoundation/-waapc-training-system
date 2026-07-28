@@ -67,7 +67,7 @@ const STUDENT_SELECT = `
   enrollments (
     id, test_id, level, sessions_per_week, start_date, end_date, registration_only, price, status, graduated_date,
     tests ( name ),
-    attendance ( id, session_date, present, subject_id, subjects ( name ) )
+    attendance ( id, session_date, present, subject_id )
   ),
   invoices (
     id, invoice_number, invoice_date, total,
@@ -99,8 +99,12 @@ function mapStudentRow(row) {
     graduatedDate: e.graduated_date,
   }));
 
+  // subjectName is resolved client-side from the already-loaded catalog
+  // (see subjectInfoById in main.js) rather than embedded here — avoids
+  // depending on Supabase/PostgREST recognizing a freshly-added foreign
+  // key relationship, which can otherwise fail the whole student fetch.
   const attendance = (row.enrollments || []).flatMap((e) =>
-    (e.attendance || []).map((a) => ({ programId: e.id, date: a.session_date, present: a.present, subjectId: a.subject_id, subjectName: a.subjects?.name || null }))
+    (e.attendance || []).map((a) => ({ programId: e.id, date: a.session_date, present: a.present, subjectId: a.subject_id }))
   );
 
   const installments = ((invoice && invoice.payment_installments) || []).map((i) => {
@@ -953,7 +957,6 @@ export async function listAssignments() {
     .select(
       `id, title, description, due_date, points_possible, created_at, publish_at, subject_id,
        assignment_topics(id, title),
-       subjects(name, tests(name)),
        assignment_attachments(id, kind, url, name, sort_order),
        assignment_targets(student_id, students(full_name)),
        assignment_submissions(student_id, status, response_text, file_url, submitted_at),
@@ -961,6 +964,10 @@ export async function listAssignments() {
     )
     .order('created_at', { ascending: false });
   if (error) throw error;
+  // subjectName/testName are resolved client-side from the catalog (see
+  // subjectInfoById in main.js), not embedded here — avoids depending on
+  // PostgREST recognizing the subject_id foreign key right after it's
+  // added, which can otherwise fail this whole fetch.
   return data.map((a) => ({
     id: a.id,
     title: a.title,
@@ -970,8 +977,6 @@ export async function listAssignments() {
     publishAt: a.publish_at,
     pointsPossible: a.points_possible === null ? null : Number(a.points_possible),
     subjectId: a.subject_id,
-    subjectName: a.subjects?.name || null,
-    testName: a.subjects?.tests?.name || null,
     topicId: a.assignment_topics?.id || null,
     topicTitle: a.assignment_topics?.title || null,
     attachments: (a.assignment_attachments || []).sort((x, y) => x.sort_order - y.sort_order).map(mapAssignmentAttachment),
@@ -1004,7 +1009,6 @@ export async function listAssignmentsForStudent(studentId) {
     .select(
       `id, title, description, due_date, points_possible, created_at, publish_at, subject_id,
        assignment_topics(id, title),
-       subjects(name),
        assignment_attachments(id, kind, url, name, sort_order),
        assignment_targets!inner(student_id),
        assignment_submissions(status, response_text, file_url, submitted_at, student_id),
@@ -1024,7 +1028,6 @@ export async function listAssignmentsForStudent(studentId) {
       publishAt: a.publish_at,
       pointsPossible: a.points_possible === null ? null : Number(a.points_possible),
       subjectId: a.subject_id,
-      subjectName: a.subjects?.name || null,
       topicId: a.assignment_topics?.id || null,
       topicTitle: a.assignment_topics?.title || null,
       attachments: (a.assignment_attachments || []).sort((x, y) => x.sort_order - y.sort_order).map(mapAssignmentAttachment),
