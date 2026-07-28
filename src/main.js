@@ -649,6 +649,7 @@ async function renderAssignTargets(prefix) {
   // Admin sees every program; a teacher only sees the program(s) they're
   // actually assigned to, and (via RLS) only students within that scope.
   let myTestIds = null;
+  let mySubjectScope = null; // null = unrestricted (admin)
   if (prefix === 'tas') {
     try {
       myTestIds = await db.listMyTeacherAssignments();
@@ -656,8 +657,9 @@ async function renderAssignTargets(prefix) {
       console.error('listMyTeacherAssignments failed:', e);
       myTestIds = [];
     }
+    mySubjectScope = await getMyTeacherSubjectScope();
   }
-  assignTargetsCache[prefix] = { students, myTestIds };
+  assignTargetsCache[prefix] = { students, myTestIds, mySubjectScope };
 
   const programSelect = document.getElementById(`${prefix}_targetProgram`);
   if (programSelect) {
@@ -669,6 +671,42 @@ async function renderAssignTargets(prefix) {
   }
 
   renderAssignTargetsList(prefix);
+  renderAssignSubjectOptions(prefix);
+}
+
+// The Subject dropdown only makes sense once a single Program is chosen
+// (picking "All my programs" spans several subject lists at once, so
+// there's nothing single to offer). A teacher must pick one of their own
+// subjects — admin may also leave it as a general, no-specific-subject
+// assignment.
+function renderAssignSubjectOptions(prefix) {
+  const cache = assignTargetsCache[prefix];
+  const select = document.getElementById(`${prefix}_subject`);
+  if (!cache || !select) return;
+  const { mySubjectScope } = cache;
+  const testId = document.getElementById(`${prefix}_targetProgram`)?.value || '';
+  const testEntry = Object.entries(CATALOG).find(([, cat]) => cat.id === testId);
+  const subjects = testEntry ? testEntry[1].subjects || [] : [];
+  const visible = subjects.filter((sub) => scopeAllowsSubject(mySubjectScope, testId, sub.id));
+  const isTeacher = prefix === 'tas';
+
+  if (!testId) {
+    select.innerHTML = '<option value="">Pick a program above first</option>';
+    select.disabled = true;
+    return;
+  }
+  if (visible.length === 0) {
+    select.innerHTML = isTeacher
+      ? '<option value="">You have no subject assigned in this program</option>'
+      : '<option value="">No subject (general)</option>';
+    select.disabled = isTeacher;
+    return;
+  }
+  select.disabled = false;
+  const current = select.value;
+  const generalOption = isTeacher ? '' : '<option value="">No subject (general)</option>';
+  select.innerHTML = generalOption + visible.map((sub) => `<option value="${sub.id}">${sub.name}</option>`).join('');
+  select.value = visible.some((sub) => sub.id === current) || (!isTeacher && current === '') ? current : visible[0].id;
 }
 
 // Filters the checkbox list to the selected program (or all of the
@@ -775,11 +813,16 @@ async function createAssignment(prefix) {
   const topicId = document.getElementById(`${prefix}_topic`).value;
   const pointsPossible = document.getElementById(`${prefix}_points`).value;
   const publishAt = document.getElementById(`${prefix}_publishAt`).value;
+  const subjectId = document.getElementById(`${prefix}_subject`)?.value || '';
   const studentIds = Array.from(document.querySelectorAll(`#${prefix}_targets input[type=checkbox]:checked`)).map((cb) => cb.value);
   const errEl = document.getElementById(`${prefix}_error`);
   errEl.textContent = '';
   if (!title) {
     errEl.textContent = 'Enter a title.';
+    return;
+  }
+  if (prefix === 'tas' && !subjectId) {
+    errEl.textContent = 'Pick a program and subject for this assignment.';
     return;
   }
   if (studentIds.length === 0) {
@@ -797,7 +840,7 @@ async function createAssignment(prefix) {
     }
   });
   try {
-    await db.createAssignment({ title, description, dueDateTime, studentIds, topicId, pointsPossible, attachments, publishAt });
+    await db.createAssignment({ title, description, dueDateTime, studentIds, topicId, pointsPossible, attachments, publishAt, subjectId: subjectId || null });
     document.getElementById(`${prefix}_title`).value = '';
     document.getElementById(`${prefix}_desc`).value = '';
     document.getElementById(`${prefix}_due`).value = '';
@@ -861,7 +904,7 @@ async function renderAssignmentsList(prefix) {
     return `<div class="subject-card" style="display:block;">
         <div style="display:flex;justify-content:space-between;align-items:start;">
           <div>
-            <div class="name">${a.title} ${
+            <div class="name">${a.title} ${a.subjectName ? `<span class="badge neutral">${a.testName ? a.testName + ' — ' : ''}${a.subjectName}</span>` : ''} ${
       isScheduled
         ? `<span class="badge neutral">🕒 Scheduled for ${new Date(a.publishAt).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' })}</span>`
         : ''
@@ -936,7 +979,11 @@ async function openAssignmentSubmissions(assignmentId) {
       </div>`;
     })
     .join('');
-  renderDoc(`<h3 style="color:#1a2b6b;">${a.title} — Submissions${a.pointsPossible !== null ? ' (out of ' + a.pointsPossible + ')' : ''}</h3>${rows}`);
+  renderDoc(
+    `<h3 style="color:#1a2b6b;">${a.title} — Submissions${a.pointsPossible !== null ? ' (out of ' + a.pointsPossible + ')' : ''}</h3>${
+      a.subjectName ? `<p class="muted" style="margin-top:-8px;">${a.testName ? a.testName + ' — ' : ''}${a.subjectName}</p>` : ''
+    }${summary}${rows}`
+  );
 }
 
 // Shared by the per-assignment grading screen and the grades table so the
@@ -1061,6 +1108,7 @@ async function openAssignmentGradesTable() {
           <strong>${a.title}</strong>
           <span class="muted" style="font-size:12px;">${a.dueDate ? 'Due ' + new Date(a.dueDate).toLocaleDateString() : 'No due date'}</span>
         </div>
+        ${a.subjectName ? `<p class="muted" style="margin:2px 0;font-size:12px;">${a.testName ? a.testName + ' — ' : ''}${a.subjectName}</p>` : ''}
         <p class="muted" style="margin:4px 0 8px;font-size:12px;">${assignmentGradeSummaryHtml(graded.length, a.targets.length, avg, a.pointsPossible)}</p>
         <table><thead><tr><th>Student</th><th>Status</th><th>Grade</th></tr></thead><tbody>${rows}</tbody></table>
       </div>`;
@@ -1097,10 +1145,26 @@ async function deleteAssignment(id, prefix) {
 // list (pre-checked). Reuses addAssignmentLinkRow/addAssignmentFileRow for
 // adding more attachments.
 async function openEditAssignment(assignmentId, prefix) {
+  await ensureCatalog();
   const [assignments, allStudents, topics] = await Promise.all([db.listAssignments(), db.loadAllStudents(), db.listAssignmentTopics()]);
   const a = assignments.find((x) => x.id === assignmentId);
   if (!a) return;
   const assignedIds = new Set(a.targets.map((t) => t.studentId));
+
+  // Flat "Program — Subject" list rather than a program-driven cascade —
+  // this screen edits one already-created assignment's fixed target list,
+  // not a fresh program pick. A teacher only sees their own subject(s);
+  // admin sees everything, plus a "general" (no subject) option.
+  const mySubjectScope = prefix === 'tas' ? await getMyTeacherSubjectScope() : null;
+  const subjectChoices = [];
+  Object.entries(CATALOG).forEach(([testName, cat]) => {
+    (cat.subjects || []).forEach((sub) => {
+      if (scopeAllowsSubject(mySubjectScope, cat.id, sub.id)) subjectChoices.push({ id: sub.id, label: `${testName} — ${sub.name}` });
+    });
+  });
+  const subjectSelectHtml =
+    (prefix === 'as' ? '<option value="">No subject (general)</option>' : '') +
+    subjectChoices.map((o) => `<option value="${o.id}" ${o.id === a.subjectId ? 'selected' : ''}>${o.label}</option>`).join('');
   const topicOptions =
     '<option value="">No topic</option>' + topics.map((t) => `<option value="${t.id}" ${t.id === a.topicId ? 'selected' : ''}>${t.title}</option>`).join('');
   // A fully-graduated student (no active enrollment anywhere) can't be
@@ -1134,6 +1198,8 @@ async function openEditAssignment(assignmentId, prefix) {
       <div><label>Topic (optional)</label><select id="ea_topic">${topicOptions}</select></div>
       <div><label>Points possible (optional)</label><input id="ea_points" type="number" value="${a.pointsPossible !== null ? a.pointsPossible : ''}"></div>
     </div>
+    <label>Subject${prefix === 'tas' ? '' : ' (optional)'}</label>
+    <select id="ea_subject">${subjectSelectHtml}</select>
     <label>Publish at (optional) — leave blank to keep it posted immediately, or schedule/reschedule it</label>
     <input id="ea_publishAt" type="datetime-local" value="${publishLocal}">
     <label>Description (optional)</label>
@@ -1175,11 +1241,16 @@ async function saveAssignmentEdit(assignmentId, prefix) {
   const topicId = document.getElementById('ea_topic').value;
   const pointsPossible = document.getElementById('ea_points').value;
   const publishAt = document.getElementById('ea_publishAt').value;
+  const subjectId = document.getElementById('ea_subject').value;
   const studentIds = Array.from(document.querySelectorAll('#ea_targets input[type=checkbox]:checked')).map((cb) => cb.value);
   const errEl = document.getElementById('ea_error');
   errEl.textContent = '';
   if (!title) {
     errEl.textContent = 'Enter a title.';
+    return;
+  }
+  if (prefix === 'tas' && !subjectId) {
+    errEl.textContent = 'Pick a subject for this assignment.';
     return;
   }
   if (studentIds.length === 0) {
@@ -1197,7 +1268,7 @@ async function saveAssignmentEdit(assignmentId, prefix) {
     }
   });
   try {
-    await db.updateAssignment(assignmentId, { title, description, dueDateTime, topicId, pointsPossible, studentIds, newAttachments, publishAt });
+    await db.updateAssignment(assignmentId, { title, description, dueDateTime, topicId, pointsPossible, studentIds, newAttachments, publishAt, subjectId: subjectId || null });
     await renderAssignmentsList(prefix);
   } catch (e) {
     errEl.textContent = e.message || 'Could not save changes.';
@@ -3479,7 +3550,7 @@ function renderAssignmentCard(a, { editable }) {
     <div style="display:flex;justify-content:space-between;align-items:start;">
       <div>
         ${a.topicTitle ? `<div class="muted" style="font-size:11px;text-transform:uppercase;letter-spacing:0.5px;">${a.topicTitle}</div>` : ''}
-        <div class="name">${a.title} <span class="badge ${ASSIGNMENT_STATUS_BADGE[status]}">${ASSIGNMENT_STATUS_LABEL[status]}</span>${
+        <div class="name">${a.title} ${a.subjectName ? `<span class="badge neutral">${a.subjectName}</span>` : ''} <span class="badge ${ASSIGNMENT_STATUS_BADGE[status]}">${ASSIGNMENT_STATUS_LABEL[status]}</span>${
     a.pointsEarned !== null ? ' <span class="badge graded">✓ Graded</span>' : ''
   }</div>
         <div class="stats">${a.dueDate ? 'Due ' + new Date(a.dueDate).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' }) : 'No due date'}${
@@ -5204,6 +5275,7 @@ Object.assign(window, {
   revokeTeacherInvite,
   toggleAllAssignTargets,
   renderAssignTargetsList,
+  renderAssignSubjectOptions,
   createAssignment,
   deleteAssignment,
   openAssignmentSubmissions,

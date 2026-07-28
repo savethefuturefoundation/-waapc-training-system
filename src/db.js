@@ -857,7 +857,7 @@ async function uploadAssignmentAttachments(assignmentId, attachments, startSortO
   }
 }
 
-export async function createAssignment({ title, description, dueDateTime, studentIds, topicId, pointsPossible, attachments, publishAt }) {
+export async function createAssignment({ title, description, dueDateTime, studentIds, topicId, pointsPossible, attachments, publishAt, subjectId }) {
   const { data: a, error } = await supabase
     .from('assignments')
     .insert({
@@ -867,6 +867,7 @@ export async function createAssignment({ title, description, dueDateTime, studen
       topic_id: topicId || null,
       points_possible: pointsPossible === '' || pointsPossible === null || pointsPossible === undefined ? null : Number(pointsPossible),
       publish_at: publishAt || null,
+      subject_id: subjectId || null,
     })
     .select('id')
     .single();
@@ -888,7 +889,7 @@ export async function createAssignment({ title, description, dueDateTime, studen
 // past submissions/grades intact as a historical record), and uploads any
 // newly-added attachments. Existing attachments are removed individually
 // via deleteAssignmentAttachment.
-export async function updateAssignment(id, { title, description, dueDateTime, topicId, pointsPossible, studentIds, newAttachments, publishAt }) {
+export async function updateAssignment(id, { title, description, dueDateTime, topicId, pointsPossible, studentIds, newAttachments, publishAt, subjectId }) {
   const { error } = await supabase
     .from('assignments')
     .update({
@@ -898,6 +899,7 @@ export async function updateAssignment(id, { title, description, dueDateTime, to
       topic_id: topicId || null,
       points_possible: pointsPossible === '' || pointsPossible === null || pointsPossible === undefined ? null : Number(pointsPossible),
       publish_at: publishAt || null,
+      subject_id: subjectId || null,
     })
     .eq('id', id);
   if (error) throw error;
@@ -949,8 +951,9 @@ export async function listAssignments() {
   const { data, error } = await supabase
     .from('assignments')
     .select(
-      `id, title, description, due_date, points_possible, created_at, publish_at,
+      `id, title, description, due_date, points_possible, created_at, publish_at, subject_id,
        assignment_topics(id, title),
+       subjects(name, tests(name)),
        assignment_attachments(id, kind, url, name, sort_order),
        assignment_targets(student_id, students(full_name)),
        assignment_submissions(student_id, status, response_text, file_url, submitted_at),
@@ -966,6 +969,9 @@ export async function listAssignments() {
     createdAt: a.created_at,
     publishAt: a.publish_at,
     pointsPossible: a.points_possible === null ? null : Number(a.points_possible),
+    subjectId: a.subject_id,
+    subjectName: a.subjects?.name || null,
+    testName: a.subjects?.tests?.name || null,
     topicId: a.assignment_topics?.id || null,
     topicTitle: a.assignment_topics?.title || null,
     attachments: (a.assignment_attachments || []).sort((x, y) => x.sort_order - y.sort_order).map(mapAssignmentAttachment),
@@ -996,8 +1002,9 @@ export async function listAssignmentsForStudent(studentId) {
   const { data, error } = await supabase
     .from('assignments')
     .select(
-      `id, title, description, due_date, points_possible, created_at, publish_at,
+      `id, title, description, due_date, points_possible, created_at, publish_at, subject_id,
        assignment_topics(id, title),
+       subjects(name),
        assignment_attachments(id, kind, url, name, sort_order),
        assignment_targets!inner(student_id),
        assignment_submissions(status, response_text, file_url, submitted_at, student_id),
@@ -1016,6 +1023,8 @@ export async function listAssignmentsForStudent(studentId) {
       createdAt: a.created_at,
       publishAt: a.publish_at,
       pointsPossible: a.points_possible === null ? null : Number(a.points_possible),
+      subjectId: a.subject_id,
+      subjectName: a.subjects?.name || null,
       topicId: a.assignment_topics?.id || null,
       topicTitle: a.assignment_topics?.title || null,
       attachments: (a.assignment_attachments || []).sort((x, y) => x.sort_order - y.sort_order).map(mapAssignmentAttachment),

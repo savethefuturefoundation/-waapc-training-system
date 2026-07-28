@@ -488,7 +488,9 @@ GED,Mathematical Reasoning,What is 7 x 8?,54,56,58,60,B"></textarea>
         </div>
         <label>Assign to</label>
         <label style="text-transform:none;font-weight:normal;font-size:12px;">Program</label>
-        <select id="as_targetProgram" onchange="renderAssignTargetsList('as')"><option value="">All my programs</option></select>
+        <select id="as_targetProgram" onchange="renderAssignTargetsList('as'); renderAssignSubjectOptions('as')"><option value="">All my programs</option></select>
+        <label style="text-transform:none;font-weight:normal;font-size:12px;">Subject</label>
+        <select id="as_subject"><option value="">Pick a program above first</option></select>
         <div style="margin-bottom:6px;">
           <button class="btn ghost small" onclick="toggleAllAssignTargets('as_targets', true)">Select all</button>
           <button class="btn ghost small" onclick="toggleAllAssignTargets('as_targets', false)">Select none</button>
@@ -808,7 +810,9 @@ GED,Mathematical Reasoning,What is 7 x 8?,54,56,58,60,B"></textarea>
         </div>
         <label>Assign to</label>
         <label style="text-transform:none;font-weight:normal;font-size:12px;">Program</label>
-        <select id="tas_targetProgram" onchange="renderAssignTargetsList('tas')"><option value="">All my programs</option></select>
+        <select id="tas_targetProgram" onchange="renderAssignTargetsList('tas'); renderAssignSubjectOptions('tas')"><option value="">All my programs</option></select>
+        <label style="text-transform:none;font-weight:normal;font-size:12px;">Subject</label>
+        <select id="tas_subject"><option value="">Pick a program above first</option></select>
         <div style="margin-bottom:6px;">
           <button class="btn ghost small" onclick="toggleAllAssignTargets('tas_targets', true)">Select all</button>
           <button class="btn ghost small" onclick="toggleAllAssignTargets('tas_targets', false)">Select none</button>
