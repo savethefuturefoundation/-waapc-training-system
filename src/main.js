@@ -601,12 +601,59 @@ async function saveTeacherEdit(id) {
 // Assignments (Admin + Teacher: create/manage; shared by both portals
 // via a DOM id prefix — 'as' on the Admin tab, 'tas' on the Teacher tab)
 // =====================================================================
+// Cached per prefix (admin 'as' / teacher 'tas') so the program dropdown
+// can re-filter the checkbox list instantly without re-fetching.
+const assignTargetsCache = {};
+
 async function renderAssignTargets(prefix) {
+  await ensureCatalog();
   const students = await db.loadAllStudents();
+
+  // Admin sees every program; a teacher only sees the program(s) they're
+  // actually assigned to, and (via RLS) only students within that scope.
+  let myTestIds = null;
+  if (prefix === 'tas') {
+    try {
+      myTestIds = await db.listMyTeacherAssignments();
+    } catch (e) {
+      console.error('listMyTeacherAssignments failed:', e);
+      myTestIds = [];
+    }
+  }
+  assignTargetsCache[prefix] = { students, myTestIds };
+
+  const programSelect = document.getElementById(`${prefix}_targetProgram`);
+  if (programSelect) {
+    const availableTests = Object.entries(CATALOG).filter(([, cat]) => !myTestIds || myTestIds.includes(cat.id));
+    const current = programSelect.value;
+    programSelect.innerHTML =
+      '<option value="">All my programs</option>' + availableTests.map(([name, cat]) => `<option value="${cat.id}">${name}</option>`).join('');
+    programSelect.value = availableTests.some(([, cat]) => cat.id === current) ? current : '';
+  }
+
+  renderAssignTargetsList(prefix);
+}
+
+// Filters the checkbox list to the selected program (or all of the
+// creator's programs), always excluding a student's graduated
+// enrollments — a graduated student shouldn't be assignable new work.
+function renderAssignTargetsList(prefix) {
+  const cache = assignTargetsCache[prefix];
   const container = document.getElementById(`${prefix}_targets`);
+  if (!cache) return;
+  const { students, myTestIds } = cache;
+  const selectedTestId = document.getElementById(`${prefix}_targetProgram`)?.value || '';
+  const filtered = students.filter((s) =>
+    s.programs.some((p) => {
+      if (p.status === 'graduated') return false;
+      if (myTestIds && myTestIds.length && !myTestIds.includes(p.testId)) return false;
+      if (selectedTestId && p.testId !== selectedTestId) return false;
+      return true;
+    })
+  );
   container.innerHTML =
-    students.map((s) => `<label style="display:block;padding:2px 0;"><input type="checkbox" value="${s.id}"> ${s.fullName}</label>`).join('') ||
-    '<p class="muted">No students registered yet.</p>';
+    filtered.map((s) => `<label style="display:block;padding:2px 0;"><input type="checkbox" value="${s.id}"> ${s.fullName}</label>`).join('') ||
+    '<p class="muted">No active students match.</p>';
 }
 
 function toggleAllAssignTargets(containerId, select) {
@@ -885,8 +932,12 @@ async function openEditAssignment(assignmentId, prefix) {
   const assignedIds = new Set(a.targets.map((t) => t.studentId));
   const topicOptions =
     '<option value="">No topic</option>' + topics.map((t) => `<option value="${t.id}" ${t.id === a.topicId ? 'selected' : ''}>${t.title}</option>`).join('');
+  // A fully-graduated student (no active enrollment anywhere) can't be
+  // newly assigned work, but stays visible/checked if already on this
+  // assignment so editing doesn't silently drop them.
   const studentCheckboxes =
     allStudents
+      .filter((s) => assignedIds.has(s.id) || s.programs.some((p) => p.status !== 'graduated'))
       .map((s) => `<label style="display:block;padding:2px 0;"><input type="checkbox" value="${s.id}" ${assignedIds.has(s.id) ? 'checked' : ''}> ${s.fullName}</label>`)
       .join('') || '<p class="muted">No students registered yet.</p>';
   const existingAttachmentsHtml =
@@ -4808,6 +4859,7 @@ Object.assign(window, {
   addTeacherInvite,
   revokeTeacherInvite,
   toggleAllAssignTargets,
+  renderAssignTargetsList,
   createAssignment,
   deleteAssignment,
   openAssignmentSubmissions,
