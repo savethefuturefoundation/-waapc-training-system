@@ -2155,7 +2155,19 @@ function subjectScoreChart(attempts, opts = {}) {
 }
 
 async function renderProgressPanel(s, opts = {}) {
-  const [grades, assignments] = await Promise.all([db.listGradesForStudent(s.id), db.listAssignmentsForStudent(s.id)]);
+  // Grades and assignments are independent sections of this panel (GED
+  // scores/mock chart/attendance vs. the assignments-done tile) — one
+  // failing must never blank the other out.
+  const [grades, assignments] = await Promise.all([
+    db.listGradesForStudent(s.id).catch((e) => {
+      console.error('listGradesForStudent failed:', e);
+      return [];
+    }),
+    db.listAssignmentsForStudent(s.id).catch((e) => {
+      console.error('listAssignmentsForStudent failed:', e);
+      return [];
+    }),
+  ]);
   const isGed = studentHasGed(s);
   const gedGrades = grades.filter((g) => g.test === 'GED');
   const attendancePct = attendanceRateOf(s);
