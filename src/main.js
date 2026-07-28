@@ -526,37 +526,67 @@ async function renderTeachersPage() {
 
     const rows = await Promise.all(
       teachers.map(async (t) => {
-        let assignedIds = new Set();
+        let assignments = [];
         try {
-          assignedIds = new Set(await db.listTeacherAssignments(t.id));
+          assignments = await db.listTeacherSubjectAssignments(t.id);
         } catch (e) {
-          console.error('listTeacherAssignments failed (has extra_schema_19.sql been run?):', e);
+          console.error('listTeacherSubjectAssignments failed (has extra_schema_32.sql been run?):', e);
         }
+        const wholeTestIds = new Set(assignments.filter((a) => !a.subjectId).map((a) => a.testId));
+        const subjectIds = new Set(assignments.filter((a) => a.subjectId).map((a) => a.subjectId));
+
         if (editingTeacherId === t.id) {
           const checkboxes = Object.keys(CATALOG)
-            .map(
-              (name) => `<label style="display:inline-flex;align-items:center;gap:4px;font-weight:normal;font-size:12px;margin-right:10px;white-space:nowrap;">
-                <input type="checkbox" class="teach-edit-program" value="${CATALOG[name].id}" style="width:auto;margin:0;" ${assignedIds.has(CATALOG[name].id) ? 'checked' : ''}> ${name}
-              </label>`
-            )
+            .map((name) => {
+              const cat = CATALOG[name];
+              const subjectRows = (cat.subjects || [])
+                .map(
+                  (sub) => `<label style="display:inline-flex;align-items:center;gap:4px;font-weight:normal;font-size:12px;margin-right:10px;white-space:nowrap;">
+                    <input type="checkbox" class="teach-edit-subject" data-test-id="${cat.id}" value="${sub.id}" style="width:auto;margin:0;" ${
+                    subjectIds.has(sub.id) ? 'checked' : ''
+                  }> ${sub.name}
+                  </label>`
+                )
+                .join('');
+              return `<div style="margin-bottom:6px;">
+                <label style="display:inline-flex;align-items:center;gap:4px;font-size:12px;margin-right:10px;white-space:nowrap;">
+                  <input type="checkbox" class="teach-edit-program" value="${cat.id}" style="width:auto;margin:0;" ${
+                wholeTestIds.has(cat.id) ? 'checked' : ''
+              }> ${name} <span class="muted" style="font-weight:normal;">(whole program)</span>
+                </label>
+                ${subjectRows ? `<div style="margin:2px 0 0 20px;">${subjectRows}</div>` : ''}
+              </div>`;
+            })
             .join('');
           return `<tr>
             <td><input id="teach_edit_name" value="${t.fullName || ''}" style="margin-bottom:0;"></td>
             <td>${t.email}</td>
             <td><input id="teach_edit_subjects" value="${t.subjectsTaught || ''}" style="margin-bottom:0;" placeholder="e.g. Mathematics, Science"></td>
-            <td style="min-width:220px;">${checkboxes}</td>
+            <td style="min-width:260px;">
+              <p class="muted" style="margin:0 0 6px;font-size:11px;">Check "whole program" for a coordinator who covers everything, or just the specific subject(s) this teacher grades.</p>
+              ${checkboxes}
+            </td>
             <td>
               <button class="btn small" onclick="saveTeacherEdit('${t.id}')">Save</button>
               <button class="btn ghost small" onclick="cancelTeacherEdit()">Cancel</button>
             </td>
           </tr>`;
         }
-        const assignedNames = Object.keys(CATALOG).filter((name) => assignedIds.has(CATALOG[name].id));
+        const summary = [];
+        Object.entries(CATALOG).forEach(([name, cat]) => {
+          if (wholeTestIds.has(cat.id)) {
+            summary.push(name);
+          } else {
+            (cat.subjects || []).forEach((sub) => {
+              if (subjectIds.has(sub.id)) summary.push(`${name} — ${sub.name}`);
+            });
+          }
+        });
         return `<tr>
           <td>${t.fullName || '—'}</td>
           <td>${t.email}</td>
           <td>${t.subjectsTaught || '—'}</td>
-          <td>${assignedNames.length ? assignedNames.join(', ') : '<span class="muted">All (unrestricted)</span>'}</td>
+          <td>${summary.length ? summary.join(', ') : '<span class="muted" style="color:var(--red);">None — can\'t see any students yet</span>'}</td>
           <td>${isAdmin ? `<button class="btn ghost small" onclick="editTeacherClick('${t.id}')">Edit</button>` : ''}</td>
         </tr>`;
       })
@@ -585,10 +615,17 @@ function cancelTeacherEdit() {
 async function saveTeacherEdit(id) {
   const fullName = document.getElementById('teach_edit_name').value.trim();
   const subjectsTaught = document.getElementById('teach_edit_subjects').value.trim();
-  const testIds = Array.from(document.querySelectorAll('.teach-edit-program:checked')).map((el) => el.value);
+  const wholeTestIds = Array.from(document.querySelectorAll('.teach-edit-program:checked')).map((el) => el.value);
+  const subjectCheckboxes = Array.from(document.querySelectorAll('.teach-edit-subject:checked'));
+  const assignments = [
+    ...wholeTestIds.map((testId) => ({ testId, subjectId: null })),
+    // A whole-program grant already covers every subject in it, so skip
+    // any subject checkbox under a test that's also checked as a whole.
+    ...subjectCheckboxes.filter((el) => !wholeTestIds.includes(el.dataset.testId)).map((el) => ({ testId: el.dataset.testId, subjectId: el.value })),
+  ];
   try {
     await db.updateTeacherProfile(id, { fullName, subjectsTaught });
-    await db.setTeacherAssignments(id, testIds);
+    await db.setTeacherAssignments(id, assignments);
   } catch (e) {
     alert('Could not save changes: ' + (e.message || e));
     return;
@@ -2131,13 +2168,35 @@ async function openGradebook(studentId) {
   await renderGradebook(s);
 }
 
+// null = unrestricted (admin). Otherwise { wholeTestIds, subjectIds } —
+// a teacher can grade a subject if either their program is whole-scoped
+// or that exact subject is individually assigned to them.
+async function getMyGradeSubjectScope() {
+  if (currentSession?.role !== 'teacher') return null;
+  try {
+    const assignments = await db.listMyTeacherSubjectAssignments();
+    return {
+      wholeTestIds: new Set(assignments.filter((a) => !a.subjectId).map((a) => a.testId)),
+      subjectIds: new Set(assignments.filter((a) => a.subjectId).map((a) => a.subjectId)),
+    };
+  } catch (e) {
+    console.error('listMyTeacherSubjectAssignments failed:', e);
+    return { wholeTestIds: new Set(), subjectIds: new Set() };
+  }
+}
+
+function scopeAllowsSubject(scope, testId, subjectId) {
+  return !scope || scope.wholeTestIds.has(testId) || scope.subjectIds.has(subjectId);
+}
+
 async function renderGradebook(s) {
   const grades = await db.listGradesForStudent(s.id);
   const gedGrades = grades.filter((g) => g.test === 'GED');
+  const scope = await getMyGradeSubjectScope();
   const subjectOptions = s.programs
     .flatMap((p) => {
       const subjects = (CATALOG[p.test] && CATALOG[p.test].subjects) || [];
-      return subjects.map((sub) => `<option value="${sub.id}">${p.test} — ${sub.name}</option>`);
+      return subjects.filter((sub) => scopeAllowsSubject(scope, CATALOG[p.test].id, sub.id)).map((sub) => `<option value="${sub.id}">${p.test} — ${sub.name}</option>`);
     })
     .join('');
 
@@ -2166,7 +2225,10 @@ async function renderGradebook(s) {
     <div class="no-print" style="margin-top:20px;border-top:1px solid var(--gray-200);padding-top:16px;">
       <h3 style="color:var(--navy);">Add a grade</h3>
       <label>Subject</label>
-      <select id="grade_subject" onchange="updateGradeScoreUI()">${subjectOptions || '<option value="">No enrolled programs</option>'}</select>
+      <select id="grade_subject" onchange="updateGradeScoreUI()">${
+        subjectOptions ||
+        `<option value="">${s.programs.length ? "You're not assigned to grade this student's subjects" : 'No enrolled programs'}</option>`
+      }</select>
       <div class="grid2">
         <div><label>Label</label><input id="grade_label" placeholder="e.g. Midterm, Quiz 3"></div>
         <div>
@@ -2232,6 +2294,85 @@ async function deleteGradeClick(gradeId, studentId) {
   const students = await db.loadAllStudents();
   const s = students.find((x) => x.id === studentId);
   await renderGradebook(s);
+}
+
+// Cross-student class average for one subject — "what's my average for
+// Social Studies" — instead of the per-student Gradebook, which only
+// shows one student's own grades. A teacher only sees subjects they're
+// scoped to; admin sees everything.
+let subjectGradesReportOptions = [];
+
+async function openSubjectGradesReport() {
+  await ensureCatalog();
+  const scope = await getMyGradeSubjectScope();
+  subjectGradesReportOptions = [];
+  Object.entries(CATALOG).forEach(([testName, cat]) => {
+    (cat.subjects || []).forEach((sub) => {
+      if (scopeAllowsSubject(scope, cat.id, sub.id)) subjectGradesReportOptions.push({ testId: cat.id, testName, subjectId: sub.id, subjectName: sub.name });
+    });
+  });
+
+  if (subjectGradesReportOptions.length === 0) {
+    renderDoc(
+      `<h3 style="color:#1a2b6b;">Subject averages</h3><p class="muted">You're not assigned to any subject yet — ask an admin to assign you one from the Teachers tab.</p>`
+    );
+    return;
+  }
+
+  const optionsHtml = subjectGradesReportOptions.map((o, i) => `<option value="${i}">${o.testName} — ${o.subjectName}</option>`).join('');
+  renderDoc(`<h3 style="color:#1a2b6b;">Subject averages</h3>
+    <label>Subject</label>
+    <select id="subjReport_select" onchange="renderSubjectGradesReportBody()">${optionsHtml}</select>
+    <div id="subjReport_body" style="margin-top:12px;"></div>`);
+  renderSubjectGradesReportBody();
+}
+
+async function renderSubjectGradesReportBody() {
+  const idx = Number(document.getElementById('subjReport_select').value);
+  const opt = subjectGradesReportOptions[idx];
+  const body = document.getElementById('subjReport_body');
+  body.innerHTML = '<p class="muted">Loading…</p>';
+
+  let grades;
+  try {
+    grades = await db.listGradesBySubject(opt.subjectId);
+  } catch (e) {
+    body.innerHTML = `<p class="muted">Could not load grades: ${e.message || e}</p>`;
+    return;
+  }
+
+  if (!grades.length) {
+    body.innerHTML = '<p class="muted">No grades entered yet for this subject.</p>';
+    return;
+  }
+
+  // One row per student — their most recent entry — so a student
+  // re-tested later isn't double-counted into the class average.
+  const latestByStudent = {};
+  grades.forEach((g) => {
+    const prev = latestByStudent[g.studentId];
+    if (!prev || new Date(g.enteredAt) > new Date(prev.enteredAt)) latestByStudent[g.studentId] = g;
+  });
+  const latest = Object.values(latestByStudent).sort((a, b) => (a.studentName || '').localeCompare(b.studentName || ''));
+  const avgPct = latest.reduce((sum, g) => sum + (g.score / g.maxScore) * 100, 0) / latest.length;
+
+  const rows = latest
+    .map(
+      (g) => `<tr>
+        <td>${g.studentName || 'Unknown'}</td>
+        <td>${g.label}${g.source === 'ged_ready' ? ' <span class="badge neutral">GED Ready</span>' : ''}</td>
+        <td>${g.score} / ${g.maxScore}</td>
+        <td>${new Date(g.enteredAt).toLocaleDateString()}</td>
+      </tr>`
+    )
+    .join('');
+
+  body.innerHTML = `
+    <p class="muted">${latest.length} student${latest.length === 1 ? '' : 's'} graded &middot; Class average (most recent grade each): <strong>${avgPct.toFixed(
+    1
+  )}%</strong></p>
+    <table><thead><tr><th>Student</th><th>Label</th><th>Score</th><th>Date</th></tr></thead><tbody>${rows}</tbody></table>
+  `;
 }
 
 async function openInvoiceById(id) {
@@ -5006,6 +5147,8 @@ Object.assign(window, {
   deleteAssignment,
   openAssignmentSubmissions,
   openAssignmentGradesTable,
+  openSubjectGradesReport,
+  renderSubjectGradesReportBody,
   openEditAssignment,
   deleteAssignmentAttachmentClick,
   saveAssignmentEdit,

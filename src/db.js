@@ -544,8 +544,12 @@ export async function updateTeacherProfile(id, { fullName, subjectsTaught }) {
   if (error) throw error;
 }
 
-// Which program(s) a teacher is scoped to. Empty = unrestricted (sees
-// every student), matching pre-existing behavior until admin configures it.
+// Which program(s) a teacher is scoped to. Empty = no access at all
+// (extra_schema_28 removed the old "empty = unrestricted" leniency) until
+// admin assigns at least one program or subject from the Teachers tab.
+// Includes subject-scoped rows too (they still carry a test_id), so this
+// stays correct for anything that only cares about whole-program scope
+// (the student list, the assignment Program dropdown, etc).
 export async function listTeacherAssignments(teacherId) {
   const { data, error } = await supabase.from('teacher_test_assignments').select('test_id').eq('teacher_id', teacherId);
   if (error) throw error;
@@ -560,12 +564,56 @@ export async function listMyTeacherAssignments() {
   return listTeacherAssignments(user.id);
 }
 
-export async function setTeacherAssignments(teacherId, testIds) {
+// Full detail per assignment row, including the optional subject scope
+// (null = whole program). Used by the admin Teachers-tab editor and by
+// anything that needs to tell "whole program" apart from "one subject
+// only" — Gradebook filtering, subject-average reports.
+export async function listTeacherSubjectAssignments(teacherId) {
+  const { data, error } = await supabase.from('teacher_test_assignments').select('test_id, subject_id').eq('teacher_id', teacherId);
+  if (error) throw error;
+  return data.map((r) => ({ testId: r.test_id, subjectId: r.subject_id }));
+}
+
+export async function listMyTeacherSubjectAssignments() {
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return [];
+  return listTeacherSubjectAssignments(user.id);
+}
+
+// assignments: [{ testId, subjectId }] — subjectId null/undefined grants
+// the whole program; set it to scope the grant to just that one subject.
+export async function setTeacherAssignments(teacherId, assignments) {
   const { error: delErr } = await supabase.from('teacher_test_assignments').delete().eq('teacher_id', teacherId);
   if (delErr) throw delErr;
-  if (testIds.length === 0) return;
-  const { error: insErr } = await supabase.from('teacher_test_assignments').insert(testIds.map((testId) => ({ teacher_id: teacherId, test_id: testId })));
+  if (assignments.length === 0) return;
+  const { error: insErr } = await supabase
+    .from('teacher_test_assignments')
+    .insert(assignments.map((a) => ({ teacher_id: teacherId, test_id: a.testId, subject_id: a.subjectId || null })));
   if (insErr) throw insErr;
+}
+
+// All grades entered under one subject, across every student the caller
+// can see — RLS already scopes a teacher to their assigned subject(s), so
+// this naturally returns only what they're allowed to grade/view.
+export async function listGradesBySubject(subjectId) {
+  const { data, error } = await supabase
+    .from('grades')
+    .select('id, student_id, score, max_score, label, entered_at, source, students(full_name)')
+    .eq('subject_id', subjectId)
+    .order('entered_at', { ascending: false });
+  if (error) throw error;
+  return data.map((g) => ({
+    id: g.id,
+    studentId: g.student_id,
+    studentName: g.students?.full_name,
+    score: Number(g.score),
+    maxScore: Number(g.max_score),
+    label: g.label,
+    enteredAt: g.entered_at,
+    source: g.source,
+  }));
 }
 
 export async function revokeTeacherInvite(id) {

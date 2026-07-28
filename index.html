@@ -118,6 +118,7 @@
         <button class="tab-btn sidebar-nav-item" data-tab="parents" onclick="showTab('parents')"><span class="sidebar-nav-icon">👨‍👩‍👧</span>Parents</button>
         <button class="tab-btn sidebar-nav-item" data-tab="finance" onclick="showTab('finance')"><span class="sidebar-nav-icon">💰</span>Finance</button>
         <button class="tab-btn sidebar-nav-item" data-tab="assignments" onclick="showTab('assignments')"><span class="sidebar-nav-icon">📚</span>Assignments</button>
+        <button class="sidebar-nav-item" onclick="openSubjectGradesReport()"><span class="sidebar-nav-icon">📊</span>Subject Averages</button>
         <button class="tab-btn sidebar-nav-item" data-tab="attendance" onclick="showTab('attendance')"><span class="sidebar-nav-icon">✅</span>Attendance</button>
         <button class="tab-btn sidebar-nav-item" data-tab="announcements" onclick="showTab('announcements')"><span class="sidebar-nav-icon">📢</span>Announcements</button>
         <button class="tab-btn sidebar-nav-item" data-tab="calendar" onclick="showTab('calendar')"><span class="sidebar-nav-icon">📅</span>Calendar</button>
@@ -127,6 +128,7 @@
       <div id="sidebarNavTeacher" class="hidden">
         <button class="sidebar-nav-item active" onclick="sidebarNavTo('page-teacher-students', this)"><span class="sidebar-nav-icon">👥</span>Students</button>
         <button class="sidebar-nav-item" onclick="sidebarNavTo('page-teacher-assignments', this)"><span class="sidebar-nav-icon">📚</span>Assignments</button>
+        <button class="sidebar-nav-item" onclick="openSubjectGradesReport()"><span class="sidebar-nav-icon">📊</span>Subject Averages</button>
         <button class="sidebar-nav-item" onclick="sidebarNavTo('tab-attendance', this); renderAttendancePage();"><span class="sidebar-nav-icon">✅</span>Attendance</button>
         <button class="sidebar-nav-item" onclick="sidebarNavTo('tab-parents', this); renderParentsPage();"><span class="sidebar-nav-icon">👨‍👩‍👧</span>Parents</button>
         <button class="sidebar-nav-item" onclick="sidebarNavTo('tab-announcements', this); renderAnnouncementsPage();"><span class="sidebar-nav-icon">📢</span>Announcements</button>
