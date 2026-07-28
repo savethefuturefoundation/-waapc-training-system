@@ -815,10 +815,12 @@ async function renderAssignmentsList(prefix) {
     const isScheduled = a.publishAt && new Date(a.publishAt) > new Date();
     const statusCounts = { turned_in: 0, late: 0, missing: 0, assigned: 0 };
     a.targets.forEach((t) => statusCounts[assignmentSubmissionStatus(t, a.dueDate)]++);
-    const chips = Object.entries(statusCounts)
-      .filter(([, count]) => count > 0)
-      .map(([key, count]) => `<span class="badge ${ASSIGNMENT_STATUS_BADGE[key]}" style="margin-right:4px;">${count} ${ASSIGNMENT_STATUS_LABEL[key]}</span>`)
-      .join('');
+    const gradedCount = a.targets.filter((t) => t.pointsEarned !== null).length;
+    const chips =
+      Object.entries(statusCounts)
+        .filter(([, count]) => count > 0)
+        .map(([key, count]) => `<span class="badge ${ASSIGNMENT_STATUS_BADGE[key]}" style="margin-right:4px;">${count} ${ASSIGNMENT_STATUS_LABEL[key]}</span>`)
+        .join('') + (gradedCount > 0 ? `<span class="badge graded" style="margin-right:4px;">${gradedCount} Graded</span>` : '');
     return `<div class="subject-card" style="display:block;">
         <div style="display:flex;justify-content:space-between;align-items:start;">
           <div>
@@ -861,6 +863,9 @@ async function openAssignmentSubmissions(assignmentId) {
   const assignments = await db.listAssignments();
   const a = assignments.find((x) => x.id === assignmentId);
   if (!a) return;
+  const graded = a.targets.filter((t) => t.pointsEarned !== null);
+  const avg = graded.length ? graded.reduce((s, t) => s + t.pointsEarned, 0) / graded.length : null;
+  const summary = `<p id="assignSummary_${a.id}" class="muted" style="margin:2px 0 12px;">${assignmentGradeSummaryHtml(graded.length, a.targets.length, avg, a.pointsPossible)}</p>`;
   const rows = a.targets
     .map((t) => {
       const status = assignmentSubmissionStatus(t, a.dueDate);
@@ -874,11 +879,14 @@ async function openAssignmentSubmissions(assignmentId) {
       return `<div class="q-block">
         <div style="display:flex;justify-content:space-between;align-items:center;">
           <strong>${t.fullName || 'Unknown'}</strong>
-          <span class="badge ${ASSIGNMENT_STATUS_BADGE[status]}">${ASSIGNMENT_STATUS_LABEL[status]}</span>
+          <span>
+            <span class="badge ${ASSIGNMENT_STATUS_BADGE[status]}">${ASSIGNMENT_STATUS_LABEL[status]}</span>
+            <span id="${gradeId}_gradedBadge" class="badge graded" style="${t.pointsEarned !== null ? '' : 'display:none;'}">✓ Graded</span>
+          </span>
         </div>
         ${content}
         ${sub?.submittedAt ? `<p class="muted" style="margin-top:4px;">Submitted ${new Date(sub.submittedAt).toLocaleString()}</p>` : ''}
-        <div id="${gradeId}_row" style="display:flex;gap:8px;align-items:center;margin-top:8px;flex-wrap:wrap;">
+        <div id="${gradeId}_row" data-points-possible="${a.pointsPossible !== null ? a.pointsPossible : ''}" style="display:flex;gap:8px;align-items:center;margin-top:8px;flex-wrap:wrap;">
           <input type="number" id="${gradeId}_points" placeholder="${a.pointsPossible !== null ? 'Points / ' + a.pointsPossible : 'Points'}" value="${
         t.pointsEarned !== null ? t.pointsEarned : ''
       }" style="margin-bottom:0;width:140px;">
@@ -894,6 +902,35 @@ async function openAssignmentSubmissions(assignmentId) {
   renderDoc(`<h3 style="color:#1a2b6b;">${a.title} — Submissions${a.pointsPossible !== null ? ' (out of ' + a.pointsPossible + ')' : ''}</h3>${rows}`);
 }
 
+// Shared by the per-assignment grading screen and the grades table so the
+// "X of Y graded / class average" line always reads the same way.
+function assignmentGradeSummaryHtml(gradedCount, totalCount, avg, pointsPossible) {
+  return `${gradedCount} of ${totalCount} graded${
+    avg !== null
+      ? ` &middot; Class average: <strong>${avg.toFixed(1)}${pointsPossible !== null ? ' / ' + pointsPossible + ' (' + Math.round((avg / pointsPossible) * 100) + '%)' : ''}</strong>`
+      : ''
+  }`;
+}
+
+// After a save, update this row's Graded badge and the screen's summary
+// line in place, from the values already on screen — no re-fetch, no
+// re-render, so the teacher's cursor/scroll position never jumps.
+function refreshAssignmentGradeUI(assignmentId, pointsPossibleRaw) {
+  const pointsPossible = pointsPossibleRaw === '' ? null : Number(pointsPossibleRaw);
+  const pointsInputs = document.querySelectorAll(`[id^="grade_${assignmentId}_"][id$="_points"]`);
+  let gradedCount = 0;
+  let sum = 0;
+  pointsInputs.forEach((el) => {
+    if (el.value !== '') {
+      gradedCount++;
+      sum += Number(el.value);
+    }
+  });
+  const avg = gradedCount ? sum / gradedCount : null;
+  const summaryEl = document.getElementById(`assignSummary_${assignmentId}`);
+  if (summaryEl) summaryEl.innerHTML = assignmentGradeSummaryHtml(gradedCount, pointsInputs.length, avg, pointsPossible);
+}
+
 async function saveAssignmentGradeClick(assignmentId, studentId) {
   const gradeId = `grade_${assignmentId}_${studentId}`;
   const row = document.getElementById(`${gradeId}_row`);
@@ -901,6 +938,7 @@ async function saveAssignmentGradeClick(assignmentId, studentId) {
   const feedbackEl = document.getElementById(`${gradeId}_feedback`);
   const btn = document.getElementById(`${gradeId}_saveBtn`);
   const statusEl = document.getElementById(`${gradeId}_status`);
+  const gradedBadge = document.getElementById(`${gradeId}_gradedBadge`);
   const pointsEarned = pointsEl.value;
   const teacherFeedback = feedbackEl.value.trim();
 
@@ -922,6 +960,8 @@ async function saveAssignmentGradeClick(assignmentId, studentId) {
     btn.classList.add('saved');
     statusEl.style.color = 'var(--green)';
     statusEl.textContent = 'Saved — the student can see this now.';
+    if (gradedBadge) gradedBadge.style.display = pointsEarned !== '' ? '' : 'none';
+    refreshAssignmentGradeUI(assignmentId, row.dataset.pointsPossible);
   } catch (e) {
     btn.textContent = 'Save';
     statusEl.style.color = 'var(--red)';
@@ -937,6 +977,66 @@ async function saveAssignmentGradeClick(assignmentId, studentId) {
       btn.classList.remove('saved');
     }, 1800);
   }
+}
+
+// One table across every assignment: title, due date, each student's
+// status and grade, a per-assignment class average, and an overall
+// average across everything that's been graded so far.
+async function openAssignmentGradesTable() {
+  const assignments = await db.listAssignments();
+  const sorted = [...assignments].sort((x, y) => {
+    if (!x.dueDate && !y.dueDate) return 0;
+    if (!x.dueDate) return 1;
+    if (!y.dueDate) return -1;
+    return new Date(x.dueDate) - new Date(y.dueDate);
+  });
+
+  let overallSum = 0;
+  let overallPossible = 0;
+  let overallCount = 0;
+
+  const groups = sorted
+    .map((a) => {
+      const graded = a.targets.filter((t) => t.pointsEarned !== null);
+      const avg = graded.length ? graded.reduce((s, t) => s + t.pointsEarned, 0) / graded.length : null;
+      if (a.pointsPossible !== null) {
+        graded.forEach((t) => {
+          overallSum += t.pointsEarned;
+          overallPossible += a.pointsPossible;
+          overallCount++;
+        });
+      }
+      const rows = [...a.targets]
+        .sort((x, y) => (x.fullName || '').localeCompare(y.fullName || ''))
+        .map((t) => {
+          const status = assignmentSubmissionStatus(t, a.dueDate);
+          return `<tr>
+            <td>${t.fullName || 'Unknown'}</td>
+            <td><span class="badge ${ASSIGNMENT_STATUS_BADGE[status]}">${ASSIGNMENT_STATUS_LABEL[status]}</span>${
+            t.pointsEarned !== null ? ' <span class="badge graded">✓ Graded</span>' : ''
+          }</td>
+            <td>${t.pointsEarned !== null ? t.pointsEarned + (a.pointsPossible !== null ? ' / ' + a.pointsPossible : '') : '—'}</td>
+          </tr>`;
+        })
+        .join('');
+      return `<div class="q-block">
+        <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:6px;">
+          <strong>${a.title}</strong>
+          <span class="muted" style="font-size:12px;">${a.dueDate ? 'Due ' + new Date(a.dueDate).toLocaleDateString() : 'No due date'}</span>
+        </div>
+        <p class="muted" style="margin:4px 0 8px;font-size:12px;">${assignmentGradeSummaryHtml(graded.length, a.targets.length, avg, a.pointsPossible)}</p>
+        <table><thead><tr><th>Student</th><th>Status</th><th>Grade</th></tr></thead><tbody>${rows}</tbody></table>
+      </div>`;
+    })
+    .join('');
+
+  const overallAvgPct = overallPossible > 0 ? Math.round((overallSum / overallPossible) * 100) : null;
+  const overallSummary =
+    overallAvgPct !== null
+      ? `<p class="muted">Overall average across ${overallCount} graded submission${overallCount === 1 ? '' : 's'} (assignments with points possible set): <strong>${overallAvgPct}%</strong></p>`
+      : `<p class="muted">No graded assignments with points possible yet — set "Points possible" when creating an assignment and grade a few submissions to see averages here.</p>`;
+
+  renderDoc(`<h3 style="color:#1a2b6b;">Grades table — all assignments</h3>${overallSummary}${groups || '<p class="muted">No assignments yet.</p>'}`);
 }
 
 async function viewAssignmentSubmissionFile(path) {
@@ -4905,6 +5005,7 @@ Object.assign(window, {
   createAssignment,
   deleteAssignment,
   openAssignmentSubmissions,
+  openAssignmentGradesTable,
   openEditAssignment,
   deleteAssignmentAttachmentClick,
   saveAssignmentEdit,

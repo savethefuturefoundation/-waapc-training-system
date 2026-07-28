@@ -497,7 +497,10 @@ GED,Mathematical Reasoning,What is 7 x 8?,54,56,58,60,B"></textarea>
       </div>
 
       <div class="card">
-        <h2>All assignments</h2>
+        <div style="display:flex;justify-content:space-between;align-items:center;">
+          <h2 style="margin:0;">All assignments</h2>
+          <button class="btn ghost small" onclick="openAssignmentGradesTable()">📊 Grades table</button>
+        </div>
         <div id="as_list"></div>
         <div id="as_listEmpty" class="empty hidden" style="--empty-icon:'📚';">No assignments created yet.</div>
       </div>
@@ -812,7 +815,10 @@ GED,Mathematical Reasoning,What is 7 x 8?,54,56,58,60,B"></textarea>
       </div>
 
       <div class="card">
-        <h2>Assignments</h2>
+        <div style="display:flex;justify-content:space-between;align-items:center;">
+          <h2 style="margin:0;">Assignments</h2>
+          <button class="btn ghost small" onclick="openAssignmentGradesTable()">📊 Grades table</button>
+        </div>
         <div id="tas_list"></div>
         <div id="tas_listEmpty" class="empty hidden" style="--empty-icon:'📚';">No assignments created yet.</div>
       </div>
