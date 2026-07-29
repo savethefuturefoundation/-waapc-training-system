@@ -861,31 +861,38 @@ async function uploadAssignmentAttachments(assignmentId, attachments, startSortO
   }
 }
 
+// Generates the id client-side rather than asking Postgres to hand back
+// the inserted row (INSERT ... RETURNING). A teacher's read access to an
+// assignment requires it to already have at least one target, which is
+// created in a later step below — so at the instant of this insert the
+// brand-new row doesn't yet pass any policy that would let RETURNING see
+// it, and Postgres rejects the whole request with "new row violates
+// row-level security policy" even though the insert itself was allowed.
+// Admin's read policy has no such requirement, which is exactly why this
+// only ever failed for teachers, never for admin.
 export async function createAssignment({ title, description, dueDateTime, studentIds, topicId, pointsPossible, attachments, publishAt, subjectId }) {
-  const { data: a, error } = await supabase
-    .from('assignments')
-    .insert({
-      title,
-      description: description || null,
-      due_date: dueDateTime || null,
-      topic_id: topicId || null,
-      points_possible: pointsPossible === '' || pointsPossible === null || pointsPossible === undefined ? null : Number(pointsPossible),
-      publish_at: publishAt || null,
-      subject_id: subjectId || null,
-    })
-    .select('id')
-    .single();
+  const id = crypto.randomUUID();
+  const { error } = await supabase.from('assignments').insert({
+    id,
+    title,
+    description: description || null,
+    due_date: dueDateTime || null,
+    topic_id: topicId || null,
+    points_possible: pointsPossible === '' || pointsPossible === null || pointsPossible === undefined ? null : Number(pointsPossible),
+    publish_at: publishAt || null,
+    subject_id: subjectId || null,
+  });
   if (error) throw error;
 
-  await uploadAssignmentAttachments(a.id, attachments);
+  await uploadAssignmentAttachments(id, attachments);
 
   if (studentIds.length > 0) {
     const { error: tErr } = await supabase
       .from('assignment_targets')
-      .insert(studentIds.map((student_id) => ({ assignment_id: a.id, student_id })));
+      .insert(studentIds.map((student_id) => ({ assignment_id: id, student_id })));
     if (tErr) throw tErr;
   }
-  return a.id;
+  return id;
 }
 
 // Updates an assignment's fields, syncs its target student list (adds
