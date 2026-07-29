@@ -1,13 +1,18 @@
 -- ---------------------------------------------------------------------
 -- extra_schema_31.sql
--- GED timetable: the first real class now starts at 9:00 AM instead of
--- 8:20 AM (the whole day shifts forward by 40 minutes, every day
--- Mon-Fri). Session lengths and breaks are unchanged — this only moves
--- start_time/end_time uniformly. The subject-rotation feature is
--- time-independent (it only cares about day/period order), so it keeps
--- working correctly with the new times, no code change needed.
+-- SUPERSEDED — do not run this file. It has already done its job once.
+--
+-- This originally shifted the GED timetable +40 minutes RELATIVE to
+-- whatever time was already in the database. Running it more than once
+-- keeps shifting the schedule further every time, which is exactly what
+-- caused the timetable to repeatedly drift later and later in practice.
+--
+-- extra_schema_33.sql replaced this with an ABSOLUTE fix — it sets each
+-- period to an exact, correct time regardless of history, so it can be
+-- safely run again any time the schedule looks wrong. If the timetable
+-- is ever off, run extra_schema_33.sql, never this file.
+--
+-- The statement below is intentionally a no-op so that even if this
+-- file is run again by accident, it changes nothing.
 -- ---------------------------------------------------------------------
-update timetable_entries
-set start_time = start_time + interval '40 minutes',
-    end_time = end_time + interval '40 minutes'
-where test_id = (select id from tests where name = 'GED');
+select 1 where false;
