@@ -71,7 +71,10 @@ const STUDENT_SELECT = `
   ),
   invoices (
     id, invoice_number, invoice_date, total,
-    payment_installments ( id, amount, category, due_date, payments ( id, amount, method, payment_date, receipt_number, notes ) )
+    payment_installments (
+      id, amount, category, due_date, created_at, edited_at, edited_by,
+      payments ( id, amount, method, payment_date, receipt_number, notes, created_at, voided_at, voided_by, void_reason )
+    )
   ),
   attempts (
     id, mode, score, total, taken_at,
@@ -108,6 +111,8 @@ function mapStudentRow(row) {
   );
 
   const installments = ((invoice && invoice.payment_installments) || []).map((i) => {
+    // Voided payments stay in the list (for the audit trail) but never
+    // count toward what's actually been paid.
     const payments = (i.payments || [])
       .map((p) => ({
         id: p.id,
@@ -116,16 +121,23 @@ function mapStudentRow(row) {
         date: p.payment_date,
         receiptNumber: p.receipt_number,
         notes: p.notes,
+        createdAt: p.created_at,
+        voidedAt: p.voided_at,
+        voidedBy: p.voided_by,
+        voidReason: p.void_reason,
       }))
       .sort((a, b) => (a.date < b.date ? 1 : -1));
     const amount = Number(i.amount);
-    const amountPaid = payments.reduce((s, p) => s + p.amount, 0);
+    const amountPaid = payments.filter((p) => !p.voidedAt).reduce((s, p) => s + p.amount, 0);
     const balance = amount - amountPaid;
     return {
       id: i.id,
       amount,
       category: i.category,
       dueDate: i.due_date,
+      createdAt: i.created_at,
+      editedAt: i.edited_at,
+      editedBy: i.edited_by,
       payments,
       amountPaid,
       balance,
@@ -302,6 +314,8 @@ export async function deleteStudent(id) {
 // Payments / attendance / certificates
 // ---------------------------------------------------------------------
 export async function updateInstallment(id, { amount, category }) {
+  // edited_by/edited_at are stamped server-side by a trigger, not sent
+  // from here — see extra_schema_39.sql.
   const { error } = await supabase.from('payment_installments').update({ amount, category }).eq('id', id);
   if (error) throw error;
 }
@@ -309,9 +323,12 @@ export async function updateInstallment(id, { amount, category }) {
 export async function addInstallmentLine(studentId, { amount, category, dueDate }) {
   const { data: invoice, error: e1 } = await supabase.from('invoices').select('id').eq('student_id', studentId).single();
   if (e1) throw e1;
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
   const { error: e2 } = await supabase
     .from('payment_installments')
-    .insert({ invoice_id: invoice.id, amount, category: category || 'other', due_date: dueDate || null });
+    .insert({ invoice_id: invoice.id, amount, category: category || 'other', due_date: dueDate || null, created_by: user?.id || null });
   if (e2) throw e2;
 }
 
@@ -339,15 +356,19 @@ export async function recordPayment({ studentId, installmentId, amount, method, 
   if (error) throw error;
 }
 
-export async function deletePayment(id) {
-  const { error } = await supabase.from('payments').delete().eq('id', id);
+// Soft void — the record stays forever (for the audit trail) instead of
+// being erased. voided_by is stamped server-side by a trigger.
+export async function voidPayment(id, reason) {
+  const { error } = await supabase.from('payments').update({ voided_at: new Date().toISOString(), void_reason: reason || null }).eq('id', id);
   if (error) throw error;
 }
 
 export async function listAllPayments() {
   const { data, error } = await supabase
     .from('payments')
-    .select('id, amount, method, payment_date, receipt_number, notes, students(full_name), payment_installments(category)')
+    .select(
+      'id, amount, method, payment_date, receipt_number, notes, created_at, voided_at, voided_by, void_reason, students(full_name), payment_installments(category)'
+    )
     .order('payment_date', { ascending: false })
     .order('created_at', { ascending: false });
   if (error) throw error;
@@ -358,9 +379,29 @@ export async function listAllPayments() {
     date: p.payment_date,
     receiptNumber: p.receipt_number,
     notes: p.notes,
+    createdAt: p.created_at,
+    voidedAt: p.voided_at,
+    voidedBy: p.voided_by,
+    voidReason: p.void_reason,
     studentName: p.students?.full_name,
     category: p.payment_installments?.category,
   }));
+}
+
+// Resolves a set of auth user ids to display names, for showing "voided
+// by ..." / "edited by ..." in the finance audit trail. profiles.id is
+// the same id as auth.users.id, so this is the only public-schema table
+// that can answer "whose id is this" from the client.
+export async function listProfileNames(ids) {
+  const uniqueIds = [...new Set((ids || []).filter(Boolean))];
+  if (uniqueIds.length === 0) return {};
+  const { data, error } = await supabase.from('profiles').select('id, full_name').in('id', uniqueIds);
+  if (error) throw error;
+  const map = {};
+  data.forEach((p) => {
+    map[p.id] = p.full_name || null;
+  });
+  return map;
 }
 
 // subjectId null = general/whole-day attendance (only valid for a teacher
@@ -1308,11 +1349,18 @@ export async function listExpenses() {
 }
 
 export async function createExpense({ category, description, amount, date }) {
-  const { error } = await supabase.from('expenses').insert({ category, description: description || null, amount, expense_date: date });
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  const { error } = await supabase
+    .from('expenses')
+    .insert({ category, description: description || null, amount, expense_date: date, created_by: user?.id || null });
   if (error) throw error;
 }
 
-export async function deleteExpense(id) {
-  const { error } = await supabase.from('expenses').delete().eq('id', id);
+// Soft void, same reasoning as voidPayment — the record stays, stamped
+// with who voided it and why, instead of disappearing without a trace.
+export async function voidExpense(id, reason) {
+  const { error } = await supabase.from('expenses').update({ voided_at: new Date().toISOString(), void_reason: reason || null }).eq('id', id);
   if (error) throw error;
 }

@@ -1385,7 +1385,7 @@ async function renderAdminDashboardStats() {
 
   let totalIncome = 0;
   students.forEach((s) => s.installments.forEach((inst) => { totalIncome += inst.amountPaid; }));
-  const totalExpenses = expenses.reduce((sum, e) => sum + Number(e.amount), 0);
+  const totalExpenses = expenses.filter((e) => !e.voided_at).reduce((sum, e) => sum + Number(e.amount), 0);
   document.getElementById('dash_finChart').innerHTML = hBarChart(
     [
       { label: 'Income', value: totalIncome, color: 'var(--navy)' },
@@ -2599,6 +2599,35 @@ let editingInstallmentId = null;
 let payingInstallmentId = null;
 let expandedInstallmentId = null;
 
+// Finance security: editing/voiding a record is frictionless within 24
+// hours of it being created (or last edited), same as before. Past that
+// window it still isn't blocked outright — admin can always override —
+// but requires an explicit confirmation, since the action is always
+// stamped with who did it and when either way.
+const FINANCE_EDIT_WINDOW_MS = 24 * 60 * 60 * 1000;
+
+function isFinanceLocked(timestamp) {
+  return !!timestamp && Date.now() - new Date(timestamp).getTime() > FINANCE_EDIT_WINDOW_MS;
+}
+
+function confirmFinanceAction(message, timestamp) {
+  if (!isFinanceLocked(timestamp)) return true;
+  return confirm(
+    `${message}\n\nThis entry is more than 24 hours old. Changing it now will be recorded as an override, with your name and today's date/time attached. Continue?`
+  );
+}
+
+// "voided by ..." / "edited by ..." — resolves auth user ids to names in
+// one batched lookup rather than one query per row.
+async function resolveFinanceNames(ids) {
+  try {
+    return await db.listProfileNames(ids);
+  } catch (e) {
+    console.error('listProfileNames failed:', e);
+    return {};
+  }
+}
+
 async function openPayments(id) {
   editingInstallmentId = null;
   payingInstallmentId = null;
@@ -2610,6 +2639,15 @@ async function renderPaymentsView(studentId) {
   const students = await db.loadAllStudents();
   const s = students.find((x) => x.id === studentId);
   if (!s) return;
+
+  // One batched lookup for every "edited by"/"voided by" name shown below.
+  const nameIds = [];
+  s.installments.forEach((inst) => {
+    if (inst.editedBy) nameIds.push(inst.editedBy);
+    inst.payments.forEach((p) => p.voidedBy && nameIds.push(p.voidedBy));
+  });
+  const names = await resolveFinanceNames(nameIds);
+  const nameOf = (id) => (id && names[id]) || 'someone';
 
   const paidByCategory = {};
   s.installments.forEach((inst) => {
@@ -2639,8 +2677,11 @@ async function renderPaymentsView(studentId) {
       </td>
     </tr>`;
       }
+      const editedNote = inst.editedAt
+        ? `<p class="muted" style="margin:2px 0 0;font-size:11px;">Last edited by ${nameOf(inst.editedBy)} on ${new Date(inst.editedAt).toLocaleString()}</p>`
+        : '';
       const mainRow = `<tr>
-      <td>${i + 1} &middot; ${FEE_CATEGORY_LABELS[inst.category] || 'Other'}${inst.dueDate ? ` <span class="muted">(due ${inst.dueDate})</span>` : ''}</td>
+      <td>${i + 1} &middot; ${FEE_CATEGORY_LABELS[inst.category] || 'Other'}${inst.dueDate ? ` <span class="muted">(due ${inst.dueDate})</span>` : ''}${editedNote}</td>
       <td>${inst.amount.toLocaleString()} CFA</td>
       <td>${inst.amountPaid.toLocaleString()} CFA</td>
       <td>${inst.balance > 0 ? inst.balance.toLocaleString() + ' CFA' : '—'}</td>
@@ -2669,15 +2710,24 @@ async function renderPaymentsView(studentId) {
         </td></tr>`;
       } else if (expandedInstallmentId === inst.id && inst.payments.length) {
         const histRows = inst.payments
-          .map(
-            (p) => `<tr>
+          .map((p) => {
+            if (p.voidedAt) {
+              return `<tr style="opacity:0.6;">
+                <td>${p.date}</td><td style="text-decoration:line-through;">${p.amount.toLocaleString()} CFA</td><td>${p.method || '—'}</td><td>${p.receiptNumber || '—'}</td>
+                <td><span class="badge unpaid">Voided</span> <span class="muted">by ${nameOf(p.voidedBy)}, ${new Date(p.voidedAt).toLocaleDateString()}${
+                p.voidReason ? ' — ' + p.voidReason : ''
+              }</span></td>
+                <td></td>
+              </tr>`;
+            }
+            return `<tr>
             <td>${p.date}</td><td>${p.amount.toLocaleString()} CFA</td><td>${p.method || '—'}</td><td>${p.receiptNumber || '—'}</td><td>${p.notes || '—'}</td>
             <td>
               <button class="btn ghost small" onclick="viewReceipt('${studentId}','${p.id}')">Receipt</button>
               <button class="btn ghost small" onclick="voidPaymentClick('${p.id}','${studentId}')">Void</button>
             </td>
-          </tr>`
-          )
+          </tr>`;
+          })
           .join('');
         extraRow = `<tr><td colspan="6" style="background:var(--bg);padding:10px 14px;">
           <table><thead><tr><th>Date</th><th>Amount</th><th>Method</th><th>Receipt</th><th>Notes</th><th></th></tr></thead><tbody>${histRows}</tbody></table>
@@ -2696,7 +2746,10 @@ async function renderPaymentsView(studentId) {
   renderDoc(html);
 }
 
-function editInstallmentClick(instId, studentId) {
+async function editInstallmentClick(instId, studentId) {
+  const students = await db.loadAllStudents();
+  const inst = students.find((x) => x.id === studentId)?.installments.find((i) => i.id === instId);
+  if (!confirmFinanceAction('Edit this fee line?', inst?.editedAt || inst?.createdAt)) return;
   editingInstallmentId = instId;
   renderPaymentsView(studentId);
 }
@@ -2760,9 +2813,15 @@ function toggleInstallmentHistory(instId, studentId) {
 }
 
 async function voidPaymentClick(paymentId, studentId) {
-  if (!confirm('Void this payment? This cannot be undone — use it to correct a mistaken entry.')) return;
+  const students = await db.loadAllStudents();
+  const payment = students
+    .find((x) => x.id === studentId)
+    ?.installments.flatMap((i) => i.payments)
+    .find((p) => p.id === paymentId);
+  if (!confirmFinanceAction('Void this payment? It stays in the ledger, marked as voided — use this to correct a mistaken entry.', payment?.createdAt)) return;
+  const reason = prompt('Reason for voiding (optional):') || '';
   try {
-    await db.deletePayment(paymentId);
+    await db.voidPayment(paymentId, reason);
   } catch (e) {
     alert('Could not void payment: ' + (e.message || e));
     return;
@@ -4884,6 +4943,11 @@ async function renderFinancePage() {
     return;
   }
   financeStudents = students;
+  const financeNames = await resolveFinanceNames([
+    ...payments.filter((p) => p.voidedBy).map((p) => p.voidedBy),
+    ...expenses.filter((e) => e.voided_by).map((e) => e.voided_by),
+  ]);
+  const financeNameOf = (id) => (id && financeNames[id]) || 'someone';
 
   const incomeByCategory = {};
   let totalIncome = 0;
@@ -4895,7 +4959,7 @@ async function renderFinancePage() {
       totalIncome += inst.amountPaid;
     });
   });
-  const totalExpenses = expenses.reduce((sum, e) => sum + Number(e.amount), 0);
+  const totalExpenses = expenses.filter((e) => !e.voided_at).reduce((sum, e) => sum + Number(e.amount), 0);
   const net = totalIncome - totalExpenses;
 
   document.getElementById('fin_income').textContent = totalIncome.toLocaleString();
@@ -4931,8 +4995,21 @@ async function renderFinancePage() {
 
   document.getElementById('fin_ledgerEmpty').classList.toggle('hidden', payments.length > 0);
   document.querySelector('#fin_ledgerTable tbody').innerHTML = payments
-    .map(
-      (p) => `<tr>
+    .map((p) => {
+      if (p.voidedAt) {
+        return `<tr style="opacity:0.6;">
+          <td>${p.date}</td>
+          <td>${p.studentName || '—'}</td>
+          <td>${FEE_CATEGORY_LABELS[p.category] || 'Other'}</td>
+          <td style="text-decoration:line-through;">${p.amount.toLocaleString()} CFA</td>
+          <td>${p.method || '—'}</td>
+          <td>${p.receiptNumber || '—'}</td>
+          <td><span class="badge unpaid">Voided</span> <span class="muted" style="font-size:11px;">by ${financeNameOf(p.voidedBy)}, ${new Date(
+          p.voidedAt
+        ).toLocaleDateString()}${p.voidReason ? ' — ' + p.voidReason : ''}</span></td>
+        </tr>`;
+      }
+      return `<tr>
       <td>${p.date}</td>
       <td>${p.studentName || '—'}</td>
       <td>${FEE_CATEGORY_LABELS[p.category] || 'Other'}</td>
@@ -4940,8 +5017,8 @@ async function renderFinancePage() {
       <td>${p.method || '—'}</td>
       <td>${p.receiptNumber || '—'}</td>
       <td><button class="btn ghost small" onclick="financeVoidPaymentClick('${p.id}')">Void</button></td>
-    </tr>`
-    )
+    </tr>`;
+    })
     .join('');
 
   const studentSelect = document.getElementById('pay_student');
@@ -4956,15 +5033,26 @@ async function renderFinancePage() {
   const listEl = document.querySelector('#fin_expenseTable tbody');
   document.getElementById('fin_expenseListEmpty').classList.toggle('hidden', expenses.length > 0);
   listEl.innerHTML = expenses
-    .map(
-      (e) => `<tr>
+    .map((e) => {
+      if (e.voided_at) {
+        return `<tr style="opacity:0.6;">
+          <td>${new Date(e.expense_date).toLocaleDateString()}</td>
+          <td>${e.category}</td>
+          <td>${e.description || '—'}</td>
+          <td style="text-decoration:line-through;">${Number(e.amount).toLocaleString()} CFA</td>
+          <td><span class="badge unpaid">Voided</span> <span class="muted" style="font-size:11px;">by ${financeNameOf(e.voided_by)}, ${new Date(
+          e.voided_at
+        ).toLocaleDateString()}${e.void_reason ? ' — ' + e.void_reason : ''}</span></td>
+        </tr>`;
+      }
+      return `<tr>
         <td>${new Date(e.expense_date).toLocaleDateString()}</td>
         <td>${e.category}</td>
         <td>${e.description || '—'}</td>
         <td>${Number(e.amount).toLocaleString()} CFA</td>
-        <td><button class="btn ghost small" onclick="deleteExpenseClick('${e.id}')">Delete</button></td>
-      </tr>`
-    )
+        <td><button class="btn ghost small" onclick="deleteExpenseClick('${e.id}')">Void</button></td>
+      </tr>`;
+    })
     .join('');
 }
 
@@ -5065,9 +5153,12 @@ async function financeAddFeeLineClick() {
 }
 
 async function financeVoidPaymentClick(paymentId) {
-  if (!confirm('Void this payment? This cannot be undone — use it to correct a mistaken entry.')) return;
+  const payments = await db.listAllPayments();
+  const payment = payments.find((p) => p.id === paymentId);
+  if (!confirmFinanceAction('Void this payment? It stays in the ledger, marked as voided — use this to correct a mistaken entry.', payment?.createdAt)) return;
+  const reason = prompt('Reason for voiding (optional):') || '';
   try {
-    await db.deletePayment(paymentId);
+    await db.voidPayment(paymentId, reason);
   } catch (e) {
     alert('Could not void payment: ' + (e.message || e));
     return;
@@ -5097,7 +5188,16 @@ async function createExpenseClick() {
 }
 
 async function deleteExpenseClick(id) {
-  await db.deleteExpense(id);
+  const expenses = await db.listExpenses();
+  const expense = expenses.find((e) => e.id === id);
+  if (!confirmFinanceAction('Void this expense? It stays in the record, marked as voided.', expense?.created_at)) return;
+  const reason = prompt('Reason for voiding (optional):') || '';
+  try {
+    await db.voidExpense(id, reason);
+  } catch (e) {
+    alert('Could not void expense: ' + (e.message || e));
+    return;
+  }
   await renderFinancePage();
 }
 
