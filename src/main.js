@@ -4728,7 +4728,13 @@ function renderCalendarGrid() {
 }
 
 function renderCalendarList() {
-  const events = calendarSelectedDay ? calendarEventsCache.filter((e) => e.event_date === calendarSelectedDay) : calendarEventsCache;
+  // "Upcoming" (no specific day picked) should never include events whose
+  // date has already passed — a specific day filter still shows that
+  // day's events regardless, since you picked it on purpose.
+  const todayStr = new Date().toISOString().slice(0, 10);
+  const events = calendarSelectedDay
+    ? calendarEventsCache.filter((e) => e.event_date === calendarSelectedDay)
+    : calendarEventsCache.filter((e) => e.event_date >= todayStr);
   document.getElementById('cal_clearFilter').classList.toggle('hidden', !calendarSelectedDay);
   document.getElementById('cal_listTitle').textContent = calendarSelectedDay
     ? new Date(calendarSelectedDay + 'T00:00:00').toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' })
