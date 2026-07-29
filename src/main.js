@@ -554,20 +554,21 @@ async function renderTeachersPage() {
           const checkboxes = Object.keys(CATALOG)
             .map((name) => {
               const cat = CATALOG[name];
+              const isWhole = wholeTestIds.has(cat.id);
               const subjectRows = (cat.subjects || [])
                 .map(
                   (sub) => `<label style="display:inline-flex;align-items:center;gap:4px;font-weight:normal;font-size:12px;margin-right:10px;white-space:nowrap;">
                     <input type="checkbox" class="teach-edit-subject" data-test-id="${cat.id}" value="${sub.id}" style="width:auto;margin:0;" ${
                     subjectIds.has(sub.id) ? 'checked' : ''
-                  }> ${sub.name}
+                  } ${isWhole ? 'disabled' : ''} onchange="onTeacherEditSubjectToggle(this)"> ${sub.name}
                   </label>`
                 )
                 .join('');
               return `<div style="margin-bottom:6px;">
                 <label style="display:inline-flex;align-items:center;gap:4px;font-size:12px;margin-right:10px;white-space:nowrap;">
                   <input type="checkbox" class="teach-edit-program" value="${cat.id}" style="width:auto;margin:0;" ${
-                wholeTestIds.has(cat.id) ? 'checked' : ''
-              }> ${name} <span class="muted" style="font-weight:normal;">(whole program)</span>
+                isWhole ? 'checked' : ''
+              } onchange="onTeacherEditProgramToggle(this)"> ${name} <span class="muted" style="font-weight:normal;">(whole program)</span>
                 </label>
                 ${subjectRows ? `<div style="margin:2px 0 0 20px;">${subjectRows}</div>` : ''}
               </div>`;
@@ -620,6 +621,26 @@ async function renderTeachersPage() {
 function editTeacherClick(id) {
   editingTeacherId = id;
   renderTeachersPage();
+}
+
+// Whole-program and its nested subject checkboxes are mutually exclusive
+// — checking one immediately clears/disables the other, so it's never
+// possible to leave a subject box checked-but-silently-ignored (which is
+// exactly what "whole program" left checked used to do).
+function onTeacherEditProgramToggle(checkbox) {
+  const testId = checkbox.value;
+  document.querySelectorAll(`.teach-edit-subject[data-test-id="${testId}"]`).forEach((cb) => {
+    if (checkbox.checked) cb.checked = false;
+    cb.disabled = checkbox.checked;
+  });
+}
+
+function onTeacherEditSubjectToggle(checkbox) {
+  if (!checkbox.checked) return;
+  const testId = checkbox.dataset.testId;
+  const programCheckbox = document.querySelector(`.teach-edit-program[value="${testId}"]`);
+  if (programCheckbox) programCheckbox.checked = false;
+  document.querySelectorAll(`.teach-edit-subject[data-test-id="${testId}"]`).forEach((cb) => (cb.disabled = false));
 }
 
 function cancelTeacherEdit() {
@@ -5364,6 +5385,8 @@ Object.assign(window, {
   renderMyAssignments,
   renderMyProgress,
   editTeacherClick,
+  onTeacherEditProgramToggle,
+  onTeacherEditSubjectToggle,
   cancelTeacherEdit,
   saveTeacherEdit,
   renderMessagesPage,
