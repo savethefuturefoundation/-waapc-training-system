@@ -149,6 +149,7 @@ async function showAdminDashboard() {
   await ensureCatalog();
   resetRegistrationForm();
   showTab('dashboard');
+  refreshSidebarBadges();
 }
 
 async function adminLogin() {
@@ -198,6 +199,7 @@ async function showTeacherDashboard() {
   renderAssignTargets('tas');
   renderAssignmentTopics('tas');
   renderAssignmentsList('tas');
+  refreshSidebarBadges();
 }
 
 async function teacherCheckEmail() {
@@ -372,6 +374,7 @@ async function showParentDashboard() {
   document.getElementById('page-parent-children').classList.remove('hidden');
   await ensureCatalog();
   await renderParentChildren();
+  refreshSidebarBadges();
 }
 
 async function parentCheckEmail() {
@@ -3412,6 +3415,7 @@ async function showStudentDashboardView() {
   await ensureCatalog();
   document.getElementById('welcomeMsg').textContent = 'Welcome, ' + currentStudentRecord.fullName.split(' ')[0];
   renderMyProgress();
+  refreshSidebarBadges();
 }
 
 function sidebarClickById(id) {
@@ -4643,9 +4647,48 @@ async function renderAnnouncementsPage() {
     document.getElementById('ann_listEmpty').textContent = 'No announcements yet.';
     document.getElementById('ann_listEmpty').classList.toggle('hidden', feedItems.length > 0);
     listEl.innerHTML = feedItems.map((item) => (item.kind === 'assignment' ? assignmentFeedCardHtml(item.data) : announcementFeedCardHtml(item.data))).join('');
+
+    // Visiting this page clears the sidebar "new" badge.
+    db.markAnnouncementsSeen()
+      .then(refreshSidebarBadges)
+      .catch((e) => console.error('markAnnouncementsSeen failed:', e));
   } catch (e) {
     console.error('renderAnnouncementsPage failed:', e);
     showPageError('ann_list', 'ann_listEmpty', e);
+  }
+}
+
+// Sidebar "new" badges for Announcements/Messages — reuses data each
+// page already fetches, no extra endpoint needed.
+async function refreshSidebarBadges() {
+  if (!currentSession) return;
+  try {
+    const [lastSeen, items] = await Promise.all([db.getMyAnnouncementsLastSeen(), db.listAnnouncements()]);
+    let visible = items;
+    const isStudent = currentSession.role === 'student' && currentStudentRecord;
+    if (isStudent) {
+      const myPrograms = new Set(currentStudentRecord.programs.map((p) => p.test));
+      visible = visible.filter((a) => !a.targetTestName || myPrograms.has(a.targetTestName));
+    }
+    const lastSeenTime = lastSeen ? new Date(lastSeen).getTime() : 0;
+    const newCount = visible.filter((a) => new Date(a.publishAt || a.created_at).getTime() > lastSeenTime).length;
+    document.querySelectorAll('.sidebar-notify-announcements').forEach((el) => {
+      el.textContent = newCount > 99 ? '99+' : String(newCount);
+      el.classList.toggle('hidden', newCount === 0);
+    });
+  } catch (e) {
+    console.error('refreshSidebarBadges (announcements) failed:', e);
+  }
+
+  try {
+    const unread = await db.listUnreadCounts(currentSession.userId);
+    const totalUnread = Object.values(unread).reduce((sum, n) => sum + n, 0);
+    document.querySelectorAll('.sidebar-notify-messages').forEach((el) => {
+      el.textContent = totalUnread > 99 ? '99+' : String(totalUnread);
+      el.classList.toggle('hidden', totalUnread === 0);
+    });
+  } catch (e) {
+    console.error('refreshSidebarBadges (messages) failed:', e);
   }
 }
 
@@ -5347,6 +5390,7 @@ async function renderMessagesPage() {
         </div>`
       )
       .join('');
+    refreshSidebarBadges();
   } catch (e) {
     console.error('renderMessagesPage failed:', e);
     showPageError('msg_contacts', 'msg_contactsEmpty', e);

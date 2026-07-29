@@ -714,6 +714,23 @@ export async function updateMyName(fullName) {
   if (error) throw error;
 }
 
+// Sidebar "new announcements" badge — null means "never visited", which
+// the caller treats as "everything currently posted counts as new".
+export async function getMyAnnouncementsLastSeen() {
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return null;
+  const { data, error } = await supabase.from('profiles').select('announcements_last_seen_at').eq('id', user.id).single();
+  if (error) throw error;
+  return data?.announcements_last_seen_at || null;
+}
+
+export async function markAnnouncementsSeen() {
+  const { error } = await supabase.rpc('mark_announcements_seen');
+  if (error) throw error;
+}
+
 // ---------------------------------------------------------------------
 // Listening — passages (one audio clip shared by a group of questions).
 // ---------------------------------------------------------------------

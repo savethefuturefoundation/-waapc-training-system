@@ -120,10 +120,10 @@
         <button class="tab-btn sidebar-nav-item" data-tab="assignments" onclick="showTab('assignments')"><span class="sidebar-nav-icon">📚</span>Assignments</button>
         <button class="sidebar-nav-item" onclick="openSubjectGradesReport()"><span class="sidebar-nav-icon">📊</span>Subject Averages</button>
         <button class="tab-btn sidebar-nav-item" data-tab="attendance" onclick="showTab('attendance')"><span class="sidebar-nav-icon">✅</span>Attendance</button>
-        <button class="tab-btn sidebar-nav-item" data-tab="announcements" onclick="showTab('announcements')"><span class="sidebar-nav-icon">📢</span>Announcements</button>
+        <button class="tab-btn sidebar-nav-item" data-tab="announcements" onclick="showTab('announcements')"><span class="sidebar-nav-icon">📢</span>Announcements <span class="sidebar-notify-badge sidebar-notify-announcements hidden"></span></button>
         <button class="tab-btn sidebar-nav-item" data-tab="calendar" onclick="showTab('calendar')"><span class="sidebar-nav-icon">📅</span>Calendar</button>
         <button class="tab-btn sidebar-nav-item" data-tab="timetable" onclick="showTab('timetable')"><span class="sidebar-nav-icon">🗓</span>Timetable</button>
-        <button class="tab-btn sidebar-nav-item" data-tab="messages" onclick="showTab('messages')"><span class="sidebar-nav-icon">✉️</span>Messages</button>
+        <button class="tab-btn sidebar-nav-item" data-tab="messages" onclick="showTab('messages')"><span class="sidebar-nav-icon">✉️</span>Messages <span class="sidebar-notify-badge sidebar-notify-messages hidden"></span></button>
       </div>
       <div id="sidebarNavTeacher" class="hidden">
         <button class="sidebar-nav-item active" onclick="sidebarNavTo('page-teacher-students', this)"><span class="sidebar-nav-icon">👥</span>Students</button>
@@ -131,17 +131,17 @@
         <button class="sidebar-nav-item" onclick="openSubjectGradesReport()"><span class="sidebar-nav-icon">📊</span>Subject Averages</button>
         <button class="sidebar-nav-item" onclick="sidebarNavTo('tab-attendance', this); renderAttendancePage();"><span class="sidebar-nav-icon">✅</span>Attendance</button>
         <button class="sidebar-nav-item" onclick="sidebarNavTo('tab-parents', this); renderParentsPage();"><span class="sidebar-nav-icon">👨‍👩‍👧</span>Parents</button>
-        <button class="sidebar-nav-item" onclick="sidebarNavTo('tab-announcements', this); renderAnnouncementsPage();"><span class="sidebar-nav-icon">📢</span>Announcements</button>
+        <button class="sidebar-nav-item" onclick="sidebarNavTo('tab-announcements', this); renderAnnouncementsPage();"><span class="sidebar-nav-icon">📢</span>Announcements <span class="sidebar-notify-badge sidebar-notify-announcements hidden"></span></button>
         <button class="sidebar-nav-item" onclick="sidebarNavTo('tab-calendar', this); renderCalendarPage();"><span class="sidebar-nav-icon">📅</span>Calendar</button>
         <button class="sidebar-nav-item" onclick="sidebarNavTo('tab-timetable', this); renderTimetablePage();"><span class="sidebar-nav-icon">🗓</span>Timetable</button>
-        <button class="sidebar-nav-item" onclick="sidebarNavTo('tab-messages', this); renderMessagesPage();"><span class="sidebar-nav-icon">✉️</span>Messages</button>
+        <button class="sidebar-nav-item" onclick="sidebarNavTo('tab-messages', this); renderMessagesPage();"><span class="sidebar-nav-icon">✉️</span>Messages <span class="sidebar-notify-badge sidebar-notify-messages hidden"></span></button>
       </div>
       <div id="sidebarNavParent" class="hidden">
         <button class="sidebar-nav-item active" onclick="sidebarNavTo('page-parent-children', this)"><span class="sidebar-nav-icon">👨‍👩‍👧</span>My Children</button>
-        <button class="sidebar-nav-item" onclick="sidebarNavTo('tab-announcements', this); renderAnnouncementsPage();"><span class="sidebar-nav-icon">📢</span>Announcements</button>
+        <button class="sidebar-nav-item" onclick="sidebarNavTo('tab-announcements', this); renderAnnouncementsPage();"><span class="sidebar-nav-icon">📢</span>Announcements <span class="sidebar-notify-badge sidebar-notify-announcements hidden"></span></button>
         <button class="sidebar-nav-item" onclick="sidebarNavTo('tab-calendar', this); renderCalendarPage();"><span class="sidebar-nav-icon">📅</span>Calendar</button>
         <button class="sidebar-nav-item" onclick="sidebarNavTo('tab-timetable', this); renderTimetablePage();"><span class="sidebar-nav-icon">🗓</span>Timetable</button>
-        <button class="sidebar-nav-item" onclick="sidebarNavTo('tab-messages', this); renderMessagesPage();"><span class="sidebar-nav-icon">✉️</span>Messages</button>
+        <button class="sidebar-nav-item" onclick="sidebarNavTo('tab-messages', this); renderMessagesPage();"><span class="sidebar-nav-icon">✉️</span>Messages <span class="sidebar-notify-badge sidebar-notify-messages hidden"></span></button>
       </div>
       <div id="sidebarNavStudent" class="hidden">
         <button class="sidebar-nav-item active" id="nav-student-dashboard" onclick="sidebarNavTo('page-student-dashboard', this); renderMyProgress();"><span class="sidebar-nav-icon">⊞</span>Dashboard</button>
@@ -149,10 +149,10 @@
         <button class="sidebar-nav-item" id="nav-student-assignments" onclick="sidebarNavTo('page-student-assignments', this); renderMyAssignments();"><span class="sidebar-nav-icon">📚</span>Assignments</button>
         <button class="sidebar-nav-item" id="nav-student-grades" onclick="sidebarNavTo('page-student-grades', this); renderMyGrades();"><span class="sidebar-nav-icon">🎓</span>Grades</button>
         <button class="sidebar-nav-item" id="nav-student-attendance" onclick="sidebarNavTo('page-student-attendance', this); renderMyAttendance();"><span class="sidebar-nav-icon">✅</span>Attendance</button>
-        <button class="sidebar-nav-item" id="nav-student-announcements" onclick="sidebarNavTo('tab-announcements', this); renderAnnouncementsPage();"><span class="sidebar-nav-icon">📢</span>Announcements</button>
+        <button class="sidebar-nav-item" id="nav-student-announcements" onclick="sidebarNavTo('tab-announcements', this); renderAnnouncementsPage();"><span class="sidebar-nav-icon">📢</span>Announcements <span class="sidebar-notify-badge sidebar-notify-announcements hidden"></span></button>
         <button class="sidebar-nav-item" id="nav-student-timetable" onclick="sidebarNavTo('tab-timetable', this); renderTimetablePage();"><span class="sidebar-nav-icon">🗓</span>Timetable</button>
         <button class="sidebar-nav-item" id="nav-student-calendar" onclick="sidebarNavTo('tab-calendar', this); renderCalendarPage();"><span class="sidebar-nav-icon">📅</span>Calendar</button>
-        <button class="sidebar-nav-item" id="nav-student-messages" onclick="sidebarNavTo('tab-messages', this); renderMessagesPage();"><span class="sidebar-nav-icon">✉️</span>Messages</button>
+        <button class="sidebar-nav-item" id="nav-student-messages" onclick="sidebarNavTo('tab-messages', this); renderMessagesPage();"><span class="sidebar-nav-icon">✉️</span>Messages <span class="sidebar-notify-badge sidebar-notify-messages hidden"></span></button>
       </div>
     </div>
 
