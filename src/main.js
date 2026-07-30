@@ -3146,9 +3146,12 @@ async function openAttendance(studentId) {
     })
     .join('');
 
-  const html = `
-    <h3 style="color:#1a2b6b;">${s.fullName} — Attendance</h3>
-    <div style="display:flex;gap:8px;align-items:end;margin-bottom:16px;flex-wrap:wrap;">
+  // Marking attendance is admin/teacher only — a parent or student
+  // viewing this same screen should only ever see the read-only table
+  // (the write buttons would just fail RLS if clicked).
+  const canMark = canPostAsStaff();
+  const markingControls = canMark
+    ? `<div style="display:flex;gap:8px;align-items:end;margin-bottom:16px;flex-wrap:wrap;">
       <div><label>Program</label><select id="att_program" onchange="onProfileAttendanceProgramChange()">${programOptions}</select></div>
       <div id="att_profileSubject_wrap" class="hidden"><label>Subject</label><select id="att_profileSubject"></select></div>
       <div><label>Date</label><input type="date" id="att_date" value="${new Date().toISOString().slice(0, 10)}"></div>
@@ -3156,13 +3159,18 @@ async function openAttendance(studentId) {
         <button class="btn small" onclick="recordAttendance('${s.id}', true)">Mark present</button>
         <button class="btn ghost small" onclick="recordAttendance('${s.id}', false)">Mark absent</button>
       </div>
-    </div>
+    </div>`
+    : '';
+
+  const html = `
+    <h3 style="color:#1a2b6b;">${s.fullName} — Attendance</h3>
+    ${markingControls}
     <table><thead><tr><th>Date</th><th>Program</th><th>Subject</th><th>Status</th></tr></thead><tbody>${
       rows || '<tr><td colspan="4" class="muted">No attendance recorded yet.</td></tr>'
     }</tbody></table>
   `;
   renderDoc(html);
-  await onProfileAttendanceProgramChange();
+  if (canMark) await onProfileAttendanceProgramChange();
 }
 
 // Mirrors onAttendanceTestChange for the single-student view reached from
