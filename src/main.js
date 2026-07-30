@@ -466,11 +466,43 @@ async function renderParentChildren() {
             .map((g) => `<tr><td>${g.test || ''} — ${g.subject || ''}</td><td>${g.label}</td><td>${gradeScoreDisplay(g)}</td></tr>`)
             .join('')}</tbody></table>`
         : '<p class="muted">No grades yet.</p>';
+
+      // What's owed, front and center — this is the thing a parent most
+      // needs to see at a glance, before academic details.
+      const bal = balanceOf(s);
+      const balanceHtml =
+        bal > 0
+          ? `<div style="border-left:4px solid var(--red);background:var(--red-light);border-radius:6px;padding:10px 14px;margin-bottom:14px;">
+              <div style="font-weight:800;color:var(--red);font-size:15px;">Balance owed: ${bal.toLocaleString()} CFA</div>
+              <p class="muted" style="margin:2px 0 0;">Total fees ${s.total.toLocaleString()} CFA &middot; Paid so far ${(s.total - bal).toLocaleString()} CFA</p>
+            </div>`
+          : `<div style="border-left:4px solid var(--green);background:var(--green-light);border-radius:6px;padding:10px 14px;margin-bottom:14px;">
+              <div style="font-weight:800;color:var(--green);font-size:15px;">Fully paid ✓</div>
+              <p class="muted" style="margin:2px 0 0;">Total fees ${s.total.toLocaleString()} CFA</p>
+            </div>`;
+      const feeRows = s.installments
+        .map(
+          (i) => `<tr>
+            <td>${FEE_CATEGORY_LABELS[i.category] || 'Other'}${i.dueDate ? ` <span class="muted">(due ${i.dueDate})</span>` : ''}</td>
+            <td>${i.amount.toLocaleString()} CFA</td>
+            <td>${i.amountPaid.toLocaleString()} CFA</td>
+            <td>${i.balance > 0 ? i.balance.toLocaleString() + ' CFA' : '—'}</td>
+            <td><span class="badge ${i.status}">${i.status}</span></td>
+          </tr>`
+        )
+        .join('');
+      const feeScheduleHtml = s.installments.length
+        ? `<table><thead><tr><th>Fee</th><th>Owed</th><th>Paid</th><th>Balance</th><th>Status</th></tr></thead><tbody>${feeRows}</tbody></table>`
+        : '<p class="muted">No fee schedule yet.</p>';
+
       return `<div class="card">
         <h2>${s.fullName}</h2>
         <p class="muted">${s.programs.map((p) => p.test).join(', ') || 'No programs enrolled'}</p>
+        ${balanceHtml}
         <button class="btn ghost small" onclick="openAttendance('${s.id}')">View attendance</button>
         <button class="btn ghost small" onclick="openProgressReport('${s.id}')">View progress report</button>
+        <h3 style="margin-top:16px;color:var(--navy);">Fee schedule</h3>
+        ${feeScheduleHtml}
         <h3 style="margin-top:16px;color:var(--navy);">Progress</h3>
         ${progressHtml}
         <h3 style="margin-top:16px;color:var(--navy);">Grades</h3>
