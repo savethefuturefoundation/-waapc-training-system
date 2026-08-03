@@ -1843,6 +1843,13 @@ async function openStudentDetail(id) {
   const bal = balanceOf(s);
   const status = statusOf(s);
   const progressHtml = await renderProgressPanel(s);
+  const emailBtns = s.guardian?.email
+    ? `<div class="no-print" style="margin:14px 0;display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
+        <button class="btn small" onclick="sendParentEmailClick('${s.id}')">📤 Send progress update to parent</button>
+        <button class="btn ghost small" onclick="emailParentClick('${s.id}')">✉️ Open as draft in my email instead</button>
+        <span id="sendParentEmailStatus_${s.id}" class="muted"></span>
+      </div>`
+    : '';
 
   const programRows = s.programs
     .map((p) => {
@@ -1894,6 +1901,7 @@ async function openStudentDetail(id) {
     <p class="muted" style="margin-top:10px;">Invoice ${s.invoiceNumber || '—'} — Total ${s.total.toLocaleString()} CFA, Balance ${bal.toLocaleString()} CFA</p>
 
     <h3 style="color:var(--navy);margin-top:20px;">Progress</h3>
+    ${emailBtns}
     ${progressHtml}
   `;
   renderDoc(html);
@@ -3056,30 +3064,105 @@ function pronounsFor(gender) {
   return { subj: 'they', obj: 'them', poss: 'their' };
 }
 
+// Same red/amber/blue/green tiering as the GED score cards, extended to
+// non-GED subjects (percentage of max score) so every program gets a
+// consistent small color-coded indicator, not just GED. A colored dot is
+// the one "color coding" that survives into a plain-text/mailto email
+// unchanged, so it's used instead of a styled HTML badge.
+const SCORE_TIER_DOT = { 'Below Passing': '🔴', Passing: '🟡', 'College Ready': '🔵', 'College Ready + Credit': '🟢', 'Needs Improvement': '🔴', Satisfactory: '🟡', Good: '🔵', Excellent: '🟢' };
+
+function scoreTierFor(g) {
+  if (g.test === 'GED') return gedTier(g.score);
+  const pct = g.maxScore > 0 ? (g.score / g.maxScore) * 100 : 0;
+  if (pct < 60) return 'Needs Improvement';
+  if (pct < 75) return 'Satisfactory';
+  if (pct < 90) return 'Good';
+  return 'Excellent';
+}
+
+function pickRandom(arr) {
+  return arr[Math.floor(Math.random() * arr.length)];
+}
+
 // Builds the parent progress-update content once, shared by both the
-// automatic-send and the open-as-draft actions below.
+// automatic-send and the open-as-draft actions below. Pulls the most
+// recent grade per subject across every program the student is enrolled
+// in (GED and any other course), so the message names actual subjects
+// and scores rather than a fixed boilerplate paragraph — and reaches
+// into a few rotating phrasings so consecutive emails don't read as an
+// identical form letter even when the underlying data is similar.
 async function buildParentEmailDraft(s) {
   const grades = await db.listGradesForStudent(s.id);
-  const gedGrades = grades.filter((g) => g.test === 'GED');
-  const latestGed = gedGrades.length ? gedGrades.slice().sort((a, b) => new Date(b.enteredAt) - new Date(a.enteredAt))[0] : null;
+  const latestBySubject = {};
+  grades.forEach((g) => {
+    if (!g.subject || !g.test) return;
+    const key = `${g.test}::${g.subject}`;
+    const prev = latestBySubject[key];
+    if (!prev || new Date(g.enteredAt) > new Date(prev.enteredAt)) latestBySubject[key] = g;
+  });
+  const recent = Object.values(latestBySubject).sort((a, b) => new Date(b.enteredAt) - new Date(a.enteredAt));
 
   const firstName = s.fullName.split(' ')[0];
   const p = pronounsFor(s.gender);
-  const subject = `${s.fullName}'s Current GED Progress — WAAPC Training Centre`;
-  const scoreLine = latestGed ? `Current level: ${latestGed.score} — ${gedTier(latestGed.score)}\n\n` : '';
-  const body = `Dear ${s.guardian.name || 'Parent/Guardian'},
+  const programNames = s.programs.map((prog) => prog.test).filter((v, i, a) => a.indexOf(v) === i);
+  const programList = programNames.length ? programNames.join(' and ') : 'their program';
 
-I hope this message finds you well.
+  const subject = `${firstName}'s Progress Update — WAAPC Training Centre`;
 
-I'm writing to share an update on ${s.fullName}'s progress in our GED preparation program.${
-    latestGed ? ` ${firstName} recently completed a GED assessment, and I wanted to personally let you know where things stand.` : ''
+  const opener = pickRandom([
+    `I hope this message finds you well. I'm writing with an update on ${firstName}'s progress in ${programList} at WAAPC Training Centre.`,
+    `Thank you for your continued support of ${firstName}'s education. I wanted to share where things currently stand in ${programList}.`,
+    `I'm reaching out with the latest update on ${firstName}'s work in ${programList} here at WAAPC Training Centre.`,
+  ]);
+
+  const scoreLines = recent.length
+    ? recent
+        .map((g) => {
+          const tier = scoreTierFor(g);
+          const dot = SCORE_TIER_DOT[tier] || '⚪';
+          const scoreDisplay = g.test === 'GED' ? `${g.score}/200` : `${g.score}/${g.maxScore}`;
+          const dateLabel = new Date(g.enteredAt).toLocaleDateString();
+          return `  ${dot} ${g.test} — ${g.subject}: ${scoreDisplay} (${tier}), taken ${dateLabel}`;
+        })
+        .join('\n')
+    : '';
+
+  const weakSubjects = recent.filter((g) => scoreTierFor(g) === 'Below Passing' || scoreTierFor(g) === 'Needs Improvement');
+
+  let actionParagraph;
+  if (!recent.length) {
+    actionParagraph = `${firstName} doesn't have a graded assessment on record yet — I'll follow up with a full update as soon as one is entered.`;
+  } else if (!weakSubjects.length) {
+    actionParagraph = pickRandom([
+      `${firstName} is passing in every subject assessed so far — steady, encouraging progress. We'll keep building on this momentum in class.`,
+      `Every subject above reflects passing performance. ${firstName} should be proud of ${p.poss} progress, and our team will keep the pace up.`,
+    ]);
+  } else {
+    const names = weakSubjects.map((g) => `${g.test} ${g.subject}`).join(', ');
+    const namesVerb = weakSubjects.length > 1 ? 'are' : 'is';
+    actionParagraph = pickRandom([
+      `Our teaching team is putting extra review time into ${names}, where ${firstName} needs the most support right now, while keeping up the pace on ${p.poss} stronger subjects.`,
+      `${names} ${namesVerb} what we're prioritizing with ${firstName} over the coming weeks. The rest of ${p.poss} scores show ${p.subj === 'they' ? 'they are' : p.subj + ' is'} on track.`,
+    ]);
   }
 
-${scoreLine}This reflects where ${firstName} is right now, not where ${p.subj} will end up. When ${firstName} joined us, we committed to seeing this through with ${p.obj}, and that commitment hasn't changed. Our teaching team already has a plan in place to focus on the areas that will move this score forward, and we'll keep you updated as ${firstName} continues to test and improve.
+  const closer = pickRandom([
+    `If you'd like to discuss ${firstName}'s progress in more detail, or have any questions in the meantime, please don't hesitate to reach out.`,
+    `Please feel free to contact us any time if you'd like to talk through this in more detail.`,
+    `We're always happy to talk through ${firstName}'s progress further — just reach out any time.`,
+  ]);
 
-If you'd like to discuss ${firstName}'s progress in more detail, or have any questions in the meantime, please don't hesitate to reach out.
+  const signoff = pickRandom(['Warm regards,', 'Best regards,', 'Kind regards,']);
 
-Warm regards,
+  const body = `Dear ${s.guardian.name || 'Parent/Guardian'},
+
+${opener}
+
+${scoreLines ? `Recent scores:\n${scoreLines}\n\n` : ''}${actionParagraph}
+
+${closer}
+
+${signoff}
 WAAPC Training Centre`;
 
   return { to: s.guardian.email, subject, body };
