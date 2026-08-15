@@ -141,6 +141,13 @@ function subjectInfoById(subjectId) {
 
 function showAdminLogin() {
   showAuthScreen('admin');
+  showAdminLoginStep1();
+}
+
+function showAdminLoginStep1() {
+  document.getElementById('adminLoginStep1').classList.remove('hidden');
+  document.getElementById('adminLoginStep2').classList.add('hidden');
+  document.getElementById('adminLoginError').textContent = '';
 }
 
 async function showAdminDashboard() {
@@ -152,13 +159,53 @@ async function showAdminDashboard() {
   refreshSidebarBadges();
 }
 
-async function adminLogin() {
-  const email = document.getElementById('adminEmail').value.trim();
+let adminLoginMode = null; // 'signup' | 'signin'
+let pendingAdminEmail = null;
+
+async function adminCheckEmail() {
+  const email = document.getElementById('adminEmail').value.trim().toLowerCase();
+  const errEl = document.getElementById('adminLoginError');
+  errEl.textContent = '';
+  if (!email) {
+    errEl.textContent = 'Enter your email.';
+    return;
+  }
+  let status;
+  try {
+    status = await db.adminAccountStatus(email);
+  } catch (e) {
+    errEl.textContent = 'Something went wrong checking that email. Please try again.';
+    return;
+  }
+  if (status === 'not_invited') {
+    errEl.textContent = "This email hasn't been invited as an admin yet. Please contact another admin.";
+    return;
+  }
+  pendingAdminEmail = email;
+  adminLoginMode = status === 'needs_signup' ? 'signup' : 'signin';
+  document.getElementById('adminLoginStep1').classList.add('hidden');
+  document.getElementById('adminLoginStep2').classList.remove('hidden');
+  document.getElementById('adminPasswordLabel').textContent = adminLoginMode === 'signup' ? 'Create a password (first login)' : 'Password';
+  document.getElementById('adminSubmitBtn').textContent = adminLoginMode === 'signup' ? 'Create account & log in' : 'Log in';
+  document.getElementById('adminPassword').value = '';
+}
+
+function adminBackToEmail() {
+  showAdminLoginStep1();
+}
+
+async function adminSubmitPassword() {
   const password = document.getElementById('adminPassword').value;
   const errEl = document.getElementById('adminLoginError');
   errEl.textContent = '';
+  if (!password || password.length < 6) {
+    errEl.textContent = 'Password must be at least 6 characters.';
+    return;
+  }
   try {
-    await db.adminSignIn(email, password);
+    if (adminLoginMode === 'signup') await db.adminSignUp(pendingAdminEmail, password);
+    else await db.adminSignIn(pendingAdminEmail, password);
+
     const session = await db.getCurrentSessionInfo();
     if (!session || session.role !== 'admin') {
       await db.signOut();
@@ -166,11 +213,10 @@ async function adminLogin() {
       return;
     }
     currentSession = session;
-    document.getElementById('adminEmail').value = '';
     document.getElementById('adminPassword').value = '';
     await showAdminDashboard();
   } catch (e) {
-    errEl.textContent = e.message || 'Login failed.';
+    errEl.textContent = e.message || 'Login failed. Please check your password and try again.';
   }
 }
 
@@ -556,6 +602,47 @@ async function addTeacherInvite() {
 async function revokeTeacherInvite(id) {
   await db.revokeTeacherInvite(id);
   await renderTeacherInvites();
+}
+
+async function renderAdminInvites() {
+  const invites = await db.listAdminInvites();
+  const tbody = document.querySelector('#adminInvitesTable tbody');
+  tbody.innerHTML = '';
+  document.getElementById('adminInvitesEmpty').classList.toggle('hidden', invites.length > 0);
+  invites.forEach((inv) => {
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td>${inv.full_name || ''}</td>
+      <td>${inv.email}</td>
+      <td>${new Date(inv.created_at).toLocaleDateString()}</td>
+      <td><button class="btn ghost small" onclick="revokeAdminInvite('${inv.id}')">Revoke</button></td>
+    `;
+    tbody.appendChild(tr);
+  });
+}
+
+async function addAdminInvite() {
+  const name = document.getElementById('a_name').value.trim();
+  const email = document.getElementById('a_email').value.trim();
+  const errEl = document.getElementById('a_inviteError');
+  errEl.textContent = '';
+  if (!email) {
+    errEl.textContent = 'Enter an email.';
+    return;
+  }
+  try {
+    await db.addAdminInvite(email, name);
+    document.getElementById('a_name').value = '';
+    document.getElementById('a_email').value = '';
+    await renderAdminInvites();
+  } catch (e) {
+    errEl.textContent = e.message || 'Could not send invite.';
+  }
+}
+
+async function revokeAdminInvite(id) {
+  await db.revokeAdminInvite(id);
+  await renderAdminInvites();
 }
 
 // =====================================================================
@@ -1442,7 +1529,10 @@ function showTab(name) {
   if (name === 'manage') renderStudentsTable();
   if (name === 'graduates') renderGraduatesPage();
   if (name === 'qb') qbInit();
-  if (name === 'staff') renderTeacherInvites();
+  if (name === 'staff') {
+    renderTeacherInvites();
+    renderAdminInvites();
+  }
   if (name === 'assignments') {
     renderAssignTargets('as');
     renderAssignmentTopics('as');
@@ -5607,7 +5697,9 @@ Object.assign(window, {
   toggleDarkMode,
   changePasswordClick,
   updateMyNameClick,
-  adminLogin,
+  adminCheckEmail,
+  adminBackToEmail,
+  adminSubmitPassword,
   adminLogout,
   teacherCheckEmail,
   teacherBackToEmail,
@@ -5619,6 +5711,8 @@ Object.assign(window, {
   parentLogout,
   addTeacherInvite,
   revokeTeacherInvite,
+  addAdminInvite,
+  revokeAdminInvite,
   toggleAllAssignTargets,
   renderAssignTargetsList,
   renderAssignSubjectOptions,

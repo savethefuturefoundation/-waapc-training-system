@@ -691,6 +691,35 @@ export async function adminSignIn(email, password) {
   if (error) throw error;
 }
 
+export async function adminAccountStatus(email) {
+  const { data, error } = await supabase.rpc('admin_account_status', { p_email: email });
+  if (error) throw error;
+  return data; // 'not_invited' | 'needs_signup' | 'has_account'
+}
+
+export async function adminSignUp(email, password) {
+  const { error } = await supabase.auth.signUp({ email, password });
+  if (error) throw error;
+  const { error: claimErr } = await supabase.rpc('claim_admin_account');
+  if (claimErr) throw claimErr;
+}
+
+export async function addAdminInvite(email, fullName) {
+  const { error } = await supabase.from('admin_invites').insert({ email: email.toLowerCase(), full_name: fullName || null });
+  if (error) throw error;
+}
+
+export async function listAdminInvites() {
+  const { data, error } = await supabase.from('admin_invites').select('*').order('created_at', { ascending: false });
+  if (error) throw error;
+  return data;
+}
+
+export async function revokeAdminInvite(id) {
+  const { error } = await supabase.from('admin_invites').delete().eq('id', id);
+  if (error) throw error;
+}
+
 export async function signOut() {
   await supabase.auth.signOut();
 }

@@ -38,11 +38,17 @@
     </div>
 
     <div id="adminLoginCard">
-      <label>Email</label>
-      <input id="adminEmail" type="email">
-      <label>Password</label>
-      <input id="adminPassword" type="password">
-      <button class="btn" style="width:100%;justify-content:center;" onclick="adminLogin()">Log in</button>
+      <div id="adminLoginStep1">
+        <label>Email</label>
+        <input id="adminEmail" type="email" placeholder="Enter the email another admin invited you with">
+        <button class="btn" style="width:100%;justify-content:center;" onclick="adminCheckEmail()">Continue</button>
+      </div>
+      <div id="adminLoginStep2" class="hidden">
+        <label id="adminPasswordLabel">Password</label>
+        <input id="adminPassword" type="password">
+        <button class="btn" id="adminSubmitBtn" style="width:100%;justify-content:center;" onclick="adminSubmitPassword()">Log in</button>
+        <button class="btn ghost small" onclick="adminBackToEmail()">Use a different email</button>
+      </div>
       <p id="adminLoginError" class="muted error-text"></p>
     </div>
 
@@ -113,7 +119,7 @@
         <button class="tab-btn sidebar-nav-item" data-tab="manage" onclick="showTab('manage')"><span class="sidebar-nav-icon">👥</span>Students & Payments</button>
         <button class="tab-btn sidebar-nav-item" data-tab="graduates" onclick="showTab('graduates')"><span class="sidebar-nav-icon">🎓</span>Graduates</button>
         <button class="tab-btn sidebar-nav-item" data-tab="qb" onclick="showTab('qb')"><span class="sidebar-nav-icon">📝</span>Question Bank</button>
-        <button class="tab-btn sidebar-nav-item" data-tab="staff" onclick="showTab('staff')"><span class="sidebar-nav-icon">🧑‍🏫</span>Invite Teachers</button>
+        <button class="tab-btn sidebar-nav-item" data-tab="staff" onclick="showTab('staff')"><span class="sidebar-nav-icon">🧑‍🏫</span>Invite Staff</button>
         <button class="tab-btn sidebar-nav-item" data-tab="teachers" onclick="showTab('teachers')"><span class="sidebar-nav-icon">👩‍🏫</span>Teachers</button>
         <button class="tab-btn sidebar-nav-item" data-tab="parents" onclick="showTab('parents')"><span class="sidebar-nav-icon">👨‍👩‍👧</span>Parents</button>
         <button class="tab-btn sidebar-nav-item" data-tab="finance" onclick="showTab('finance')"><span class="sidebar-nav-icon">💰</span>Finance</button>
@@ -452,6 +458,26 @@ GED,Mathematical Reasoning,What is 7 x 8?,54,56,58,60,B"></textarea>
           <tbody></tbody>
         </table>
         <div id="teacherInvitesEmpty" class="empty hidden" style="--empty-icon:'✉️';">No pending invites. A teacher disappears from this list once they've logged in.</div>
+      </div>
+
+      <div class="card">
+        <h2>Invite an administrator</h2>
+        <p class="muted">Add their email below, then have them open the Admin portal — the login screen will let them set their own password on first login. They'll have full admin access once they log in.</p>
+        <div class="grid3">
+          <div><label>Full name</label><input id="a_name"></div>
+          <div><label>Email</label><input id="a_email" type="email"></div>
+        </div>
+        <button class="btn red" onclick="addAdminInvite()">Send invite</button>
+        <p id="a_inviteError" class="muted error-text"></p>
+      </div>
+
+      <div class="card">
+        <h2>Pending admin invites</h2>
+        <table id="adminInvitesTable">
+          <thead><tr><th>Name</th><th>Email</th><th>Invited</th><th>Actions</th></tr></thead>
+          <tbody></tbody>
+        </table>
+        <div id="adminInvitesEmpty" class="empty hidden" style="--empty-icon:'✉️';">No pending invites. An invite disappears from this list once that person logs in.</div>
       </div>
     </div>
 

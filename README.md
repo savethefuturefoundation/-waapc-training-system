@@ -67,13 +67,14 @@ Requirements: [Node.js](https://nodejs.org/) (LTS) and a Supabase project.
    - `extra_schema_40.sql` — Sidebar notification badges: a red counter appears on "Announcements" and "Messages" for every role the moment something new is posted, clearing once that page is visited. Adds `mark_announcements_seen()`, following the same restrained pattern as `update_my_name()` — a signed-in user can only ever update their own "last seen" timestamp, not any other profile field.
    - `extra_schema_41.sql` — Fixes swapped Break/class labels on the GED content days (discovered on Thursday, corrected uniformly for Mon-Thu) — the times set by extra_schema_37.sql were right, but "Break" and one of the four rotating subject slots had ended up on each other's rows.
    - `extra_schema_42.sql` — Grants parents read access to `invoices` and `payment_installments` — previously only `payments` had a parent-read policy, so a parent's fee schedule/balance always came back empty even though the app never surfaced it either. Paired with a Parent portal update showing each child's balance owed and full fee schedule.
+   - `extra_schema_43.sql` — Admin self-signup: mirrors the teacher invite flow (`extra_schema_5.sql`) for the admin role. An existing admin invites by email from the **Invite Staff** tab; the invited person sets their own password on first login at the Admin portal. Nobody but that person ever sees or sets their password.
 4. In Supabase **Authentication → Providers → Email**, turn off "Confirm email" (so a student's, teacher's, or parent's first-login signup works immediately).
-5. Create your admin account: **Authentication → Users → Add user** (check "Auto Confirm User"), then in the SQL Editor:
+5. Create your first admin account (the one that will invite everyone else): **Authentication → Users → Add user** (check "Auto Confirm User"), then in the SQL Editor:
    ```sql
    update profiles set role = 'admin' where id = (select id from auth.users where email = 'YOUR_ADMIN_EMAIL');
    ```
-   Teachers don't need this manual step — invite them from the Admin dashboard's **Teachers** tab instead.
-   Parents don't either — they sign up directly on the Parent portal using the guardian email captured at registration.
+   Any admin after that doesn't need this manual step — invite them from the Admin dashboard's **Invite Staff** tab instead, same as teachers.
+   Parents don't need it either — they sign up directly on the Parent portal using the guardian email captured at registration.
 6. Run the dev server:
    ```
    npm run dev
