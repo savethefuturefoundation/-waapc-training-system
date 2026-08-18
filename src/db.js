@@ -1031,6 +1031,55 @@ export async function deleteAssignment(id) {
   if (error) throw error;
 }
 
+// ---------------------------------------------------------------------
+// Class Notes — lesson plans/materials posted to one class (subject),
+// separate from Assignments. No grading, no due date, no submission.
+// ---------------------------------------------------------------------
+function classNoteAttachmentPublicUrl(path) {
+  return supabase.storage.from('class-note-attachments').getPublicUrl(path).data.publicUrl;
+}
+
+export async function listClassNotes() {
+  const { data, error } = await supabase
+    .from('class_notes')
+    .select('id, subject_id, title, body, link_url, attachment_url, attachment_name, created_at, subjects(name, tests(name))')
+    .order('created_at', { ascending: false });
+  if (error) throw error;
+  return data.map((n) => ({
+    id: n.id,
+    subjectId: n.subject_id,
+    subjectName: n.subjects?.name,
+    testName: n.subjects?.tests?.name,
+    title: n.title,
+    body: n.body,
+    linkUrl: n.link_url,
+    attachmentUrl: n.attachment_url ? classNoteAttachmentPublicUrl(n.attachment_url) : null,
+    attachmentName: n.attachment_name,
+    createdAt: n.created_at,
+  }));
+}
+
+export async function createClassNote({ subjectId, title, body, linkUrl, file }) {
+  let attachmentUrl = null;
+  let attachmentName = null;
+  if (file) {
+    const path = `${subjectId}/${Date.now()}_${file.name}`;
+    const { error: upErr } = await supabase.storage.from('class-note-attachments').upload(path, file, { upsert: true });
+    if (upErr) throw upErr;
+    attachmentUrl = path;
+    attachmentName = file.name;
+  }
+  const { error } = await supabase
+    .from('class_notes')
+    .insert({ subject_id: subjectId, title, body: body || null, link_url: linkUrl || null, attachment_url: attachmentUrl, attachment_name: attachmentName });
+  if (error) throw error;
+}
+
+export async function deleteClassNote(id) {
+  const { error } = await supabase.from('class_notes').delete().eq('id', id);
+  if (error) throw error;
+}
+
 export async function saveAssignmentGrade({ assignmentId, studentId, pointsEarned, teacherFeedback }) {
   const { error } = await supabase.from('assignment_grades').upsert(
     {

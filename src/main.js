@@ -497,6 +497,11 @@ async function renderParentChildren() {
   const namedChild = children.find((s) => s.guardian?.name);
   if (namedChild) document.getElementById('sidebarName').textContent = namedChild.guardian.name;
 
+  const allClassNotes = await db.listClassNotes().catch((e) => {
+    console.error('listClassNotes failed (has extra_schema_45.sql been run?):', e);
+    return [];
+  });
+
   const cards = await Promise.all(
     children.map(async (s) => {
       const [assignments, grades, progressHtml] = await Promise.all([
@@ -504,6 +509,8 @@ async function renderParentChildren() {
         db.listGradesForStudent(s.id),
         renderProgressPanel(s),
       ]);
+      const myTests = new Set(s.programs.map((p) => p.test));
+      const classNotesHtml = classNotesGroupedHtml(allClassNotes.filter((n) => myTests.has(n.testName)));
       const assignmentsHtml = assignments.length
         ? assignments.map((a) => renderAssignmentCard(a, { editable: false })).join('')
         : '<p class="muted">No assignments yet.</p>';
@@ -555,10 +562,180 @@ async function renderParentChildren() {
         ${gradesHtml}
         <h3 style="margin-top:16px;color:var(--navy);">Assignments</h3>
         ${assignmentsHtml}
+        <h3 style="margin-top:16px;color:var(--navy);">Class Notes</h3>
+        ${classNotesHtml}
       </div>`;
     })
   );
   container.innerHTML = cards.join('');
+}
+
+// =====================================================================
+// Class Notes — lesson plans/materials posted to one class (subject),
+// separate from Assignments. No grading, no due date, no submission.
+// Shared render helper groups a note list by "Program — Subject" so the
+// same markup renders a student's or a parent's-per-child feed.
+// =====================================================================
+function classNotesGroupedHtml(notes) {
+  if (!notes.length) return '<p class="muted">No class notes posted yet.</p>';
+  const groups = {};
+  notes.forEach((n) => {
+    const key = `${n.testName} — ${n.subjectName}`;
+    (groups[key] = groups[key] || []).push(n);
+  });
+  return Object.entries(groups)
+    .map(
+      ([label, group]) => `
+        <div style="margin-bottom:14px;">
+          <h4 style="margin:0 0 6px;color:var(--navy);">${label}</h4>
+          ${group
+            .map(
+              (n) => `
+                <div style="border-top:1px solid var(--gray-200);padding-top:8px;margin-top:8px;">
+                  <div style="font-weight:700;">${n.title}</div>
+                  <p class="muted" style="margin:2px 0 6px;">${new Date(n.createdAt).toLocaleString()}</p>
+                  ${n.body ? `<p style="white-space:pre-wrap;margin:0 0 6px;">${n.body}</p>` : ''}
+                  ${n.linkUrl ? `<p style="margin:0 0 4px;"><a href="${n.linkUrl}" target="_blank" rel="noopener">🔗 ${n.linkUrl}</a></p>` : ''}
+                  ${n.attachmentUrl ? `<p style="margin:0;"><a href="${n.attachmentUrl}" target="_blank" rel="noopener">📎 ${n.attachmentName || 'Attachment'}</a></p>` : ''}
+                </div>`
+            )
+            .join('')}
+        </div>`
+    )
+    .join('');
+}
+
+async function renderMyClassNotes() {
+  if (!currentStudentRecord) return;
+  await ensureCatalog();
+  const listEl = document.getElementById('myClassNotesList');
+  const emptyEl = document.getElementById('myClassNotesEmpty');
+  try {
+    const notes = await db.listClassNotes();
+    const myTests = new Set(currentStudentRecord.programs.map((p) => p.test));
+    const mine = notes.filter((n) => myTests.has(n.testName));
+    emptyEl.classList.toggle('hidden', mine.length > 0);
+    listEl.innerHTML = mine.length
+      ? `<div class="card">${classNotesGroupedHtml(mine)}</div>`
+      : '';
+  } catch (e) {
+    console.error('renderMyClassNotes failed (has extra_schema_45.sql been run?):', e);
+    showPageError('myClassNotesList', 'myClassNotesEmpty', e);
+  }
+}
+
+// Admin/teacher composer + per-class feed, parameterized by prefix ('cn'
+// for admin, 'tcn' for teacher) exactly like the Assignments composer.
+let classNotesScopeCache = {};
+
+function classNotesTestHasAnyAllowedSubject(scope, cat) {
+  if (!scope) return true;
+  if (scope.wholeTestIds.has(cat.id)) return true;
+  return (cat.subjects || []).some((s) => scope.subjectIds.has(s.id));
+}
+
+async function renderClassNotesPage(prefix) {
+  await ensureCatalog();
+  const mySubjectScope = prefix === 'tcn' ? await getMyTeacherSubjectScope() : null;
+  classNotesScopeCache[prefix] = mySubjectScope;
+
+  const testSelect = document.getElementById(`${prefix}_test`);
+  const availableTests = Object.entries(CATALOG).filter(([, cat]) => classNotesTestHasAnyAllowedSubject(mySubjectScope, cat));
+  const currentTest = testSelect.value;
+  testSelect.innerHTML =
+    availableTests.map(([name, cat]) => `<option value="${cat.id}">${name}</option>`).join('') || '<option value="">No programs available</option>';
+  if (availableTests.some(([, cat]) => cat.id === currentTest)) testSelect.value = currentTest;
+
+  classNotesOnTestChange(prefix);
+}
+
+function classNotesOnTestChange(prefix) {
+  const mySubjectScope = classNotesScopeCache[prefix];
+  const testId = document.getElementById(`${prefix}_test`)?.value || '';
+  const testEntry = Object.entries(CATALOG).find(([, cat]) => cat.id === testId);
+  const subjects = testEntry ? testEntry[1].subjects || [] : [];
+  const visible = subjects.filter((sub) => scopeAllowsSubject(mySubjectScope, testId, sub.id));
+
+  const subjectSelect = document.getElementById(`${prefix}_subject`);
+  const current = subjectSelect.value;
+  subjectSelect.innerHTML = visible.map((sub) => `<option value="${sub.id}">${sub.name}</option>`).join('') || '<option value="">No subject available</option>';
+  subjectSelect.value = visible.some((sub) => sub.id === current) ? current : visible[0]?.id || '';
+
+  renderClassNotesList(prefix);
+}
+
+async function renderClassNotesList(prefix) {
+  const subjectId = document.getElementById(`${prefix}_subject`)?.value || '';
+  const listEl = document.getElementById(`${prefix}_notesList`);
+  const emptyEl = document.getElementById(`${prefix}_notesEmpty`);
+  if (!subjectId) {
+    listEl.innerHTML = '';
+    emptyEl.textContent = 'Pick a program and subject above to see and post notes for that class.';
+    emptyEl.classList.remove('hidden');
+    return;
+  }
+  let notes;
+  try {
+    notes = (await db.listClassNotes()).filter((n) => n.subjectId === subjectId);
+  } catch (e) {
+    console.error('renderClassNotesList failed (has extra_schema_45.sql been run?):', e);
+    showPageError(`${prefix}_notesList`, `${prefix}_notesEmpty`, e);
+    return;
+  }
+  emptyEl.textContent = 'No notes posted for this class yet.';
+  emptyEl.classList.toggle('hidden', notes.length > 0);
+  listEl.innerHTML = notes
+    .map(
+      (n) => `
+        <div class="card" style="margin-bottom:10px;">
+          <div style="display:flex;justify-content:space-between;align-items:start;gap:10px;">
+            <div>
+              <h3 style="margin:0 0 4px;color:var(--navy);">${n.title}</h3>
+              <p class="muted" style="margin:0 0 8px;">${new Date(n.createdAt).toLocaleString()}</p>
+            </div>
+            <button class="btn ghost small no-print" onclick="deleteClassNoteClick('${n.id}','${prefix}')">Delete</button>
+          </div>
+          ${n.body ? `<p style="white-space:pre-wrap;">${n.body}</p>` : ''}
+          ${n.linkUrl ? `<p><a href="${n.linkUrl}" target="_blank" rel="noopener">🔗 ${n.linkUrl}</a></p>` : ''}
+          ${n.attachmentUrl ? `<p><a href="${n.attachmentUrl}" target="_blank" rel="noopener">📎 ${n.attachmentName || 'Attachment'}</a></p>` : ''}
+        </div>`
+    )
+    .join('');
+}
+
+async function createClassNoteClick(prefix) {
+  const subjectId = document.getElementById(`${prefix}_subject`)?.value || '';
+  const title = document.getElementById(`${prefix}_title`).value.trim();
+  const body = document.getElementById(`${prefix}_body`).value.trim();
+  const linkUrl = document.getElementById(`${prefix}_link`).value.trim();
+  const fileInput = document.getElementById(`${prefix}_file`);
+  const file = fileInput.files[0] || null;
+  const errEl = document.getElementById(`${prefix}_error`);
+  errEl.textContent = '';
+  if (!subjectId) {
+    errEl.textContent = 'Pick a program and subject first.';
+    return;
+  }
+  if (!title) {
+    errEl.textContent = 'Enter a title.';
+    return;
+  }
+  try {
+    await db.createClassNote({ subjectId, title, body, linkUrl, file });
+    document.getElementById(`${prefix}_title`).value = '';
+    document.getElementById(`${prefix}_body`).value = '';
+    document.getElementById(`${prefix}_link`).value = '';
+    fileInput.value = '';
+    await renderClassNotesList(prefix);
+  } catch (e) {
+    errEl.textContent = e.message || 'Could not post note.';
+  }
+}
+
+async function deleteClassNoteClick(id, prefix) {
+  if (!confirm('Delete this note?')) return;
+  await db.deleteClassNote(id);
+  await renderClassNotesList(prefix);
 }
 
 async function renderTeacherInvites() {
@@ -1538,6 +1715,7 @@ function showTab(name) {
     renderAssignmentTopics('as');
     renderAssignmentsList('as');
   }
+  if (name === 'classnotes') renderClassNotesPage('cn');
   if (name === 'messages') renderMessagesPage();
   if (name === 'announcements') renderAnnouncementsPage();
   if (name === 'calendar') renderCalendarPage();
@@ -5691,6 +5869,12 @@ Object.assign(window, {
   addAssignmentFileRow,
   saveAssignmentGradeClick,
   viewAssignmentSubmissionFile,
+  renderClassNotesPage,
+  classNotesOnTestChange,
+  renderClassNotesList,
+  createClassNoteClick,
+  deleteClassNoteClick,
+  renderMyClassNotes,
   createAnnouncementClick,
   deleteAnnouncementClick,
   createCalendarEventClick,
