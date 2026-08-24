@@ -125,6 +125,7 @@
         <button class="tab-btn sidebar-nav-item" data-tab="finance" onclick="showTab('finance')"><span class="sidebar-nav-icon">💰</span>Finance</button>
         <button class="tab-btn sidebar-nav-item" data-tab="assignments" onclick="showTab('assignments')"><span class="sidebar-nav-icon">📚</span>Assignments</button>
         <button class="tab-btn sidebar-nav-item" data-tab="classnotes" onclick="showTab('classnotes')"><span class="sidebar-nav-icon">📓</span>Class Notes</button>
+        <button class="tab-btn sidebar-nav-item" data-tab="canteenorders" onclick="showTab('canteenorders')"><span class="sidebar-nav-icon">🍽️</span>Canteen Orders</button>
         <button class="sidebar-nav-item" onclick="openSubjectGradesReport()"><span class="sidebar-nav-icon">📊</span>Subject Averages</button>
         <button class="tab-btn sidebar-nav-item" data-tab="attendance" onclick="showTab('attendance')"><span class="sidebar-nav-icon">✅</span>Attendance</button>
         <button class="tab-btn sidebar-nav-item" data-tab="announcements" onclick="showTab('announcements')"><span class="sidebar-nav-icon">📢</span>Announcements <span class="sidebar-notify-badge sidebar-notify-announcements hidden"></span></button>
@@ -136,6 +137,7 @@
         <button class="sidebar-nav-item active" onclick="sidebarNavTo('page-teacher-students', this)"><span class="sidebar-nav-icon">👥</span>Students</button>
         <button class="sidebar-nav-item" onclick="sidebarNavTo('page-teacher-assignments', this)"><span class="sidebar-nav-icon">📚</span>Assignments</button>
         <button class="sidebar-nav-item" onclick="sidebarNavTo('page-teacher-classnotes', this); renderClassNotesPage('tcn');"><span class="sidebar-nav-icon">📓</span>Class Notes</button>
+        <button class="sidebar-nav-item" onclick="sidebarNavTo('page-canteen', this); renderCanteenPage();"><span class="sidebar-nav-icon">🍽️</span>Canteen</button>
         <button class="sidebar-nav-item" onclick="openSubjectGradesReport()"><span class="sidebar-nav-icon">📊</span>Subject Averages</button>
         <button class="sidebar-nav-item" onclick="sidebarNavTo('tab-attendance', this); renderAttendancePage();"><span class="sidebar-nav-icon">✅</span>Attendance</button>
         <button class="sidebar-nav-item" onclick="sidebarNavTo('tab-parents', this); renderParentsPage();"><span class="sidebar-nav-icon">👨‍👩‍👧</span>Parents</button>
@@ -156,6 +158,7 @@
         <button class="sidebar-nav-item" id="nav-student-courses" onclick="sidebarNavTo('page-student-courses', this); renderMyCoursesPage();"><span class="sidebar-nav-icon">📖</span>My Courses</button>
         <button class="sidebar-nav-item" id="nav-student-assignments" onclick="sidebarNavTo('page-student-assignments', this); renderMyAssignments();"><span class="sidebar-nav-icon">📚</span>Assignments</button>
         <button class="sidebar-nav-item" id="nav-student-classnotes" onclick="sidebarNavTo('page-student-classnotes', this); renderMyClassNotes();"><span class="sidebar-nav-icon">📓</span>Class Notes</button>
+        <button class="sidebar-nav-item" id="nav-student-canteen" onclick="sidebarNavTo('page-canteen', this); renderCanteenPage();"><span class="sidebar-nav-icon">🍽️</span>Canteen</button>
         <button class="sidebar-nav-item" id="nav-student-grades" onclick="sidebarNavTo('page-student-grades', this); renderMyGrades();"><span class="sidebar-nav-icon">🎓</span>Grades</button>
         <button class="sidebar-nav-item" id="nav-student-attendance" onclick="sidebarNavTo('page-student-attendance', this); renderMyAttendance();"><span class="sidebar-nav-icon">✅</span>Attendance</button>
         <button class="sidebar-nav-item" id="nav-student-announcements" onclick="sidebarNavTo('tab-announcements', this); renderAnnouncementsPage();"><span class="sidebar-nav-icon">📢</span>Announcements <span class="sidebar-notify-badge sidebar-notify-announcements hidden"></span></button>
@@ -566,6 +569,39 @@ GED,Mathematical Reasoning,What is 7 x 8?,54,56,58,60,B"></textarea>
       </div>
     </div>
 
+    <div id="tab-canteenorders" class="page tab-panel hidden">
+      <div class="card">
+        <h2>Orders</h2>
+        <table id="cto_table">
+          <thead><tr><th>Placed</th><th>Orderer</th><th>Items</th><th>Total</th><th>Receipt</th><th>Status</th></tr></thead>
+          <tbody></tbody>
+        </table>
+        <div id="cto_listEmpty" class="empty hidden" style="--empty-icon:'🍽️';">No orders placed yet.</div>
+      </div>
+
+      <div class="card">
+        <h2>Add a menu item</h2>
+        <div class="grid3">
+          <div><label>Category</label><input id="ctm_category" placeholder="Plats" value="Plats"></div>
+          <div><label>Name</label><input id="ctm_name" placeholder="e.g. Attiéké poisson"></div>
+          <div><label>Price (CFA)</label><input id="ctm_price" type="number"></div>
+        </div>
+        <label>Note (optional)</label>
+        <input id="ctm_note" placeholder="e.g. Attiéké, poisson">
+        <button class="btn red" onclick="addCanteenItemClick()">Add item</button>
+        <p id="ctm_error" class="muted error-text"></p>
+      </div>
+
+      <div class="card">
+        <h2>Menu</h2>
+        <table id="ctm_table">
+          <thead><tr><th>Category</th><th>Item</th><th>Price</th><th>Status</th><th></th></tr></thead>
+          <tbody></tbody>
+        </table>
+        <div id="ctm_listEmpty" class="empty hidden" style="--empty-icon:'🍽️';">No menu items yet.</div>
+      </div>
+    </div>
+
     <!-- ================= ANNOUNCEMENTS (shared by all portals) ================= -->
     <div id="tab-announcements" class="page hidden">
       <div id="ann_composer" class="card hidden">
@@ -741,6 +777,37 @@ GED,Mathematical Reasoning,What is 7 x 8?,54,56,58,60,B"></textarea>
         <h2>Roster</h2>
         <div id="att_roster"></div>
         <div id="att_rosterEmpty" class="empty hidden" style="--empty-icon:'✅';">No students enrolled in this program.</div>
+      </div>
+    </div>
+
+    <!-- ================= CANTEEN (shared by student/teacher portals) ================= -->
+    <div id="page-canteen" class="page hidden">
+      <div class="card">
+        <h2>Order from the canteen</h2>
+        <p class="muted">Delivered straight to you on campus — no need to leave campus for pickup. Order early, ideally before mid-morning, so it's ready in time for lunch.</p>
+        <div id="canteen_menu"></div>
+      </div>
+
+      <div class="card">
+        <h2>Your order</h2>
+        <div class="grid2">
+          <div><label>Name</label><input id="ct_name"></div>
+          <div><label>Class / grade</label><input id="ct_class" placeholder="e.g. GED Batch B"></div>
+        </div>
+        <label>Notes (optional)</label>
+        <textarea id="ct_notes" rows="2"></textarea>
+        <label>Payment receipt (optional) — attach a screenshot of your Wave/transfer receipt</label>
+        <input id="ct_receipt" type="file" accept="image/*">
+        <div id="ct_lines" style="margin:14px 0;"></div>
+        <p style="font-weight:800;font-size:18px;margin:0 0 10px;">Total: <span id="ct_total">0 CFA</span></p>
+        <button class="btn red" id="ct_submitBtn" onclick="submitCanteenOrderClick()" disabled>Place order</button>
+        <p id="ct_error" class="muted error-text"></p>
+      </div>
+
+      <div class="card">
+        <h2>Your recent orders</h2>
+        <div id="ct_myOrders"></div>
+        <div id="ct_myOrdersEmpty" class="empty hidden" style="--empty-icon:'🍽️';">No orders yet.</div>
       </div>
     </div>
 

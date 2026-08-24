@@ -1205,6 +1205,138 @@ export async function getAssignmentFileUrl(path) {
 }
 
 // ---------------------------------------------------------------------
+// Canteen — students/teachers order from an admin-managed menu, admin
+// tracks every order. Receipts are private (personal payment info), so
+// they're resolved to a short-lived signed URL, same as assignment files.
+// ---------------------------------------------------------------------
+async function getCanteenReceiptUrl(path) {
+  if (!path) return null;
+  const { data } = await supabase.storage.from('canteen-receipts').createSignedUrl(path, 3600);
+  return data?.signedUrl || null;
+}
+
+function mapCanteenOrder(o) {
+  return {
+    id: o.id,
+    ordererName: o.orderer_name,
+    ordererClass: o.orderer_class,
+    notes: o.notes,
+    total: Number(o.total),
+    status: o.status,
+    receiptPath: o.receipt_url,
+    createdAt: o.created_at,
+    items: (o.canteen_order_items || []).map((li) => ({
+      itemName: li.item_name,
+      unitPrice: Number(li.unit_price),
+      quantity: li.quantity,
+    })),
+  };
+}
+
+export async function listCanteenItems() {
+  const { data, error } = await supabase.from('canteen_items').select('*').order('category').order('sort_order');
+  if (error) throw error;
+  return data.map((i) => ({
+    id: i.id,
+    category: i.category,
+    name: i.name,
+    note: i.note,
+    price: Number(i.price),
+    active: i.active,
+    sortOrder: i.sort_order,
+  }));
+}
+
+export async function createCanteenItem({ category, name, note, price }) {
+  const { error } = await supabase.from('canteen_items').insert({ category, name, note: note || null, price });
+  if (error) throw error;
+}
+
+export async function updateCanteenItem(id, fields) {
+  const payload = {};
+  if ('category' in fields) payload.category = fields.category;
+  if ('name' in fields) payload.name = fields.name;
+  if ('note' in fields) payload.note = fields.note || null;
+  if ('price' in fields) payload.price = fields.price;
+  if ('active' in fields) payload.active = fields.active;
+  const { error } = await supabase.from('canteen_items').update(payload).eq('id', id);
+  if (error) throw error;
+}
+
+export async function deleteCanteenItem(id) {
+  const { error } = await supabase.from('canteen_items').delete().eq('id', id);
+  if (error) throw error;
+}
+
+// lines: [{ itemId, itemName, unitPrice, quantity }]. Returns the new
+// order's id so a receipt can be attached right after, if provided.
+export async function createCanteenOrder({ ordererName, ordererClass, notes, lines }) {
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) throw new Error('Not signed in.');
+  const total = lines.reduce((sum, l) => sum + l.unitPrice * l.quantity, 0);
+  const { data, error } = await supabase
+    .from('canteen_orders')
+    .insert({ created_by: user.id, orderer_name: ordererName, orderer_class: ordererClass, notes: notes || null, total })
+    .select('id')
+    .single();
+  if (error) throw error;
+  const { error: itemsErr } = await supabase.from('canteen_order_items').insert(
+    lines.map((l) => ({ order_id: data.id, item_id: l.itemId, item_name: l.itemName, unit_price: l.unitPrice, quantity: l.quantity }))
+  );
+  if (itemsErr) throw itemsErr;
+  return data.id;
+}
+
+export async function attachCanteenReceipt(orderId, file) {
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) throw new Error('Not signed in.');
+  const path = `${user.id}/${Date.now()}_${file.name}`;
+  const { error: upErr } = await supabase.storage.from('canteen-receipts').upload(path, file, { upsert: true });
+  if (upErr) throw upErr;
+  const { error } = await supabase.rpc('attach_canteen_receipt', { p_order_id: orderId, p_receipt_path: path });
+  if (error) throw error;
+}
+
+export async function listMyCanteenOrders() {
+  const { data, error } = await supabase
+    .from('canteen_orders')
+    .select('*, canteen_order_items(item_name, unit_price, quantity)')
+    .order('created_at', { ascending: false });
+  if (error) throw error;
+  const orders = data.map(mapCanteenOrder);
+  await Promise.all(
+    orders.map(async (o) => {
+      o.receiptUrl = await getCanteenReceiptUrl(o.receiptPath);
+    })
+  );
+  return orders;
+}
+
+export async function listAllCanteenOrders() {
+  const { data, error } = await supabase
+    .from('canteen_orders')
+    .select('*, canteen_order_items(item_name, unit_price, quantity)')
+    .order('created_at', { ascending: false });
+  if (error) throw error;
+  const orders = data.map(mapCanteenOrder);
+  await Promise.all(
+    orders.map(async (o) => {
+      o.receiptUrl = await getCanteenReceiptUrl(o.receiptPath);
+    })
+  );
+  return orders;
+}
+
+export async function updateCanteenOrderStatus(orderId, status) {
+  const { error } = await supabase.from('canteen_orders').update({ status }).eq('id', orderId);
+  if (error) throw error;
+}
+
+// ---------------------------------------------------------------------
 // Messaging — shared by all four portals. Who can message whom is
 // enforced server-side by list_message_contacts() and the messages RLS.
 // ---------------------------------------------------------------------

@@ -738,6 +738,260 @@ async function deleteClassNoteClick(id, prefix) {
   await renderClassNotesList(prefix);
 }
 
+// =====================================================================
+// Canteen — students/teachers order from an admin-managed menu, admin
+// tracks status. One shared ordering page for student+teacher portals
+// (same as Announcements/Calendar/Timetable); admin gets a separate
+// tracking + menu-management page instead, since admin doesn't order.
+// =====================================================================
+const CANTEEN_STATUS_BADGE = { pending: 'neutral', preparing: 'partial', ready: 'partial', delivered: 'paid', cancelled: 'unpaid' };
+const CANTEEN_STATUSES = ['pending', 'preparing', 'ready', 'delivered', 'cancelled'];
+
+let canteenCart = {};
+let canteenItemsCache = [];
+
+async function renderCanteenPage() {
+  let items;
+  try {
+    items = await db.listCanteenItems();
+  } catch (e) {
+    console.error('listCanteenItems failed (has extra_schema_46.sql been run?):', e);
+    showPageError('canteen_menu', null, e);
+    return;
+  }
+  canteenItemsCache = items.filter((i) => i.active);
+  canteenCart = {};
+
+  const groups = {};
+  canteenItemsCache.forEach((i) => {
+    (groups[i.category] = groups[i.category] || []).push(i);
+  });
+
+  document.getElementById('canteen_menu').innerHTML =
+    Object.entries(groups)
+      .map(
+        ([cat, list]) => `
+          <h3 style="color:var(--navy);margin-top:16px;">${cat}</h3>
+          ${list
+            .map(
+              (i) => `
+                <div style="display:flex;justify-content:space-between;align-items:center;border:1px solid var(--gray-200);border-radius:10px;padding:10px 14px;margin-bottom:8px;">
+                  <div>
+                    <div style="font-weight:600;">${i.name}</div>
+                    ${i.note ? `<div class="muted" style="font-size:12.5px;">${i.note}</div>` : ''}
+                    <div class="muted" style="font-family:monospace;font-size:13px;">${i.price.toLocaleString()} CFA</div>
+                  </div>
+                  <div style="display:flex;align-items:center;gap:8px;">
+                    <button class="btn ghost small" onclick="changeCanteenQty('${i.id}', -1)">−</button>
+                    <span id="ctqty_${i.id}" style="min-width:20px;text-align:center;">0</span>
+                    <button class="btn ghost small" onclick="changeCanteenQty('${i.id}', 1)">+</button>
+                  </div>
+                </div>`
+            )
+            .join('')}`
+      )
+      .join('') || '<p class="muted">No menu items available right now.</p>';
+
+  const nameInput = document.getElementById('ct_name');
+  const classInput = document.getElementById('ct_class');
+  if (currentSession?.role === 'student' && currentStudentRecord) {
+    nameInput.value = currentStudentRecord.fullName || '';
+    classInput.value = currentStudentRecord.programs.map((p) => p.test).join(', ') || '';
+  } else if (currentSession?.role === 'teacher') {
+    nameInput.value = currentSession.fullName || '';
+  }
+
+  renderCanteenCart();
+  await renderMyCanteenOrders();
+}
+
+function changeCanteenQty(itemId, delta) {
+  canteenCart[itemId] = Math.max(0, (canteenCart[itemId] || 0) + delta);
+  document.getElementById(`ctqty_${itemId}`).textContent = canteenCart[itemId];
+  renderCanteenCart();
+}
+
+function renderCanteenCart() {
+  const lines = canteenItemsCache.filter((i) => canteenCart[i.id] > 0);
+  const linesEl = document.getElementById('ct_lines');
+  const totalEl = document.getElementById('ct_total');
+  const btn = document.getElementById('ct_submitBtn');
+  if (!lines.length) {
+    linesEl.innerHTML = '<p class="muted">Your order is empty.</p>';
+    totalEl.textContent = '0 CFA';
+    btn.disabled = true;
+    return;
+  }
+  let total = 0;
+  linesEl.innerHTML = lines
+    .map((i) => {
+      const lineTotal = i.price * canteenCart[i.id];
+      total += lineTotal;
+      return `<div style="display:flex;justify-content:space-between;padding:3px 0;"><span>${canteenCart[i.id]}× ${i.name}</span><span>${lineTotal.toLocaleString()} CFA</span></div>`;
+    })
+    .join('');
+  totalEl.textContent = total.toLocaleString() + ' CFA';
+  btn.disabled = false;
+}
+
+async function submitCanteenOrderClick() {
+  const name = document.getElementById('ct_name').value.trim();
+  const klass = document.getElementById('ct_class').value.trim();
+  const notes = document.getElementById('ct_notes').value.trim();
+  const receiptInput = document.getElementById('ct_receipt');
+  const receiptFile = receiptInput.files[0] || null;
+  const errEl = document.getElementById('ct_error');
+  errEl.textContent = '';
+  if (!name || !klass) {
+    errEl.textContent = 'Name and class/grade are required.';
+    return;
+  }
+  const lines = canteenItemsCache
+    .filter((i) => canteenCart[i.id] > 0)
+    .map((i) => ({ itemId: i.id, itemName: i.name, unitPrice: i.price, quantity: canteenCart[i.id] }));
+  if (!lines.length) {
+    errEl.textContent = 'Add at least one item.';
+    return;
+  }
+  try {
+    const orderId = await db.createCanteenOrder({ ordererName: name, ordererClass: klass, notes, lines });
+    if (receiptFile) await db.attachCanteenReceipt(orderId, receiptFile);
+    document.getElementById('ct_notes').value = '';
+    receiptInput.value = '';
+    await renderCanteenPage();
+  } catch (e) {
+    errEl.textContent = e.message || 'Could not place order.';
+  }
+}
+
+async function renderMyCanteenOrders() {
+  const listEl = document.getElementById('ct_myOrders');
+  const emptyEl = document.getElementById('ct_myOrdersEmpty');
+  let orders;
+  try {
+    orders = await db.listMyCanteenOrders();
+  } catch (e) {
+    console.error('listMyCanteenOrders failed (has extra_schema_46.sql been run?):', e);
+    showPageError('ct_myOrders', 'ct_myOrdersEmpty', e);
+    return;
+  }
+  emptyEl.classList.toggle('hidden', orders.length > 0);
+  listEl.innerHTML = orders
+    .map(
+      (o) => `
+        <div style="border-top:1px solid var(--gray-200);padding:10px 0;">
+          <div style="display:flex;justify-content:space-between;">
+            <span>${new Date(o.createdAt).toLocaleString()}</span>
+            <span class="badge ${CANTEEN_STATUS_BADGE[o.status] || 'neutral'}">${o.status}</span>
+          </div>
+          <div class="muted" style="margin:4px 0;">${o.items.map((li) => `${li.quantity}× ${li.itemName}`).join(', ')}</div>
+          <div style="font-weight:700;">${o.total.toLocaleString()} CFA</div>
+          ${o.receiptUrl ? `<a href="${o.receiptUrl}" target="_blank" rel="noopener">📎 Receipt attached</a>` : '<span class="muted">No receipt attached</span>'}
+        </div>`
+    )
+    .join('');
+}
+
+async function renderCanteenAdminPage() {
+  await renderCanteenOrdersList();
+  await renderCanteenMenuAdmin();
+}
+
+async function renderCanteenOrdersList() {
+  let orders;
+  try {
+    orders = await db.listAllCanteenOrders();
+  } catch (e) {
+    console.error('listAllCanteenOrders failed (has extra_schema_46.sql been run?):', e);
+    showPageError('cto_table', 'cto_listEmpty', e);
+    return;
+  }
+  const tbody = document.querySelector('#cto_table tbody');
+  document.getElementById('cto_listEmpty').classList.toggle('hidden', orders.length > 0);
+  tbody.innerHTML = orders
+    .map(
+      (o) => `
+        <tr>
+          <td>${new Date(o.createdAt).toLocaleString()}</td>
+          <td>${o.ordererName}<br><span class="muted">${o.ordererClass}</span></td>
+          <td>${o.items.map((li) => `${li.quantity}× ${li.itemName}`).join('<br>')}</td>
+          <td>${o.total.toLocaleString()} CFA</td>
+          <td>${o.receiptUrl ? `<a href="${o.receiptUrl}" target="_blank" rel="noopener">View</a>` : '<span class="muted">—</span>'}</td>
+          <td>
+            <select onchange="updateCanteenOrderStatusClick('${o.id}', this.value)">
+              ${CANTEEN_STATUSES.map((s) => `<option value="${s}" ${s === o.status ? 'selected' : ''}>${s}</option>`).join('')}
+            </select>
+          </td>
+        </tr>`
+    )
+    .join('');
+}
+
+async function updateCanteenOrderStatusClick(orderId, status) {
+  await db.updateCanteenOrderStatus(orderId, status);
+  await renderCanteenOrdersList();
+}
+
+async function renderCanteenMenuAdmin() {
+  let items;
+  try {
+    items = await db.listCanteenItems();
+  } catch (e) {
+    console.error('listCanteenItems failed (has extra_schema_46.sql been run?):', e);
+    return;
+  }
+  const tbody = document.querySelector('#ctm_table tbody');
+  document.getElementById('ctm_listEmpty').classList.toggle('hidden', items.length > 0);
+  tbody.innerHTML = items
+    .map(
+      (i) => `
+        <tr>
+          <td>${i.category}</td>
+          <td>${i.name}${i.note ? `<br><span class="muted">${i.note}</span>` : ''}</td>
+          <td>${i.price.toLocaleString()} CFA</td>
+          <td><span class="badge ${i.active ? 'paid' : 'unpaid'}">${i.active ? 'Active' : 'Hidden'}</span></td>
+          <td>
+            <button class="btn ghost small" onclick="toggleCanteenItemActiveClick('${i.id}', ${!i.active})">${i.active ? 'Hide' : 'Unhide'}</button>
+            <button class="btn ghost small" onclick="deleteCanteenItemClick('${i.id}')">Delete</button>
+          </td>
+        </tr>`
+    )
+    .join('');
+}
+
+async function addCanteenItemClick() {
+  const category = document.getElementById('ctm_category').value.trim() || 'Plats';
+  const name = document.getElementById('ctm_name').value.trim();
+  const note = document.getElementById('ctm_note').value.trim();
+  const price = Number(document.getElementById('ctm_price').value);
+  const errEl = document.getElementById('ctm_error');
+  errEl.textContent = '';
+  if (!name || !price) {
+    errEl.textContent = 'Enter a name and price.';
+    return;
+  }
+  try {
+    await db.createCanteenItem({ category, name, note, price });
+    document.getElementById('ctm_name').value = '';
+    document.getElementById('ctm_note').value = '';
+    document.getElementById('ctm_price').value = '';
+    await renderCanteenMenuAdmin();
+  } catch (e) {
+    errEl.textContent = e.message || 'Could not add item.';
+  }
+}
+
+async function toggleCanteenItemActiveClick(id, active) {
+  await db.updateCanteenItem(id, { active });
+  await renderCanteenMenuAdmin();
+}
+
+async function deleteCanteenItemClick(id) {
+  if (!confirm('Delete this menu item? Past orders that included it keep their own record either way.')) return;
+  await db.deleteCanteenItem(id);
+  await renderCanteenMenuAdmin();
+}
+
 async function renderTeacherInvites() {
   const invites = await db.listTeacherInvites();
   const tbody = document.querySelector('#teacherInvitesTable tbody');
@@ -1716,6 +1970,7 @@ function showTab(name) {
     renderAssignmentsList('as');
   }
   if (name === 'classnotes') renderClassNotesPage('cn');
+  if (name === 'canteenorders') renderCanteenAdminPage();
   if (name === 'messages') renderMessagesPage();
   if (name === 'announcements') renderAnnouncementsPage();
   if (name === 'calendar') renderCalendarPage();
@@ -5875,6 +6130,13 @@ Object.assign(window, {
   createClassNoteClick,
   deleteClassNoteClick,
   renderMyClassNotes,
+  renderCanteenPage,
+  changeCanteenQty,
+  submitCanteenOrderClick,
+  updateCanteenOrderStatusClick,
+  addCanteenItemClick,
+  toggleCanteenItemActiveClick,
+  deleteCanteenItemClick,
   createAnnouncementClick,
   deleteAnnouncementClick,
   createCalendarEventClick,
