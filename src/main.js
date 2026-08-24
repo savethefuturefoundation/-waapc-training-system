@@ -746,6 +746,28 @@ async function deleteClassNoteClick(id, prefix) {
 // =====================================================================
 const CANTEEN_STATUS_BADGE = { pending: 'neutral', preparing: 'partial', ready: 'partial', delivered: 'paid', cancelled: 'unpaid' };
 const CANTEEN_STATUSES = ['pending', 'preparing', 'ready', 'delivered', 'cancelled'];
+// Same vendor number the standalone Afrikme order page already used —
+// the order still has to actually reach the canteen, so placing it here
+// saves a record for admin to track but also opens WhatsApp with the
+// order pre-filled, exactly like the original page, so the
+// student/teacher just hits send themselves.
+const CANTEEN_WHATSAPP_NUMBER = '2250700156395';
+const CANTEEN_WAVE_DISPLAY = '+225 07 00 15 63 95';
+
+function buildCanteenWhatsAppMessage(name, klass, notes, lines, total) {
+  const fmt = (n) => n.toLocaleString('fr-FR') + ' F';
+  let msg = '🍽️ *Nouvelle commande — Afrikme*\n\n';
+  lines.forEach((l) => {
+    msg += `• ${l.quantity}× ${l.itemName} — ${fmt(l.unitPrice * l.quantity)}\n`;
+  });
+  msg += `\n*Total : ${fmt(total)}*\n`;
+  if (name) msg += `\n👤 Nom : ${name}`;
+  if (klass) msg += `\n🎓 Classe : ${klass}`;
+  msg += `\n📍 Retrait : Sur le campus`;
+  if (notes) msg += `\n📝 ${notes}`;
+  msg += `\n\n💳 Paiement par Wave au ${CANTEEN_WAVE_DISPLAY}`;
+  return msg;
+}
 
 let canteenCart = {};
 let canteenItemsCache = [];
@@ -856,6 +878,11 @@ async function submitCanteenOrderClick() {
   try {
     const orderId = await db.createCanteenOrder({ ordererName: name, ordererClass: klass, notes, lines });
     if (receiptFile) await db.attachCanteenReceipt(orderId, receiptFile);
+
+    const total = lines.reduce((sum, l) => sum + l.unitPrice * l.quantity, 0);
+    const waMessage = buildCanteenWhatsAppMessage(name, klass, notes, lines, total);
+    window.open(`https://wa.me/${CANTEEN_WHATSAPP_NUMBER}?text=${encodeURIComponent(waMessage)}`, '_blank');
+
     document.getElementById('ct_notes').value = '';
     receiptInput.value = '';
     await renderCanteenPage();
