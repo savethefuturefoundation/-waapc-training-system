@@ -133,5 +133,9 @@ begin
   ('Boissons', 'Bissap', null, 500, 3),
   ('Boissons', 'Tampico', null, 500, 4),
   ('Boissons', 'Big bottle water', null, 500, 5),
-  ('Boissons', 'Small bottle water', null, 300, 6);
+  ('Boissons', 'Small bottle water', null, 250, 6);
 end $$;
+
+-- Corrects small bottle water's price if this migration already ran with
+-- the earlier (wrong) 300 CFA seed value.
+update canteen_items set price = 250 where name = 'Small bottle water' and price = 300;
