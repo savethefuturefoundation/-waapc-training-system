@@ -48,6 +48,8 @@
         <input id="adminPassword" type="password">
         <button class="btn" id="adminSubmitBtn" style="width:100%;justify-content:center;" onclick="adminSubmitPassword()">Log in</button>
         <button class="btn ghost small" onclick="adminBackToEmail()">Use a different email</button>
+        <button class="btn ghost small" onclick="adminForgotPasswordClick()">Forgot password?</button>
+        <p id="adminResetStatus" class="muted" style="font-size:12.5px;"></p>
       </div>
       <p id="adminLoginError" class="muted error-text"></p>
     </div>
@@ -63,6 +65,8 @@
         <input id="teacherPassword" type="password">
         <button class="btn" id="teacherSubmitBtn" style="width:100%;justify-content:center;" onclick="teacherSubmitPassword()">Log in</button>
         <button class="btn ghost small" onclick="teacherBackToEmail()">Use a different email</button>
+        <button class="btn ghost small" onclick="teacherForgotPasswordClick()">Forgot password?</button>
+        <p id="teacherResetStatus" class="muted" style="font-size:12.5px;"></p>
       </div>
       <p id="teacherLoginError" class="muted error-text"></p>
     </div>
@@ -78,6 +82,8 @@
         <input id="parentPassword" type="password">
         <button class="btn" id="parentSubmitBtn" style="width:100%;justify-content:center;" onclick="parentSubmitPassword()">Log in</button>
         <button class="btn ghost small" onclick="parentBackToEmail()">Use a different email</button>
+        <button class="btn ghost small" onclick="parentForgotPasswordClick()">Forgot password?</button>
+        <p id="parentResetStatus" class="muted" style="font-size:12.5px;"></p>
       </div>
       <p id="parentLoginError" class="muted error-text"></p>
     </div>
@@ -93,8 +99,21 @@
         <input id="loginPassword" type="password">
         <button class="btn" id="loginSubmitBtn" style="width:100%;justify-content:center;" onclick="studentSubmitPassword()">Log in</button>
         <button class="btn ghost small" onclick="studentBackToEmail()">Use a different email</button>
+        <button class="btn ghost small" onclick="studentForgotPasswordClick()">Forgot password?</button>
+        <p id="loginResetStatus" class="muted" style="font-size:12.5px;"></p>
       </div>
       <p id="loginError" class="muted error-text"></p>
+    </div>
+
+    <div id="pwResetCard" class="hidden">
+      <p class="tagline" style="margin:0 0 16px;">Choose a new password for your account.</p>
+      <label>New password</label>
+      <input id="pwr_new" type="password">
+      <label>Confirm new password</label>
+      <input id="pwr_confirm" type="password">
+      <button class="btn" style="width:100%;justify-content:center;" onclick="submitPasswordResetClick()">Set new password</button>
+      <p id="pwr_error" class="muted error-text"></p>
+      <p id="pwr_success" class="muted" style="color:var(--green);"></p>
     </div>
   </div>
 </div>

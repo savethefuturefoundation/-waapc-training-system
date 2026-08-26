@@ -6086,6 +6086,86 @@ async function sendMessageClick() {
 }
 
 // =====================================================================
+// Forgot password — sends a reset link via Supabase, which redirects
+// back here with a recovery token that onPasswordRecovery() below picks
+// up. Reuses each portal's already-entered pending email so there's no
+// separate email field to fill in.
+// =====================================================================
+async function sendPasswordReset(email, statusElId) {
+  const statusEl = document.getElementById(statusElId);
+  if (!email) {
+    statusEl.textContent = 'Enter your email above first, then tap "Forgot password?" again.';
+    statusEl.style.color = 'var(--red)';
+    return;
+  }
+  statusEl.textContent = 'Sending…';
+  statusEl.style.color = '';
+  try {
+    await db.requestPasswordReset(email);
+    statusEl.textContent = `If ${email} has an account, a reset link was just sent to it. Check your inbox (and spam folder).`;
+    statusEl.style.color = 'var(--green)';
+  } catch (e) {
+    statusEl.textContent = e.message || 'Could not send reset link. Please try again.';
+    statusEl.style.color = 'var(--red)';
+  }
+}
+
+function adminForgotPasswordClick() {
+  const email = pendingAdminEmail || document.getElementById('adminEmail').value.trim();
+  sendPasswordReset(email, 'adminResetStatus');
+}
+function teacherForgotPasswordClick() {
+  const email = pendingTeacherEmail || document.getElementById('teacherEmail').value.trim();
+  sendPasswordReset(email, 'teacherResetStatus');
+}
+function parentForgotPasswordClick() {
+  const email = pendingParentEmail || document.getElementById('parentEmail').value.trim();
+  sendPasswordReset(email, 'parentResetStatus');
+}
+function studentForgotPasswordClick() {
+  const email = pendingLoginEmail || document.getElementById('loginEmail').value.trim();
+  sendPasswordReset(email, 'loginResetStatus');
+}
+
+function showPasswordResetScreen() {
+  document.getElementById('appShell').classList.add('hidden');
+  document.getElementById('authScreen').classList.remove('hidden');
+  document.querySelector('.role-pills').classList.add('hidden');
+  document.getElementById('adminLoginCard').classList.add('hidden');
+  document.getElementById('teacherLoginCard').classList.add('hidden');
+  document.getElementById('parentLoginCard').classList.add('hidden');
+  document.getElementById('loginCard').classList.add('hidden');
+  document.getElementById('pwResetCard').classList.remove('hidden');
+}
+
+async function submitPasswordResetClick() {
+  const pw = document.getElementById('pwr_new').value;
+  const confirmPw = document.getElementById('pwr_confirm').value;
+  const errEl = document.getElementById('pwr_error');
+  const okEl = document.getElementById('pwr_success');
+  errEl.textContent = '';
+  okEl.textContent = '';
+  if (!pw || pw.length < 6) {
+    errEl.textContent = 'Password must be at least 6 characters.';
+    return;
+  }
+  if (pw !== confirmPw) {
+    errEl.textContent = 'Passwords do not match.';
+    return;
+  }
+  try {
+    await db.changePassword(pw);
+    okEl.textContent = 'Password updated! Redirecting you to log in…';
+    setTimeout(async () => {
+      await db.signOut();
+      window.location.href = window.location.origin;
+    }, 1500);
+  } catch (e) {
+    errEl.textContent = e.message || 'Could not update password.';
+  }
+}
+
+// =====================================================================
 // Startup — restore session (if any) and show the right screen
 // =====================================================================
 async function initApp() {
@@ -6102,6 +6182,13 @@ async function initApp() {
   else if (currentSession && currentSession.role === 'student' && currentStudentRecord) await showStudentDashboardView();
   else showAuthScreen('admin');
 }
+
+// Registered before initApp() runs so a password-recovery link's session
+// (established asynchronously as Supabase parses the URL token) always
+// overrides whatever initApp() shows, whichever finishes first.
+db.onPasswordRecovery(() => {
+  showPasswordResetScreen();
+});
 
 initApp();
 
@@ -6121,14 +6208,19 @@ Object.assign(window, {
   adminBackToEmail,
   adminSubmitPassword,
   adminLogout,
+  adminForgotPasswordClick,
   teacherCheckEmail,
   teacherBackToEmail,
   teacherSubmitPassword,
   teacherLogout,
+  teacherForgotPasswordClick,
   parentCheckEmail,
   parentBackToEmail,
   parentSubmitPassword,
   parentLogout,
+  parentForgotPasswordClick,
+  studentForgotPasswordClick,
+  submitPasswordResetClick,
   addTeacherInvite,
   revokeTeacherInvite,
   addAdminInvite,

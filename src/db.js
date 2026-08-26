@@ -729,6 +729,23 @@ export async function changePassword(newPassword) {
   if (error) throw error;
 }
 
+// Emails a password-reset link. Supabase redirects the click back to
+// this app with a recovery token in the URL, which onPasswordRecovery()
+// below detects — the actual password change still goes through
+// changePassword() above once that recovery session is active.
+export async function requestPasswordReset(email) {
+  const { error } = await supabase.auth.resetPasswordForEmail(email, { redirectTo: window.location.origin });
+  if (error) throw error;
+}
+
+// Fires once a password-recovery link's token has been parsed from the
+// URL and turned into an active (recovery) session.
+export function onPasswordRecovery(callback) {
+  supabase.auth.onAuthStateChange((event) => {
+    if (event === 'PASSWORD_RECOVERY') callback();
+  });
+}
+
 export async function getCurrentSessionInfo() {
   const {
     data: { session },
